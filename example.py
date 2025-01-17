@@ -37,10 +37,16 @@ for i in range(1):
         print(f'=== Step {counter} ===')
         counter += 1
         #action is 34 values between -100 and 100, it is the power injection in each node
-        action = [-10]*33       
-        next_state, saved_energy, vm_pu_after_control_bat, done = env.step(action)
+        action = [0]*33       
+        action[32] = 150
+        next_state, saved_energy, done = env.step(action)
         print("State: ", state)
         print("Action: ", action)
+        print("Saved Energy: ", saved_energy)
         print("Next State: ", next_state)
+        if any(next_state[1] < 0.95) or any(next_state[1] > 1.05):
+            print("Voltage limits exceeded")
+            break
+            
         state = next_state
-        input("Press Enter to continue...")
+        # input("Press Enter to continue...")

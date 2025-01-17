@@ -8,25 +8,8 @@ import pandas as pd
 from gym import spaces
 
 from rl_adn.data_manager.data_manager import GeneralPowerDataManager
-from rl_adn.environments.battery import Battery, battery_parameters
 from rl_adn.utility.grid import GridTensor
 from rl_adn.utility.utils import create_pandapower_net
-
-env_config = {
-    "voltage_limits": [0.95, 1.05],
-    "algorithm": "Laurent",
-    "battery_list": [11, 15, 26, 29, 33],
-    "year": 2020,
-    "month": 1,
-    "day": 1,
-    "train": True,
-    "state_pattern": "default",
-    "network_info": {'vm_pu': 1.0, 's_base': 1000,
-                     'bus_info_file': './rl_adn/data_sources/network_data/node_34/Nodes_34.csv',
-                     'branch_info_file': './rl_adn/data_sources/network_data/node_34/Lines_34.csv'},
-    "time_series_data_path": "./rl_adn/data_sources/time_series_data/34_node_time_series.csv"
-}
-
 
 class PowerNetEnv(gym.Env):
     """
@@ -61,7 +44,7 @@ class PowerNetEnv(gym.Env):
 
         """
 
-    def __init__(self, env_config: dict = env_config) -> None:
+    def __init__(self, env_config) -> None:
         """
          Initialize the PowerNetEnv environment.
          :param env_config_path: Path to the environment configuration file. Defaults to 'env_config.py'.
@@ -163,22 +146,13 @@ class PowerNetEnv(gym.Env):
                 - Price of the energy
                 - Time state of the day
                 - Voltage from estimation
-        """
-        # TODO: modify get state observation to fit new resources and data
+        """        
         obs = self._get_obs()
-        if self.state_pattern == 'default':
-            active_power = np.array(
-                list(obs['node_data']['active_power'].values()))
-            price = obs['price']
-            vm = np.array(list(obs['node_data']['voltage'].values()))
-            
-            state = np.concatenate((active_power,
-                                    vm,
-                                    [price],
-                                    [self.current_time]
-                                    ))
-            self.state = state
-        return state
+        active_power = np.array(list(obs['node_data']['active_power'].values()))
+        # renewable_active_power = np.array(list(obs['node_data']['renewable_active_power'].values()))
+        vm = np.array(list(obs['node_data']['voltage'].values()))
+                        
+        return (active_power, vm, self.current_time)
 
     def _get_obs(self):
         """
@@ -217,9 +191,6 @@ class PowerNetEnv(gym.Env):
                         obs['node_data']['active_power'][f'node_{node_index}'] = active_power[node_index - 1]
                         obs['node_data']['renewable_active_power'][f'node_{node_index}'] = renewable_active_power[
                             node_index - 1]
-                for node_index in self.battery_list:
-                    obs['battery_data']['soc'][f'battery_{node_index}'] = getattr(
-                        self, f'battery_{node_index}').SOC()
                 obs['price'] = price
             else:
                 active_power = one_slot_data[0:34]
@@ -249,16 +220,14 @@ class PowerNetEnv(gym.Env):
                     obs['node_data']['reactive_power'][f'node_{node_index}'] = self.net.res_load.q_mvar[node_index]
                     obs['node_data']['renewable_active_power'][f'node_{node_index}'] = renewable_active_power[
                         node_index]
-                for node_index in self.battery_list:
-                    obs['battery_data']['soc'][f'battery_{node_index}'] = getattr(
-                        self, f'battery_{node_index}').SOC()
+
                 obs['price'] = price
         else:
             raise ValueError(
                 'please redesign the get obs function to fit the pattern you want')
         return obs
 
-    def _apply_battery_actions(self, action):
+    def _runpf(self, action):
         '''apply action to battery charge/discharge, update the battery condition, excute power flow, update the network condition'''
         if self.state_pattern == 'default':
             if self.algorithm == "Laurent":
@@ -274,8 +243,6 @@ class PowerNetEnv(gym.Env):
                 v = self.solution["v"]
                 v_totall = np.insert(v, 0, 1)
                 vm_pu_after_control = cp.deepcopy(abs(v_totall))
-                vm_pu_after_control_bat = np.squeeze(vm_pu_after_control)[
-                    self.battery_list]
                 self.after_control = vm_pu_after_control
                 current_each_node = np.matmul(self.dense_Ybus, v_totall)
                 power_imported_from_ex_grid_after = current_each_node[0].real
@@ -301,7 +268,7 @@ class PowerNetEnv(gym.Env):
         else:
             raise ValueError(
                 'Expected default or define yourself based on the goal')
-        return saved_energy, vm_pu_after_control_bat
+        return saved_energy
 
     def step(self, action: np.ndarray) -> tuple:
         """
@@ -313,10 +280,7 @@ class PowerNetEnv(gym.Env):
         :rtype: tuple
         """
         # Apply battery actions and get updated observations
-        saved_energy, vm_pu_after_control_bat = self._apply_battery_actions(action)
-
-        # reward = self._calculate_reward(
-        #     current_normalized_obs, vm_pu_after_control_bat, saved_energy)
+        saved_energy = self._runpf(action)
 
         done = (self.current_time == self.episode_length - 1)
         self.current_time += 1
@@ -325,4 +289,4 @@ class PowerNetEnv(gym.Env):
             new_state = self.reset()
         else:
             new_state = self._build_state()
-        return new_state, saved_energy, vm_pu_after_control_bat, done
+        return new_state, saved_energy, done
