@@ -1,6 +1,6 @@
 from rl_adn.environments.env import PowerNetEnv
 import pandas as pd
-
+import random
 
 env_config = {
     "voltage_limits": [0.95, 1.05],
@@ -29,24 +29,37 @@ env_args = {
 
 print(env_args)
 
-for i in range(1):
+succesful_runs = 0
+failed_runs = 0
+
+for i in range(10000):
     state = env.reset()
     done = False
     counter = 0
     while not done:
-        print(f'=== Step {counter} ===')
+        # print(f'=== Step {counter} ===')
         counter += 1
         #action is 34 values between -100 and 100, it is the power injection in each node
         action = [0]*33       
-        action[32] = 150
+        # action[32] = 150
+        action =random.sample(range(-1000, 1000), 33)
         next_state, saved_energy, done = env.step(action)
-        print("State: ", state)
-        print("Action: ", action)
-        print("Saved Energy: ", saved_energy)
-        print("Next State: ", next_state)
-        if any(next_state[1] < 0.95) or any(next_state[1] > 1.05):
-            print("Voltage limits exceeded")
-            break
+        # print("State: ", state)
+        # print("Action: ", action)
+        # print("Saved Energy: ", saved_energy)
+        # print("Next State: ", next_state)
+        
+        if done:
             
+            succesful_runs += 1
+            break
+        
+        if any(next_state[1] < 0.95) or any(next_state[1] > 1.05):
+            # print("Voltage limits exceeded")
+            done = True
+            failed_runs += 1
+          
         state = next_state
-        # input("Press Enter to continue...")
+    
+    if i % 100 == 0:
+        print(f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
