@@ -7,7 +7,7 @@ from copulas.multivariate import GaussianMultivariate
 import re
 from datetime import datetime, timedelta
 from rl_adn.data_manager.data_manager import  GeneralPowerDataManager
-from multicopula import EllipticalCopula
+# from multicopula import EllipticalCopula
 
 class ActivePowerDataManager(GeneralPowerDataManager):
     """
@@ -173,7 +173,7 @@ class TimeSeriesDataAugmentor:
         """
         if self.augmentation_model_name == 'GMC':
             num_samples = num_days * num_nodes
-            print('The number of samples is', num_samples)
+            # print('The number of samples is', num_samples)
 
             generated_pesudo_obs = np.empty((0, self.n_models))
             count = 0
@@ -195,7 +195,7 @@ class TimeSeriesDataAugmentor:
 
         if self.augmentation_model_name == 'GMM':
             num_samples = num_days * num_nodes
-            print('The number of samples is', num_samples)
+            # print('The number of samples is', num_samples)
 
             # generating the data
             gmm_samples = np.empty((num_samples, self.n_models))
@@ -206,7 +206,7 @@ class TimeSeriesDataAugmentor:
 
         if self.augmentation_model_name == 'TC':
             num_samples = num_days * num_nodes
-            print('The number of samples is', num_samples)
+            # print('The number of samples is', num_samples)
 
             # generating the data
             TC_samples = np.empty((0, self.n_models))

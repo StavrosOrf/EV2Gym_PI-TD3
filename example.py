@@ -6,7 +6,7 @@ env_config = {
     "voltage_limits": [0.95, 1.05],
     "algorithm": "Laurent",
     "timescale": 15,
-    "episode_length": 5,
+    "episode_length": 96,
     "train": True,
     "network_info": {'vm_pu': 1.0,
                      's_base': 1000,
@@ -16,12 +16,6 @@ env_config = {
 }
 
 env = PowerNetEnv(env_config)
-
-env_args = {
-    'env_name': 'PowerNetEnv',
-}
-
-print(env_args)
 
 succesful_runs = 0
 failed_runs = 0
@@ -34,8 +28,8 @@ for i in range(10000):
     hour = 0
     minute = 0
     
+    date = pd.Timestamp(year=year, month=month, day=day, hour=hour, minute=minute, second=0, tz='UTC')
 
-    date = (2020, month, day, hour, minute)
     state = env.reset(date)
     done = False
     counter = 0
@@ -54,14 +48,14 @@ for i in range(10000):
         # print("Next State: ", next_state)
 
         if i == env_config['episode_length'] - 2:
-            exit()
+            # exit()
             succesful_runs += 1
             break
-
-        # if any(next_state[1] < 0.95) or any(next_state[1] > 1.05):
-        #     print("Voltage limits exceeded step: ", counter)
-        #     done = True
-        #     failed_runs += 1
+        
+        if any(next_state[1] < 0.95) or any(next_state[1] > 1.05):
+            print("Voltage limits exceeded step: ", counter)
+            done = True
+            failed_runs += 1
 
         state = next_state
 

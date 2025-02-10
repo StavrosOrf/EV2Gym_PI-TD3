@@ -583,9 +583,9 @@ class GridTensor:
         idx = self._compute_chunks(DIMENSION_BOUND, n_nodes=n_nodes, n_steps=n_steps)
         n_chunks = len(idx) - 1
 
-        t = trange(n_chunks, desc='Chunk', leave=False)
-        for ii in t:
-            t.set_description(f"Chunk: {ii + 1} of {n_chunks}", refresh=True)
+        # t = trange(n_chunks, desc='Chunk', leave=False)
+        for ii in range(n_chunks):
+            # t.set_description(f"Chunk: {ii + 1} of {n_chunks}", refresh=True)
 
             ts_chunk = idx[ii + 1] - idx[ii]  # Size of the chunk
             # TODO

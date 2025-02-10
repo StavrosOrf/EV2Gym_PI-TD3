@@ -5,12 +5,15 @@ import gym
 import numpy as np
 import pandapower as pp
 import pandas as pd
+import pickle
 from gym import spaces
 
 from rl_adn.data_manager.data_manager import GeneralPowerDataManager
 from rl_adn.utility.grid import GridTensor
 from rl_adn.utility.utils import create_pandapower_net
+from rl_adn.data_augment.data_augment import ActivePowerDataManager
 
+from matplotlib import pyplot as plt
 
 class PowerNetEnv(gym.Env):
     """
@@ -62,7 +65,7 @@ class PowerNetEnv(gym.Env):
         self.s_base = self.network_info['s_base']
         network_bus_info = pd.read_csv(self.network_info['bus_info_file'])
         self.node_num = len((network_bus_info.NODES))
-            
+
         # Conditional initialization of the distribution network based on the chosen algorithm
         if self.algorithm == "Laurent":
             # Logic for initializing with GridTensor
@@ -80,8 +83,10 @@ class PowerNetEnv(gym.Env):
 
         assert config['timescale'] == 15, "Only 15 minutes timescale is supported with the grid enabled!"
 
-        self.data_manager = GeneralPowerDataManager(
-            config['time_series_data_path'])
+        # self.data_manager = GeneralPowerDataManager(
+        #     config['time_series_data_path'])
+
+        self.augmentor = pickle.load(open('augmentor.pkl', 'rb'))
 
         # self.episode_length: int = 24 * 60 / self.data_manager.time_interval
         self.episode_length: int = config['episode_length']
@@ -93,37 +98,26 @@ class PowerNetEnv(gym.Env):
         :return: The normalized initial state of the environment.
         :rtype: np.ndarray
         """
-        self.year, self.month, self.day, self.hour, self.minute = date
-        assert self.minute//15 == 0, "Only 15 minutes timescale is supported with the grid enabled!"
-        
+
         self.current_step = 0
+    # TODO fix number of samples generation logic, tkae int oaccount that we dont need a whole day alaways
+        self.augmented_df = self.augmentor.augment_data(num_nodes=34,
+                                                        num_days=10,
+                                                        start_date=date)
+        # plot the augmented data
+        #remove first column
+        self.augmented_df = self.augmented_df.iloc[:, 1:]
+        # make step plot
+        plt.figure()
+        for i in range(1):
+            plt.step(self.augmented_df.index, self.augmented_df.iloc[:, i], label=f'node_{i}')
+        plt.show()
+        exit()
         return self._build_state()
-
-    def _reset_date(self) -> None:
-        """
-        Resets the date for the next episode.
-        """
-        
-        if self.train:
-            self.year, self.month, self.day = random.choice(
-                self.data_manager.train_dates)
-        else:
-            self.year, self.month, self.day = random.choice(
-                self.data_manager.test_dates)
-
 
     def _build_state(self) -> np.ndarray:
         """
         Builds the current state of the environment based on the current time and data from PowerDataManager.
-
-        Returns:
-            normalized_state (np.ndarray): The current state of the environment, normalized between 0 and 1.
-                The state includes the following variables:
-                - Netload power
-                - SOC (State of Charge) of the last battery in the battery list
-                - Price of the energy
-                - Time state of the day
-                - Voltage from estimation
         """
         obs = self._get_obs()
         active_power = np.array(
@@ -133,6 +127,12 @@ class PowerNetEnv(gym.Env):
 
         return (active_power, vm, self.current_step)
 
+    def _select_timeslot_data(self, timestep: int) -> np.ndarray:
+        row = self.augmented_df.iloc[timestep]
+        row = row[1:]
+        # print(f'row: {row.values}')
+        return row.values
+
     def _get_obs(self):
         """
         Executes the power flow based on the chosen algorithm and returns the observations.
@@ -140,25 +140,28 @@ class PowerNetEnv(gym.Env):
         Returns:
             dict: The observation dictionary containing various state elements.
         """
-        print(f'current time: {self.current_step}')
-        one_slot_data = self.data_manager.select_timeslot_data(
-            self.year, self.month, self.day,
-            self.hour, self.minute,
-            self.current_step)
+        # print(f'current time: {self.current_step}')
+        # one_slot_data = self.data_manager.select_timeslot_data(
+        #     self.year, self.month, self.day,
+        #     self.hour, self.minute,
+        #     self.current_step)
+
+        one_slot_data = self._select_timeslot_data(self.current_step)
 
         if self.algorithm == "Laurent":
             # This is where bugs comes from, if we don't use copy, this slice is actually creating a view of originally data.
-            active_power = cp.copy(one_slot_data[0:34])
-            renewable_active_power = one_slot_data[34:68]
+            active_power = cp.copy(one_slot_data[0:self.node_num])
+            # renewable_active_power = one_slot_data[34:68]
+            renewable_active_power = np.zeros(self.node_num)
             self.active_power = (
-                active_power - renewable_active_power)[1:34]
-            reactive_power = np.zeros(33)
-            price = one_slot_data[-1]
+                active_power - renewable_active_power)[1:self.node_num]
+            reactive_power = np.zeros(self.node_num-1)
+
             self.solution = self.net.run_pf(active_power=self.active_power)
 
             obs = {'node_data': {'voltage': {}, 'active_power': {}, 'reactive_power': {},
                                  'renewable_active_power': {}},
-                   'battery_data': {'soc': {}}, 'price': {}, 'aux': {}}
+                   'battery_data': {'soc': {}}, 'aux': {}}
 
             # NODES[1-34], node_index[0-33]
             for node_index in range(len(self.net.bus_info.NODES)):
@@ -172,13 +175,13 @@ class PowerNetEnv(gym.Env):
                     obs['node_data']['active_power'][f'node_{node_index}'] = active_power[node_index - 1]
                     obs['node_data']['renewable_active_power'][f'node_{node_index}'] = renewable_active_power[
                         node_index - 1]
-            obs['price'] = price
+
         else:
             active_power = one_slot_data[0:34]
             active_power[0] = 0
             renewable_active_power = one_slot_data[34:68]
             renewable_active_power[0] = 0
-            price = one_slot_data[-1]
+
             for bus_index in self.net.load.bus.index:
                 self.net.load.p_mw[bus_index] = (active_power[bus_index] - renewable_active_power[
                     bus_index]) / self.s_base
@@ -192,7 +195,7 @@ class PowerNetEnv(gym.Env):
 
             obs = {'node_data': {'voltage': {}, 'active_power': {}, 'reactive_power': {},
                                  'renewable_active_power': {}},
-                   'battery_data': {'soc': {}}, 'price': {}, 'aux': {}}
+                   'battery_data': {'soc': {}}, 'aux': {}}
 
             for node_index in self.net.load.bus.index:
                 bus_idx = self.net.load.at[node_index, 'bus']
@@ -201,8 +204,6 @@ class PowerNetEnv(gym.Env):
                 obs['node_data']['reactive_power'][f'node_{node_index}'] = self.net.res_load.q_mvar[node_index]
                 obs['node_data']['renewable_active_power'][f'node_{node_index}'] = renewable_active_power[
                     node_index]
-
-            obs['price'] = price
 
         return obs
 
