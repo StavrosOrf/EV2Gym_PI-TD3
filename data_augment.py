@@ -15,7 +15,7 @@ class TimeSeriesDataAugmentor:
         Additional parameters can be set here if required.
         """
 
-        self._load_active_power_data()
+        # self._load_active_power_data()
         augmented_data = self._sample_data()
 
         # plot the data
@@ -44,16 +44,21 @@ class TimeSeriesDataAugmentor:
         df['timestep'] = df.index % 96
 
         print(f'df shape is {df.values.shape}')
-        df = df[:96]
-
+        # df = df[:96*7]
         new_df = pd.DataFrame()
-
-        for i in range(df.values//96):            
-            for row in df.values:
-                for i in range(1, 34):
-                    day = row[-2]
-                    active_power_node_i = row[i]
-                    new_df = pd.concat([new_df, pd.DataFrame({'day': [day],f'active_power': [active_power_node_i]})])
+        print(f'number of days is {int(len(df.values)//96)}')
+        
+        for j in range(int(len(df.values)//96)):            
+            # for row in df.values[j*96:(j+1)*96]:
+            for i in range(1, 34):
+                day = df.values[j*96, -2].astype(int)
+                active_power_96_node_i = df.values[j*96:(j+1)*96, i]
+                entry ={ 'day': [day],}
+                
+                for k in range(96):
+                    entry[f'active_power_{k}'] = active_power_96_node_i[k]
+                
+                new_df = pd.concat([new_df, pd.DataFrame(entry)], ignore_index=True)
 
         print(f'new_df shape is {new_df.shape}')
 
@@ -89,26 +94,22 @@ class TimeSeriesDataAugmentor:
 
         data = np.zeros((n_steps, n_buses))
 
-        for i in range(n_steps):
-            day = (start_day + i // 96) // 7
-            timestep = (start_step + i) % 96
-
-            while True:
-                augmented_data = augmentor.sample(num_samples,
-                                              conditional=True,
-                                              variables={'x1': day,
-                                                         'x2': timestep},
-                                              )
-                
-                # check for nan
-                if not np.isnan(augmented_data).any():
-                    data[i] = augmented_data
-                    break
+        day = start_day
+        while True:
+            augmented_data = augmentor.sample(num_samples,
+                                            conditional=True,
+                                            variables={'x1': day},
+                                            )
+            
+            # check for nan
+            if not np.isnan(augmented_data).any():
+                # data[i] = augmented_data
+                break
 
         print(f' time to augment data: {time.time() - timer_start}')
-        print(f'augmented_data shape is {data.shape}')
+        print(f'augmented_data shape is {augmented_data.shape}')
 
-        return data
+        return augmented_data
 
 if __name__ == "__main__":
 
