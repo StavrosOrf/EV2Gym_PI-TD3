@@ -7,7 +7,7 @@ from copulas.multivariate import GaussianMultivariate
 import re
 from datetime import datetime, timedelta
 from rl_adn.data_manager.data_manager import  GeneralPowerDataManager
-# from multicopula import EllipticalCopula
+from multicopula import EllipticalCopula
 
 class ActivePowerDataManager(GeneralPowerDataManager):
     """
@@ -55,7 +55,10 @@ class ActivePowerDataManager(GeneralPowerDataManager):
         grouped_active_power_df = reshaped_active_power_df.groupby('time')['value'].apply(list).reset_index()
 
         reshaped_df = pd.DataFrame(grouped_active_power_df['value'].tolist(), index=grouped_active_power_df['time'])
-
+        # count number of nans
+        print(f'number of nans in the data is {reshaped_df.isnull().sum().sum()}')
+        #compare to the original data    
+        
         active_power_array = reshaped_df.to_numpy().T
         active_power_array = active_power_array[~np.isnan(active_power_array).any(axis=1)]
 
@@ -124,8 +127,10 @@ class TimeSeriesDataAugmentor:
             self.augmentation_model = self.gmm_models
 
         if self.augmentation_model_name == 'TC':
+            print(f'active power array shape is {self.data_manager.get_active_power_data().shape}')
             active_power_array = self.data_manager.get_active_power_data()
             self.n_models = int(24.0 * 60.0 / self.data_manager.time_interval)
+            print(f'n_models is {self.n_models}')
 
             self.tc_model = EllipticalCopula(active_power_array.T)
             self.tc_model.fit()
@@ -171,42 +176,42 @@ class TimeSeriesDataAugmentor:
         """
         Perform data augmentation using the specified model and parameters.
         """
-        if self.augmentation_model_name == 'GMC':
-            num_samples = num_days * num_nodes
-            # print('The number of samples is', num_samples)
+        # if self.augmentation_model_name == 'GMC':
+        #     num_samples = num_days * num_nodes
+        #     # print('The number of samples is', num_samples)
 
-            generated_pesudo_obs = np.empty((0, self.n_models))
-            count = 0
-            while True:
-                # print('days is generated in sample', count)
-                gen_one_sample = np.array(self.copula.sample(1))
-                if gen_one_sample.min() > 0 and gen_one_sample.max() < 1:
-                    count += 1
-                    generated_pesudo_obs = np.vstack((gen_one_sample, generated_pesudo_obs))
-                    if count == num_samples:
-                        break
-            # print(' the pesudo data is now sampled and next process is to transfer it to the realistic data')
-            tran_samples = np.empty((generated_pesudo_obs.shape[0], generated_pesudo_obs.shape[1]))
-            for i in range(self.n_models):
-                tran_samples[:, i] = np.array(
-                    [self._inverse_gmm_cdf(self.gmm_models[i], u) for u in generated_pesudo_obs[:, i]])
-                print(f'the {i} model columns now is calculated')
-            tran_samples = tran_samples.flatten()
+        #     generated_pesudo_obs = np.empty((0, self.n_models))
+        #     count = 0
+        #     while True:
+        #         # print('days is generated in sample', count)
+        #         gen_one_sample = np.array(self.copula.sample(1))
+        #         if gen_one_sample.min() > 0 and gen_one_sample.max() < 1:
+        #             count += 1
+        #             generated_pesudo_obs = np.vstack((gen_one_sample, generated_pesudo_obs))
+        #             if count == num_samples:
+        #                 break
+        #     # print(' the pesudo data is now sampled and next process is to transfer it to the realistic data')
+        #     tran_samples = np.empty((generated_pesudo_obs.shape[0], generated_pesudo_obs.shape[1]))
+        #     for i in range(self.n_models):
+        #         tran_samples[:, i] = np.array(
+        #             [self._inverse_gmm_cdf(self.gmm_models[i], u) for u in generated_pesudo_obs[:, i]])
+        #         print(f'the {i} model columns now is calculated')
+        #     tran_samples = tran_samples.flatten()
 
-        if self.augmentation_model_name == 'GMM':
-            num_samples = num_days * num_nodes
-            # print('The number of samples is', num_samples)
+        # if self.augmentation_model_name == 'GMM':
+        #     num_samples = num_days * num_nodes
+        #     # print('The number of samples is', num_samples)
 
-            # generating the data
-            gmm_samples = np.empty((num_samples, self.n_models))
-            for i in range(self.n_models):
-                gmm_samples[:, i] = self.gmm_models[i].sample(num_samples)[0].reshape(-1)
+        #     # generating the data
+        #     gmm_samples = np.empty((num_samples, self.n_models))
+        #     for i in range(self.n_models):
+        #         gmm_samples[:, i] = self.gmm_models[i].sample(num_samples)[0].reshape(-1)
 
-            tran_samples = gmm_samples.flatten()
+        #     tran_samples = gmm_samples.flatten()
 
         if self.augmentation_model_name == 'TC':
             num_samples = num_days * num_nodes
-            # print('The number of samples is', num_samples)
+            print('The number of samples is', num_samples)
 
             # generating the data
             TC_samples = np.empty((0, self.n_models))
@@ -222,7 +227,7 @@ class TimeSeriesDataAugmentor:
                     if count == num_samples:
                         break
             tran_samples = TC_samples.flatten()
-
+        return
         # Initialize lists to hold timestamps and node indices
         timestamps = []
         node_index = []
@@ -276,6 +281,9 @@ class TimeSeriesDataAugmentor:
 
         filtered_cols = [col for col in columns if re.fullmatch(pattern, col)]
         return sorted(filtered_cols, key=sort_key)
+    
+    
+# def augment_data =
 
 
 if __name__ == "__main__":

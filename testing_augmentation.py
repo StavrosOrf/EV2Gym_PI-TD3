@@ -29,7 +29,7 @@ data_manager = ActivePowerDataManager(
 
 timer_start = time.time()
 augmentor = TimeSeriesDataAugmentor(data_manager,
-                                      augmentation_model_name='GMM')
+                                      augmentation_model_name='TC')
 print(f'time to fit model: {time.time() - timer_start}')
 
 pickle.dump(augmentor, open('augmentor.pkl', 'wb'))
