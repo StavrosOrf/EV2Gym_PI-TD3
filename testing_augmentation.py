@@ -1,4 +1,4 @@
-from rl_adn.data_augment.data_augment import ActivePowerDataManager, TimeSeriesDataAugmentor
+from data_augment import ActivePowerDataManager, TimeSeriesDataAugmentor
 
 import pickle
 import pandas as pd

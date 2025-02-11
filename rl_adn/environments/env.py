@@ -11,7 +11,7 @@ from gym import spaces
 from rl_adn.data_manager.data_manager import GeneralPowerDataManager
 from rl_adn.utility.grid import GridTensor
 from rl_adn.utility.utils import create_pandapower_net
-from rl_adn.data_augment.data_augment import ActivePowerDataManager
+from data_augment import ActivePowerDataManager
 
 from matplotlib import pyplot as plt
 
