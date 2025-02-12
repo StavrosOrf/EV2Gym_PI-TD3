@@ -83,25 +83,21 @@ class PowerGrid():
                                                          start_day=date.weekday(),
                                                          start_step=time_slot,
                                                          )
-        
-        assert not np.isnan(self.load_data).any(), "There are nan values in the load_data"
-            
+
+        assert not np.isnan(self.load_data).any(
+        ), "There are nan values in the load_data"
+
         return self._build_state(), 0
 
     def _build_state(self) -> np.ndarray:
         """
         Builds the current state of the environment based on the current time and data from PowerDataManager.
         """
-        obs = self._get_obs()
-        active_power = np.array(
-            list(obs['node_data']['active_power'].values()))
-        # renewable_active_power = np.array(list(obs['node_data']['renewable_active_power'].values()))
-        vm = np.array(list(obs['node_data']['voltage'].values()))
 
-        return (active_power, vm, self.current_step)
-
-    def _get_obs(self):
-
+        obs = {'node_data': {'voltage': {},
+                             'active_power': {},
+                             'reactive_power': {}
+                             }}
 
         if self.algorithm == "Laurent":
             # This is where bugs comes from, if we don't use copy, this slice is actually creating a view of originally data.
@@ -111,11 +107,6 @@ class PowerGrid():
             reactive_power = np.zeros(self.node_num)
 
             self.solution = self.net.run_pf(active_power=self.active_power)
-
-            obs = {'node_data': {'voltage': {},
-                                 'active_power': {},
-                                 'reactive_power': reactive_power
-                                 }}
 
             # NODES[1-34], node_index[0-33]
             for node_index in range(len(self.net.bus_info.NODES)):
@@ -132,9 +123,12 @@ class PowerGrid():
             active_power[0] = 0
 
             for bus_index in self.net.load.bus.index:
-                self.net.load.p_mw[bus_index] = (
-                    active_power[bus_index]) / self.s_base
-                self.net.load.q_mvar[bus_index] = 0
+                # self.net.load.p_mw[bus_index] = (
+                #     active_power[bus_index]) / self.s_base
+                # self.net.load.q_mvar[bus_index] = 0
+                self.net.load.loc[bus_index, "p_mw"] = active_power[bus_index] / self.s_base
+                self.net.load.loc[bus_index, "q_mvar"] = 0
+                
             pp.runpp(self.net, algorithm='nr')
             v_real = self.net.res_bus["vm_pu"].values * \
                 np.cos(np.deg2rad(self.net.res_bus["va_degree"].values))
@@ -142,19 +136,19 @@ class PowerGrid():
                 np.sin(np.deg2rad(self.net.res_bus["va_degree"].values))
             v_result = v_real + 1j * v_img
 
-            obs = {'node_data': {'voltage': {}, 'active_power': {}, 'reactive_power': {},
-                                 'renewable_active_power': {}},
-                   'battery_data': {'soc': {}}, 'aux': {}}
-
             for node_index in self.net.load.bus.index:
                 bus_idx = self.net.load.at[node_index, 'bus']
                 obs['node_data']['voltage'][f'node_{node_index}'] = self.net.res_bus.vm_pu.at[bus_idx]
                 obs['node_data']['active_power'][f'node_{node_index}'] = active_power[node_index]
                 obs['node_data']['reactive_power'][f'node_{node_index}'] = self.net.res_load.q_mvar[node_index]
-                obs['node_data']['renewable_active_power'][f'node_{node_index}'] = renewable_active_power[
-                    node_index]
 
-        return obs
+        # return obs
+        active_power = np.array(
+            list(obs['node_data']['active_power'].values()))
+        # renewable_active_power = np.array(list(obs['node_data']['renewable_active_power'].values()))
+        vm = np.array(list(obs['node_data']['voltage'].values()))
+
+        return (active_power, vm, self.current_step)
 
     def _runpf(self, action):
         '''apply action to battery charge/discharge, update the battery condition, excute power flow, update the network condition'''

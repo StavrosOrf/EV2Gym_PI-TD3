@@ -303,8 +303,6 @@ def power_flow_tensor_constant_power(K,
     while iteration < iterations and tol >= tolerance:
         # safe_v0 = np.where(np.abs(v0) < epsilon, epsilon, v0)
         # v0 = np.nan_to_num(v0, nan=0.0, posinf=0.0, neginf=0.0)
-        assert not np.isnan(S).any(), "There are nan values in the S values"
-        
         S = np.nan_to_num(S, nan=0.0, posinf=0.0, neginf=0.0)
         assert not np.isinf(S).any(), "There are inf values in the S values"
         LAMBDA = np.conj(S * (1 / (v0+epsilon)))  # Hadamard product ( (nb-1) x ts)

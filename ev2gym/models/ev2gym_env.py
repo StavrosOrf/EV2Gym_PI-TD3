@@ -455,7 +455,8 @@ class EV2Gym(gym.Env):
 
             port_counter += n_ports
         
-        actions =random.sample(range(-1000, 1000),  self.grid.node_num-1)
+        # actions =random.sample(range(-1, 1),  self.grid.node_num-1)
+        actions = np.zeros(self.grid.node_num-1)
         grid_state, saved_energy = self.grid.step(actions)
         
         if any(grid_state[1] < 0.95) or any(grid_state[1] > 1.05):            

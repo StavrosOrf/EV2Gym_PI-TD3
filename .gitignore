@@ -162,4 +162,5 @@ cython_debug/
 rl_adn/.DS_Store
 .DS_Store
 
-/plots
+results/
+replays/
