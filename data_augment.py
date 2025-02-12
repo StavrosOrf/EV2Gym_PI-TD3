@@ -10,17 +10,8 @@ from matplotlib import pyplot as plt
 
 class TimeSeriesDataAugmentor:
     def __init__(self):
-        """
-        Initialize the data augmentor with a data manager instance and the selected augmentation model.
-        Additional parameters can be set here if required.
-        """
 
-        # self._load_active_power_data()
-        augmented_data = self._sample_data()
-
-        # plot the data
-        plt.plot(augmented_data)
-        plt.show()
+        self._load_active_power_data()
 
     def _load_active_power_data(self):
         """
@@ -32,8 +23,10 @@ class TimeSeriesDataAugmentor:
         print(f'df initial shape is {df.shape}')
 
         # Drop the "price" column and any columns related to renewable generation.
+        # cols_to_drop = [col for col in df.columns
+        #                 if col.startswith('price') or col.startswith('renewable_active_power')]
         cols_to_drop = [col for col in df.columns
-                        if col.startswith('price') or col.startswith('renewable_active_power')]
+                        if col.startswith('price') or col.startswith('active_power')]
         df.drop(columns=cols_to_drop, inplace=True)
 
         df['date_time'] = pd.to_datetime(df['date_time'])
@@ -47,18 +40,19 @@ class TimeSeriesDataAugmentor:
         # df = df[:96*7]
         new_df = pd.DataFrame()
         print(f'number of days is {int(len(df.values)//96)}')
-        
-        for j in range(int(len(df.values)//96)):            
+
+        for j in range(int(len(df.values)//96)):
             # for row in df.values[j*96:(j+1)*96]:
             for i in range(1, 34):
                 day = df.values[j*96, -2].astype(int)
                 active_power_96_node_i = df.values[j*96:(j+1)*96, i]
-                entry ={ 'day': [day],}
-                
+                entry = {'day': [day], }
+
                 for k in range(96):
                     entry[f'active_power_{k}'] = active_power_96_node_i[k]
-                
-                new_df = pd.concat([new_df, pd.DataFrame(entry)], ignore_index=True)
+
+                new_df = pd.concat(
+                    [new_df, pd.DataFrame(entry)], ignore_index=True)
 
         print(f'new_df shape is {new_df.shape}')
 
@@ -79,38 +73,46 @@ class TimeSeriesDataAugmentor:
         # exit()
 
     def _sample_data(self,
-                     n_buses=34,
-                     n_steps=96,
-                     start_day=0,
-                     start_step=0,
+                     n_buses: int,
+                     n_steps: int,
+                     start_day: int,
+                     start_step: int = 0,
                      ):
 
         augmentor = pickle.load(open('augmentor.pkl', 'rb'))
 
         timer_start = time.time()
 
-        num_samples = n_buses
-        print('The number of samples is', num_samples)
+        data = np.zeros((int(np.ceil((start_step + n_steps)/96))*96, n_buses))
 
-        data = np.zeros((n_steps, n_buses))
+        for j in range(int(np.ceil((start_step + n_steps)/96))):
+            day = (start_day + j) % 7
+            while True:
+                augmented_data = augmentor.sample(n_buses,
+                                                  conditional=True,
+                                                  variables={'x1': day},
+                                                  )
 
-        day = start_day
-        while True:
-            augmented_data = augmentor.sample(num_samples,
-                                            conditional=True,
-                                            variables={'x1': day},
-                                            )
-            
-            # check for nan
-            if not np.isnan(augmented_data).any():
-                # data[i] = augmented_data
-                break
+                if not np.isnan(augmented_data).any():
+                    data[j*96:(j+1)*96, :] = augmented_data
+                    break
 
-        print(f' time to augment data: {time.time() - timer_start}')
-        print(f'augmented_data shape is {augmented_data.shape}')
+        print(f'time to augment data: {time.time() - timer_start}')
+        print(f'augmented_data shape is {data.shape}')
 
-        return augmented_data
+        return data[start_step:start_step+n_steps, :]
+
 
 if __name__ == "__main__":
 
     augmentor = TimeSeriesDataAugmentor()
+
+    augmented_data = augmentor._sample_data(n_buses=34,
+                                            n_steps=420,
+                                            start_day=5,
+                                            start_step=50,
+                                            )
+
+    # plot the data
+    plt.plot(augmented_data[:,:4])
+    plt.show()
