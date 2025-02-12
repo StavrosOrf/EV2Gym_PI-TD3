@@ -17,6 +17,7 @@ import json
 
 # from .grid import Grid
 from ev2gym.models.replay import EvCityReplay
+from ev2gym.models.grid import PowerGrid
 from ev2gym.visuals.plots import ev_city_plot, visualize_step
 from ev2gym.utilities.utils import get_statistics, print_statistics, calculate_charge_power_potential
 from ev2gym.utilities.loaders import load_ev_spawn_scenarios, load_power_setpoints, load_transformers, load_ev_charger_profiles, load_ev_profiles, load_electricity_prices
@@ -106,6 +107,7 @@ class EV2Gym(gym.Env):
             self.number_of_ports_per_cs = self.replay.max_n_ports
             self.scenario = self.replay.scenario
             self.heterogeneous_specs = self.replay.heterogeneous_specs
+            self.simulate_grid = self.replay.simulate_grid
 
         else:
             assert cs is not None, "Please provide the number of charging stations"
@@ -117,6 +119,7 @@ class EV2Gym(gym.Env):
             self.timescale = self.config['timescale']
             self.scenario = self.config['scenario']
             self.simulation_length = int(self.config['simulation_length'])
+            self.simulate_grid = self.config['simulate_grid']
             # Simulation time
 
             if self.config['random_day']:
@@ -157,9 +160,8 @@ class EV2Gym(gym.Env):
 
             self.heterogeneous_specs = self.config['heterogeneous_ev_specs']
 
-        # Whether to simulate the grid or not (Future feature...)
-        self.simulate_grid = False
-
+        
+        
         self.stats = None
         # if self.cs > 100:
         # self.lightweight_plots = True
@@ -181,10 +183,20 @@ class EV2Gym(gym.Env):
 
         # Simulate grid
         if self.simulate_grid:
-            pass
-            # self.grid = Grid(charging_stations=self.cs, case=case)
+            
+            self.grid = PowerGrid(self.config,
+                                  date=self.sim_date)
+            #TODO connect chargers with grid nodes
+        
             # self.cs_buses = self.grid.get_charging_stations_buses()
             # self.cs_transformers = self.grid.get_bus_transformers()
+            
+            if self.charging_network_topology is None:
+                self.cs_transformers = [
+                    *np.arange(self.number_of_transformers)] * (self.cs // self.number_of_transformers)
+                self.cs_transformers += random.sample(
+                    [*np.arange(self.number_of_transformers)], self.cs % self.number_of_transformers)
+                random.shuffle(self.cs_transformers)
         else:
             # self.cs_buses = [None] * self.cs
             if self.charging_network_topology is None:
@@ -321,12 +333,10 @@ class EV2Gym(gym.Env):
         self.EVs_profiles = load_ev_profiles(self)
         self.power_setpoints = load_power_setpoints(self)
         self.EVs = []
-
-        # print(f'Simulation starting date: {self.sim_date}')
-
-        # self.sim_name = f'ev_city_{self.simulation_length}_' + \
-        # f'{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}'
-
+        
+        if self.simulate_grid:
+            self.grid.reset(self.sim_date)
+        
         self.init_statistic_variables()
 
         return self._get_observation(), {}
@@ -444,6 +454,12 @@ class EV2Gym(gym.Env):
             self.current_ev_departed += len(user_satisfaction)
 
             port_counter += n_ports
+        
+        actions =random.sample(range(-1000, 1000),  self.grid.node_num-1)
+        grid_state, saved_energy = self.grid.step(actions)
+        
+        if any(grid_state[1] < 0.95) or any(grid_state[1] > 1.05):            
+            return self._get_observation(), 0, True, True, 0
 
         # Spawn EVs
         counter = self.total_evs_spawned
@@ -477,7 +493,7 @@ class EV2Gym(gym.Env):
         self.current_evs_parked += self.current_ev_arrived - self.current_ev_departed
 
         # Call step for the grid
-        if self.simulate_grid:
+        if False and self.simulate_grid:
             # TODO: transform actions -> grid_actions
             raise NotImplementedError
             grid_report = self.grid.step(actions=actions)

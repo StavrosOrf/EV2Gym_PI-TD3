@@ -33,6 +33,7 @@ class EvCityReplay():
         self.scenario = env.scenario
         self.heterogeneous_specs = env.heterogeneous_specs
         self.ev_load_potential = env.current_power_usage
+        self.simulate_grid = env.simulate_grid
 
         self.transformers = env.transformers
         self.charging_stations = env.charging_stations
@@ -66,9 +67,6 @@ class EvCityReplay():
         # self.transformer_amps  = env.transformer_amps
         # self.cs_power = env.cs_power
         # self.port_power = env.port_power
-        
-        self.simulate_grid = env.simulate_grid
-
         self.charge_prices = env.charge_prices
         self.discharge_prices = env.discharge_prices
 

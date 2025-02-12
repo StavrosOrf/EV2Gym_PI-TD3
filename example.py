@@ -24,14 +24,14 @@ def eval():
     Runs an evaluation of the ev2gym environment.
     """
 
-    save_plots = True
+    save_plots = False
 
     replay_path = "./replay/replay_sim_2024_07_05_106720.pkl"
     replay_path = None
 
     # config_file = "ev2gym/example_config_files/PublicPST.yaml"
     # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
-    config_file = "ev2gym/example_config_files/V2GProfitPlusLoads.yaml"
+    config_file = "./config_files/V2G_grid.yaml"
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
@@ -67,20 +67,32 @@ def eval():
     # agent = ChargeAsLateAsPossible(verbose=False)
     agent = ChargeAsFastAsPossible()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
-    rewards = []
+    
+    succesful_runs = 0
+    failed_runs = 0
+    
+    for i in range(10000):
+        state, _ = env.reset()
+        for t in range(env.simulation_length):
+            actions = agent.get_action(env)
 
-    for t in range(env.simulation_length):
-        actions = agent.get_action(env)
+            new_state, reward, done, truncated, stats = env.step(
+                actions)  # takes action
 
-        new_state, reward, done, truncated, stats = env.step(
-            actions)  # takes action
-        rewards.append(reward)
-
-        if done:
-            print(stats)
-            print(f'End of simulation at step {env.current_step}')
-            break
-
+            if done and truncated:
+                print(f"Voltage limits exceeded step: {t}")
+                failed_runs += 1
+                break
+            
+            if done:
+                print(stats)
+                print(f'End of simulation at step {env.current_step}')
+                succesful_runs += 1
+                break
+        
+        if i % 100 == 0:
+            print(f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
+    
     return
     # Solve optimally
     # Power tracker optimizer
