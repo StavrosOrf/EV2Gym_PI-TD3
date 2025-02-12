@@ -1,67 +1,119 @@
-from rl_adn.environments.grid import PowerNetEnv
-import pandas as pd
-import random
+"""
+This script is used to evaluate the performance of the ev2gym environment.
+"""
+from ev2gym.models.ev2gym_env import EV2Gym
+from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
+from ev2gym.baselines.gurobi_models.profit_max import V2GProfitMaxOracleGB
+from ev2gym.baselines.mpc.ocmf_mpc import OCMF_V2G, OCMF_G2V
+from ev2gym.baselines.mpc.eMPC import eMPC_V2G, eMPC_G2V
 
-env_config = {
-    "voltage_limits": [0.95, 1.05],
-    "algorithm": "Laurent",
-    "timescale": 15,
-    "episode_length": 96,
-    "train": True,
+from ev2gym.baselines.mpc.eMPC_v2 import eMPC_V2G_v2, eMPC_G2V_v2
 
-    "network_info": {'vm_pu': 1.0,
-                     's_base': 1000,
-                     'bus_info_file': './rl_adn/data_sources/network_data/node_34/Nodes_34.csv',
-                     'branch_info_file': './rl_adn/data_sources/network_data/node_34/Lines_34.csv'},
-}
+from ev2gym.baselines.mpc.V2GProfitMax import V2GProfitMaxOracle
 
-hour = 0
-month = 7
-day = 17
-year = 2020
-hour = 0
-minute = 0
+from ev2gym.baselines.heuristics import RoundRobin, ChargeAsLateAsPossible, ChargeAsFastAsPossible
+from ev2gym.baselines.heuristics import ChargeAsFastAsPossibleToDesiredCapacity
 
-date = pd.Timestamp(year=year, month=month, day=day,
-                    hour=hour, minute=minute, second=0, tz='UTC')
+import numpy as np
+import matplotlib.pyplot as plt
+import gymnasium as gym
 
 
-env = PowerNetEnv(env_config,
-                  date)
+def eval():
+    """
+    Runs an evaluation of the ev2gym environment.
+    """
 
-succesful_runs = 0
-failed_runs = 0
+    save_plots = True
 
-for i in range(10000):
+    replay_path = "./replay/replay_sim_2024_07_05_106720.pkl"
+    replay_path = None
 
-    state = env.reset(date)
-    done = False
-    counter = 0
-    for i in range(env_config['episode_length']):
+    # config_file = "ev2gym/example_config_files/PublicPST.yaml"
+    # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
+    config_file = "ev2gym/example_config_files/V2GProfitPlusLoads.yaml"
 
-        # print(f'=== Step {counter} ===')
-        counter += 1
-        # action is 34 values between -100 and 100, it is the power injection in each node
-        action = [0]*33
-        # action[32] = 150
-        # action =random.sample(range(-1000, 1000), 33)
-        next_state, saved_energy = env.step(action)
-        # print("State: ", state)
-        # print("Action: ", action)
-        # print("Saved Energy: ", saved_energy)
-        # print("Next State: ", next_state)
+    env = EV2Gym(config_file=config_file,
+                 load_from_replay_path=replay_path,
+                 verbose=False,
+                 save_replay=True,
+                 save_plots=save_plots,
+                 )
 
-        if i == env_config['episode_length'] - 2:
-            # exit()
-            succesful_runs += 1
+
+    new_replay_path = f"replay/replay_{env.sim_name}.pkl"
+
+    state, _ = env.reset()
+
+    ev_profiles = env.EVs_profiles
+    max_time_of_stay = max([ev.time_of_departure - ev.time_of_arrival
+                            for ev in ev_profiles])
+    min_time_of_stay = min([ev.time_of_departure - ev.time_of_arrival
+                            for ev in ev_profiles])
+
+    print(f'Number of EVs: {len(ev_profiles)}')
+    print(f'Max time of stay: {max_time_of_stay}')
+    print(f'Min time of stay: {min_time_of_stay}')
+    
+    # exit()
+    # agent = OCMF_V2G(env, control_horizon=30, verbose=True)
+    # agent = OCMF_G2V(env, control_horizon=25, verbose=True)
+    # agent = eMPC_V2G(env, control_horizon=15, verbose=False)
+    # agent = V2GProfitMaxOracle(env,verbose=True)
+    # agent = PowerTrackingErrorrMin(new_replay_path)
+    # agent = eMPC_G2V(env, control_horizon=15, verbose=False)
+    # agent = eMPC_V2G_v2(env, control_horizon=10, verbose=False)        
+    # agent = RoundRobin(env, verbose=False)
+    # agent = ChargeAsLateAsPossible(verbose=False)
+    agent = ChargeAsFastAsPossible()
+    # agent = ChargeAsFastAsPossibleToDesiredCapacity()
+    rewards = []
+
+    for t in range(env.simulation_length):
+        actions = agent.get_action(env)
+
+        new_state, reward, done, truncated, stats = env.step(
+            actions)  # takes action
+        rewards.append(reward)
+
+        if done:
+            print(stats)
+            print(f'End of simulation at step {env.current_step}')
             break
 
-        if any(next_state[1] < 0.95) or any(next_state[1] > 1.05):
-            print("Voltage limits exceeded step: ", counter)
-            done = True
-            failed_runs += 1
+    return
+    # Solve optimally
+    # Power tracker optimizer
+    agent = PowerTrackingErrorrMin(replay_path=new_replay_path)
+    # # Profit maximization optimizer
+    # agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
+    # # Simulate in the gym environment and get the rewards
 
-        state = next_state
+    env = EV2Gym(config_file=config_file,
+                       load_from_replay_path=new_replay_path,
+                       verbose=False,
+                       save_plots=True,
+                       )
+    state, _ = env.reset()
+    rewards_opt = []
 
-    if i % 100 == 0:
-        print(f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
+    for t in range(env.simulation_length):
+        actions = agent.get_action(env)
+        # if verbose:
+        #     print(f' OptimalActions: {actions}')
+
+        new_state, reward, done, truncated, stats = env.step(
+            actions, visualize=False)  # takes action
+        rewards_opt.append(reward)
+        
+        # if verbose:
+        #     print(f'Reward: {reward} \t Done: {done}')
+
+        if done:
+            print(stats)
+            break
+
+
+if __name__ == "__main__":
+    # while True:
+        eval()    

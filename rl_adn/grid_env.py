@@ -15,7 +15,7 @@ import pickle
 
 from rl_adn.utility.grid import GridTensor
 from rl_adn.utility.grid_utils import create_pandapower_net
-from data_augmentor import TimeSeriesDataAugmentor  # Ensure the class is imported
+from rl_adn.data_augmentor import TimeSeriesDataAugmentor  # Ensure the class is imported
 
 from matplotlib import pyplot as plt
 
