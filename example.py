@@ -1,4 +1,4 @@
-from rl_adn.environments.env import PowerNetEnv
+from rl_adn.environments.grid import PowerNetEnv
 import pandas as pd
 import random
 
@@ -8,27 +8,31 @@ env_config = {
     "timescale": 15,
     "episode_length": 96,
     "train": True,
+
     "network_info": {'vm_pu': 1.0,
                      's_base': 1000,
                      'bus_info_file': './rl_adn/data_sources/network_data/node_34/Nodes_34.csv',
                      'branch_info_file': './rl_adn/data_sources/network_data/node_34/Lines_34.csv'},
-    "time_series_data_path": "./rl_adn/data_sources/time_series_data/34_node_time_series.csv"
 }
 
-env = PowerNetEnv(env_config)
+hour = 0
+month = 7
+day = 17
+year = 2020
+hour = 0
+minute = 0
+
+date = pd.Timestamp(year=year, month=month, day=day,
+                    hour=hour, minute=minute, second=0, tz='UTC')
+
+
+env = PowerNetEnv(env_config,
+                  date)
 
 succesful_runs = 0
 failed_runs = 0
 
 for i in range(10000):
-    hour = 0
-    month = 7
-    day = 17
-    year = 2020
-    hour = 0
-    minute = 0
-    
-    date = pd.Timestamp(year=year, month=month, day=day, hour=hour, minute=minute, second=0, tz='UTC')
 
     state = env.reset(date)
     done = False
@@ -51,7 +55,7 @@ for i in range(10000):
             # exit()
             succesful_runs += 1
             break
-        
+
         if any(next_state[1] < 0.95) or any(next_state[1] > 1.05):
             print("Voltage limits exceeded step: ", counter)
             done = True

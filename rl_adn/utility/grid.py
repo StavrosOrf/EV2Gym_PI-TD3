@@ -5,8 +5,8 @@ from scipy.sparse.linalg import inv
 from time import perf_counter
 from numba import njit, set_num_threads
 import warnings
-from rl_adn.utility.utils import GPUPowerFlow
-from rl_adn.utility.utils import generate_network
+from rl_adn.utility.grid_utils import GPUPowerFlow
+from rl_adn.utility.grid_utils import generate_network
 from rl_adn.utility.numbarize import (pre_power_flow_tensor,
                                       power_flow_tensor,
                                       power_flow_tensor_constant_power,
