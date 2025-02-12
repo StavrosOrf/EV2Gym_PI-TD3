@@ -77,7 +77,6 @@ class PowerGrid():
         hour = date.hour
         minute = date.minute
         time_slot = hour * 4 + minute // 15
-        print(f'date and step: {date}, {time_slot}')
         self.current_step = 0
         self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
                                                          n_steps=self.episode_length + 24,

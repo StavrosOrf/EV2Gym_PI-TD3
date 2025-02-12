@@ -36,24 +36,22 @@ def eval():
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
                  verbose=False,
-                 save_replay=True,
+                 save_replay=False,
                  save_plots=save_plots,
                  )
 
 
     new_replay_path = f"replay/replay_{env.sim_name}.pkl"
 
-    state, _ = env.reset()
+    # ev_profiles = env.EVs_profiles
+    # max_time_of_stay = max([ev.time_of_departure - ev.time_of_arrival
+    #                         for ev in ev_profiles])
+    # min_time_of_stay = min([ev.time_of_departure - ev.time_of_arrival
+    #                         for ev in ev_profiles])
 
-    ev_profiles = env.EVs_profiles
-    max_time_of_stay = max([ev.time_of_departure - ev.time_of_arrival
-                            for ev in ev_profiles])
-    min_time_of_stay = min([ev.time_of_departure - ev.time_of_arrival
-                            for ev in ev_profiles])
-
-    print(f'Number of EVs: {len(ev_profiles)}')
-    print(f'Max time of stay: {max_time_of_stay}')
-    print(f'Min time of stay: {min_time_of_stay}')
+    # print(f'Number of EVs: {len(ev_profiles)}')
+    # print(f'Max time of stay: {max_time_of_stay}')
+    # print(f'Min time of stay: {min_time_of_stay}')
     
     # exit()
     # agent = OCMF_V2G(env, control_horizon=30, verbose=True)
@@ -85,8 +83,8 @@ def eval():
                 break
             
             if done:
-                print(stats)
-                print(f'End of simulation at step {env.current_step}')
+                # print(stats)
+                # print(f'End of simulation at step {env.current_step}')
                 succesful_runs += 1
                 break
         
