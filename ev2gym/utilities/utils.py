@@ -63,6 +63,17 @@ def get_statistics(env) -> Dict:
         total_steps_min_emergency_battery_capacity_violation += ev.min_emergency_battery_capacity_metric
         
     saved_grid_energy = env.saved_grid_energy.sum()
+    
+    # find amount of voltage outside 0.95-1.05 p.u.
+    if env.simulate_grid:
+        voltage_violation = np.reshape(env.node_voltage, (-1))        
+        counter = np.where(voltage_violation > 1.05)[0]
+        voltage_up_violation_counter = len(counter)
+        counter = np.where(voltage_violation < 0.95)[0]
+        voltage_down_violation_counter = len(counter)
+                
+        voltage_violation = np.sum(voltage_violation > 1.05) - 1.05 * voltage_up_violation_counter +\
+                            np.sum(voltage_violation < 0.95) - 0.95 * voltage_down_violation_counter
 
     stats = {'total_ev_served': total_ev_served,
              'total_profits': total_profits,
@@ -76,13 +87,19 @@ def get_statistics(env) -> Dict:
              'std_energy_user_satisfaction': np.std(energy_user_satisfaction),
              'min_energy_user_satisfaction': np.min(energy_user_satisfaction),
              'total_steps_min_emergency_battery_capacity_violation': total_steps_min_emergency_battery_capacity_violation,
-             'total_transformer_overload': total_transformer_overload,
-             'saved_grid_energy': saved_grid_energy,
+             'total_transformer_overload': total_transformer_overload,             
              'battery_degradation': battery_degradation,
              'battery_degradation_calendar': battery_degradation_calendar,
              'battery_degradation_cycling': battery_degradation_cycling,
              'total_reward': env.total_reward,
              }
+    
+    if env.simulate_grid:
+        stats['voltage_up_violation_counter'] = voltage_up_violation_counter
+        stats['voltage_down_violation_counter']= voltage_down_violation_counter,
+        stats['saved_grid_energy'] = saved_grid_energy,
+        stats['voltage_violation'] = voltage_violation,
+                         
 
     if env.eval_mode != "optimal" and env.replay is not None:
         if env.replay.optimal_stats is not None:

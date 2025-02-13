@@ -17,14 +17,14 @@ from ev2gym.baselines.heuristics import ChargeAsFastAsPossibleToDesiredCapacity
 import numpy as np
 import matplotlib.pyplot as plt
 import gymnasium as gym
-
+import pandas as pd
 
 def eval():
     """
     Runs an evaluation of the ev2gym environment.
     """
 
-    save_plots = True
+    save_plots = False
 
     replay_path = "./replay/replay_sim_2024_07_05_106720.pkl"
     replay_path = None
@@ -69,10 +69,12 @@ def eval():
     succesful_runs = 0
     failed_runs = 0
     
-    for i in range(1):
+    results_df = None
+    
+    for i in range(100):
         state, _ = env.reset()
         for t in range(env.simulation_length):
-            actions = agent.get_action(env)
+            actions = agent.get_action(env)*0
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
@@ -86,17 +88,30 @@ def eval():
                 keys_to_print = ['total_ev_served',
                                  'total_energy_charged',
                                  'average_user_satisfaction',
+                                 'voltage_up_violation_counter',
+                                 'voltage_down_violation_counter',
                                  'saved_grid_energy',
+                                 'voltage_violation'
                                  ]
                 print({key: stats[key] for key in keys_to_print})
                 
+                new_stats = {key: stats[key] for key in keys_to_print}
+                
+                if i == 0:                    
+                    results_df = pd.DataFrame(new_stats, index=[0])
+                else:
+                    results_df = pd.concat([results_df,
+                                            pd.DataFrame(new_stats, index=[0])])
+                    
+                
                 # print(f'End of simulation at step {env.current_step}')
                 succesful_runs += 1
-                break
-        
+                break        
+            
         if i % 100 == 0:
             print(f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
     
+    print(results_df.describe())
     return
     # Solve optimally
     # Power tracker optimizer
