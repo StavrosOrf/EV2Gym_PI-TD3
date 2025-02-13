@@ -1,5 +1,5 @@
 '''
-The following code is based on the implementation of https://github.com/ShengrenHou/RL-ADN from
+The following code is based on the implementation of https://github.com/ShengrenHou/RL-ADN
 
 Cite as:
 Shengren Hou, Shuyi Gao, Weijie Xia, Edgar Mauricio Salazar Duque, Peter Palensky, Pedro P. Vergara,
@@ -17,8 +17,6 @@ from ev2gym.models.grid_utility.grid_tensor import GridTensor
 from ev2gym.models.grid_utility.grid_utils import create_pandapower_net
 from ev2gym.models.data_augment import DataGenerator
 import pkg_resources
-
-from matplotlib import pyplot as plt
 
 
 class PowerGrid():
@@ -100,7 +98,7 @@ class PowerGrid():
                              }}
 
         if self.algorithm == "Laurent":
-            
+
             active_power = cp.copy(self.load_data[self.current_step, :])
             self.active_power = (active_power)[1:self.node_num]
             reactive_power = np.zeros(self.node_num)

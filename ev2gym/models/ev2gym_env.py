@@ -163,7 +163,8 @@ class EV2Gym(gym.Env):
         
         self.stats = None
         # if self.cs > 100:
-        # self.lightweight_plots = True
+        #     self.lightweight_plots = True
+            
         self.sim_starting_date = self.sim_date
 
         # Read the config.charging_network_topology json file and read the topology
@@ -185,19 +186,18 @@ class EV2Gym(gym.Env):
             
             self.grid = PowerGrid(self.config,
                                   date=self.sim_date)
-            #TODO connect chargers with grid nodes
-        
-            # self.cs_buses = self.grid.get_charging_stations_buses()
-            # self.cs_transformers = self.grid.get_bus_transformers()
+            print(f'Overriding the number of transformers to {self.grid.node_num-1} buses.')
+
+            self.number_of_transformers = self.grid.node_num-1
+            assert self.charging_network_topology is None, "Charging network topology is not supported with grid simulation."
             
-            if self.charging_network_topology is None:
-                self.cs_transformers = [
-                    *np.arange(self.number_of_transformers)] * (self.cs // self.number_of_transformers)
-                self.cs_transformers += random.sample(
-                    [*np.arange(self.number_of_transformers)], self.cs % self.number_of_transformers)
-                random.shuffle(self.cs_transformers)
+            self.cs_transformers = [
+                *np.arange(self.number_of_transformers)] * (self.cs // self.number_of_transformers)
+            self.cs_transformers += random.sample(
+                [*np.arange(self.number_of_transformers)], self.cs % self.number_of_transformers)
+            random.shuffle(self.cs_transformers)
+            print(f'Charging stations connected to transformers: {self.cs_transformers}')
         else:
-            # self.cs_buses = [None] * self.cs
             if self.charging_network_topology is None:
                 self.cs_transformers = [
                     *np.arange(self.number_of_transformers)] * (self.cs // self.number_of_transformers)

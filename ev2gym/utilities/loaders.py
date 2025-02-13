@@ -311,7 +311,7 @@ def load_ev_charger_profiles(env) -> List[EV_Charger]:
         for i, tr in enumerate(env.charging_network_topology):
             for cs in env.charging_network_topology[tr]['charging_stations']:
                 ev_charger = EV_Charger(id=cs_counter,
-                                        connected_bus=0,
+                                        connected_bus=i,
                                         connected_transformer=i,
                                         min_charge_current=env.charging_network_topology[tr][
                                             'charging_stations'][cs]['min_charge_current'],
@@ -345,7 +345,7 @@ def load_ev_charger_profiles(env) -> List[EV_Charger]:
 
         for i in range(env.cs):
             ev_charger = EV_Charger(id=i,
-                                    connected_bus=0,  # env.cs_buses[i],
+                                    connected_bus=env.cs_transformers[i],
                                     connected_transformer=env.cs_transformers[i],
                                     n_ports=env.number_of_ports_per_cs,
                                     max_charge_current=env.config['charging_station']['max_charge_current'],
