@@ -399,7 +399,7 @@ def ev_city_plot(env):
         plt.tight_layout()
         fig_name = f'results/{env.sim_name}/grid_power.png'
         plt.savefig(fig_name, format='png',
-                    dpi=60, bbox_inches='tight')
+                    dpi=120, bbox_inches='tight')
         
         plt.close('all')
         # Plot the total power of the CPO
@@ -452,7 +452,7 @@ def ev_city_plot(env):
         plt.tight_layout()
         fig_name = f'results/{env.sim_name}/grid_voltage.png'
         plt.savefig(fig_name, format='png',
-                    dpi=60, bbox_inches='tight')
+                    dpi=120, bbox_inches='tight')
 
     plt.close('all')
     # Plot the total power for each CS group
@@ -599,7 +599,7 @@ def ev_city_plot(env):
         plt.tight_layout()
         fig_name = f'results/{env.sim_name}/Transformer_Aggregated_Power.png'
         plt.savefig(fig_name, format='png',
-                    dpi=60, bbox_inches='tight')
+                    dpi=120, bbox_inches='tight')
     else:
         # clear plt canvas
         plt.close('all')

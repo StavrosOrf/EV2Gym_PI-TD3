@@ -61,6 +61,8 @@ def get_statistics(env) -> Dict:
         e_max = ev.max_energy_AFAP
         energy_user_satisfaction[i] = (e_actual / e_max) * 100
         total_steps_min_emergency_battery_capacity_violation += ev.min_emergency_battery_capacity_metric
+        
+    saved_grid_energy = env.saved_grid_energy.sum()
 
     stats = {'total_ev_served': total_ev_served,
              'total_profits': total_profits,
@@ -75,6 +77,7 @@ def get_statistics(env) -> Dict:
              'min_energy_user_satisfaction': np.min(energy_user_satisfaction),
              'total_steps_min_emergency_battery_capacity_violation': total_steps_min_emergency_battery_capacity_violation,
              'total_transformer_overload': total_transformer_overload,
+             'saved_grid_energy': saved_grid_energy,
              'battery_degradation': battery_degradation,
              'battery_degradation_calendar': battery_degradation_calendar,
              'battery_degradation_cycling': battery_degradation_cycling,

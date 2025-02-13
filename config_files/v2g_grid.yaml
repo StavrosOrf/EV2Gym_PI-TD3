@@ -4,7 +4,7 @@
 # Simulation Parameters
 ##############################################################################
 timescale: 15 # in minutes per step
-simulation_length: 168 #90 # in steps per simulation
+simulation_length: 300 #90 # in steps per simulation
 
 ##############################################################################
 # Date and Time
@@ -15,6 +15,7 @@ month: 1 # 1-12
 day: 17 # 1-31
 # Whether to get a random date every time the environment is reset
 random_day: True # True or False
+random_hour: False # True or False
 
 # Simulation Starting Time
 # Hour and minute do not change after the environment has been reset
@@ -25,7 +26,7 @@ minute: 0 # Simulation starting minute (0-59)
 simulation_days: weekdays # weekdays, weekends, or both
 
 # EV Spawn Behavior
-scenario: private # public, private, or workplace
+scenario: public # public, private, or workplace
 spawn_multiplier: 5 # 1 is default, the higher the number the more EVs spawn. Play somewhere between 3-7. With 1 often only 1/5 EVs show up.
 
 ##############################################################################
@@ -37,8 +38,8 @@ discharge_price_factor: 1 # how many times more abs(expensive/cheaper) it is to 
 # Distribution Network Settings
 ##############################################################################
 v2g_enabled: True # True or False
-number_of_charging_stations: 50 # Play somewhere 5-20
-number_of_transformers: 1
+number_of_charging_stations: 500 # Play somewhere 5-20
+number_of_transformers: -1
 number_of_ports_per_cs: 1
 # Provide path if you want to load a specific charging topology
 # *(where chargers are located and what are their characteristics),
@@ -60,6 +61,7 @@ pf_solver: 'Laurent' # 'Laurent' or 'PandaPower'
 ##############################################################################
 # How much the power setpoints can vary in percentage compared to the nominal power
 # The higher the number the easier it is to meet the power setpoints, the opposite for negative numbers
+power_setpoint_enabled: False # True or False
 power_setpoint_flexiblity: 80 # (in percentage +/- %)
 
 ##############################################################################
@@ -115,9 +117,9 @@ transformer:
 # Default Charging Station model
 charging_station:  
   min_charge_current: 0 # Amperes
-  max_charge_current: 16 # Amperes
+  max_charge_current: 32 # Amperes
   min_discharge_current: 0 # Amperes (actual value <=0)
-  max_discharge_current: -16 # Amperes (actual value <=0)
+  max_discharge_current: -32 # Amperes (actual value <=0)
   voltage: 400 # Volts
   phases: 3 # 1,2, or 3
 
@@ -125,10 +127,10 @@ charging_station:
 ev:
   #The following values are used if "heterogeneous_ev_specs = False"
   battery_capacity: 50 # in kWh
-  max_ac_charge_power: 11 # in kW
+  max_ac_charge_power: 22 # in kW
   min_ac_charge_power: 0 # in kW
   max_dc_charge_power: 50 # in kW
-  max_discharge_power: -11 # in kW
+  max_discharge_power: -22 # in kW
   min_discharge_power: 0 # in kW
   ev_phases: 3  
   charge_efficiency: 1 # 0-1 (0% - 100%)

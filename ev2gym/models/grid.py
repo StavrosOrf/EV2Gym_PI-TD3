@@ -85,7 +85,7 @@ class PowerGrid():
         assert not np.isnan(self.load_data).any(
         ), "There are nan values in the load_data"
 
-        return self._build_state(), 0
+        return *self._build_state(), 0
 
     def _build_state(self) -> np.ndarray:
         """

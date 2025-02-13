@@ -83,7 +83,13 @@ def eval():
                 break
             
             if done:
-                # print(stats)
+                keys_to_print = ['total_ev_served',
+                                 'total_energy_charged',
+                                 'average_user_satisfaction',
+                                 'saved_grid_energy',
+                                 ]
+                print({key: stats[key] for key in keys_to_print})
+                
                 # print(f'End of simulation at step {env.current_step}')
                 succesful_runs += 1
                 break

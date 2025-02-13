@@ -96,7 +96,10 @@ def load_power_setpoints(env) -> np.ndarray:
     if env.load_from_replay_path:
         return env.replay.power_setpoints
     else:
-        return generate_power_setpoints(env)
+        if not env.config['power_setpoint_enabled']:
+            return  np.zeros(env.simulation_length)
+        else:
+            return generate_power_setpoints(env)
 
 
 def generate_residential_inflexible_loads(env) -> np.ndarray:

@@ -159,12 +159,10 @@ class EV2Gym(gym.Env):
 
             self.heterogeneous_specs = self.config['heterogeneous_ev_specs']
 
-        
-        
         self.stats = None
-        # if self.cs > 100:
-        #     self.lightweight_plots = True
-            
+        if self.cs > 100:
+            self.lightweight_plots = True
+
         self.sim_starting_date = self.sim_date
 
         # Read the config.charging_network_topology json file and read the topology
@@ -183,20 +181,22 @@ class EV2Gym(gym.Env):
 
         # Simulate grid
         if self.simulate_grid:
-            
+
             self.grid = PowerGrid(self.config,
                                   date=self.sim_date)
-            print(f'Overriding the number of transformers to {self.grid.node_num-1} buses.')
+            print(
+                f'Overriding the number of transformers to {self.grid.node_num-1} buses.')
 
             self.number_of_transformers = self.grid.node_num-1
             assert self.charging_network_topology is None, "Charging network topology is not supported with grid simulation."
-            
+
             self.cs_transformers = [
                 *np.arange(self.number_of_transformers)] * (self.cs // self.number_of_transformers)
             self.cs_transformers += random.sample(
                 [*np.arange(self.number_of_transformers)], self.cs % self.number_of_transformers)
-            random.shuffle(self.cs_transformers)
-            print(f'Charging stations connected to transformers: {self.cs_transformers}')
+            # random.shuffle(self.cs_transformers)
+            print(
+                f'Charging stations connected to transformers: {self.cs_transformers}')
         else:
             if self.charging_network_topology is None:
                 self.cs_transformers = [
@@ -332,11 +332,13 @@ class EV2Gym(gym.Env):
         self.EVs_profiles = load_ev_profiles(self)
         self.power_setpoints = load_power_setpoints(self)
         self.EVs = []
-        
-        if self.simulate_grid:
-            self.grid.reset(self.sim_date)
-        
         self.init_statistic_variables()
+
+        if self.simulate_grid:
+            active_power, vm, _ = self.grid.reset(self.sim_date)
+            self.node_active_power[:, self.current_step] = active_power
+            self.node_voltage[:, self.current_step] = vm
+            # self.node_ev_power[1:, self.current_step] = actions
 
         return self._get_observation(), {}
 
@@ -354,13 +356,15 @@ class EV2Gym(gym.Env):
 
         self.previous_power_usage = self.current_power_usage
         self.current_power_usage = np.zeros(self.simulation_length)
-        
-        self.node_active_power = np.zeros([self.grid.node_num, self.simulation_length])
-        self.node_voltage = np.zeros([self.grid.node_num, self.simulation_length])
-        self.node_ev_power = np.zeros([self.grid.node_num, self.simulation_length])
+        self.saved_grid_energy = np.zeros(self.simulation_length)
 
-        # self.transformer_amps = np.zeros([self.number_of_transformers,
-        #                                   self.simulation_length])
+        self.node_active_power = np.zeros(
+            [self.grid.node_num, self.simulation_length])
+        self.node_voltage = np.zeros(
+            [self.grid.node_num, self.simulation_length])
+        self.node_ev_power = np.zeros(
+            [self.grid.node_num, self.simulation_length])
+
 
         self.cs_power = np.zeros([self.cs, self.simulation_length])
         self.cs_current = np.zeros([self.cs, self.simulation_length])
@@ -378,7 +382,7 @@ class EV2Gym(gym.Env):
         #                             self.cs,
         #                             self.simulation_length],
         #                            dtype=np.float16)
-        
+
         if not self.lightweight_plots:
             self.port_current = np.zeros([self.number_of_ports,
                                           self.cs,
@@ -458,16 +462,19 @@ class EV2Gym(gym.Env):
             self.current_ev_departed += len(user_satisfaction)
 
             port_counter += n_ports
-        
-        actions =random.sample(range(-100, 100),  self.grid.node_num-1)
-        actions = np.ones(self.grid.node_num-1)*100
-        active_power, vm, saved_energy = self.grid.step(actions)
-        
+
+        for tr in self.transformers:
+            self.node_ev_power[tr.id + 1:,
+                               self.current_step] = tr.current_power
+
+        active_power, vm, saved_grid_energy = self.grid.step(
+            self.node_ev_power[tr.id + 1:, self.current_step])
+
         self.node_active_power[:, self.current_step] = active_power
         self.node_voltage[:, self.current_step] = vm
-        self.node_ev_power[1:, self.current_step] = actions
-        
-        # if any(grid_state[1] < 0.95) or any(grid_state[1] > 1.05):            
+        self.saved_grid_energy[self.current_step] = saved_grid_energy
+
+        # if any(grid_state[1] < 0.95) or any(grid_state[1] > 1.05):
         #     return self._get_observation(), 0, True, True, 0
 
         # Spawn EVs
