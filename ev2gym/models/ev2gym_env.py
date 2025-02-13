@@ -460,7 +460,7 @@ class EV2Gym(gym.Env):
             port_counter += n_ports
         
         actions =random.sample(range(-100, 100),  self.grid.node_num-1)
-        # actions = np.zeros(self.grid.node_num-1)
+        actions = np.ones(self.grid.node_num-1)*100
         active_power, vm, saved_energy = self.grid.step(actions)
         
         self.node_active_power[:, self.current_step] = active_power

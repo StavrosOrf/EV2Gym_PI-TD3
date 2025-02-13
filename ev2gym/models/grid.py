@@ -100,9 +100,8 @@ class PowerGrid():
                              }}
 
         if self.algorithm == "Laurent":
-            # This is where bugs comes from, if we don't use copy, this slice is actually creating a view of originally data.
+            
             active_power = cp.copy(self.load_data[self.current_step, :])
-
             self.active_power = (active_power)[1:self.node_num]
             reactive_power = np.zeros(self.node_num)
 
@@ -192,6 +191,7 @@ class PowerGrid():
         Advance the environment by one timestep based on the provided action.
         """
 
+        # Update active power of each node based on EVs and run power flow
         saved_energy = self._runpf(actions)
         self.current_step += 1
         active_power, vm = self._build_state()
