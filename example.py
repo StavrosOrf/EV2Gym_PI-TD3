@@ -24,7 +24,7 @@ def eval():
     Runs an evaluation of the ev2gym environment.
     """
 
-    save_plots = False
+    save_plots = True
 
     replay_path = "./replay/replay_sim_2024_07_05_106720.pkl"
     replay_path = None
@@ -69,7 +69,7 @@ def eval():
     succesful_runs = 0
     failed_runs = 0
     
-    for i in range(10000):
+    for i in range(1):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)

@@ -96,7 +96,7 @@ class PowerGrid():
 
         obs = {'node_data': {'voltage': {},
                              'active_power': {},
-                             'reactive_power': {}
+                             #  'reactive_power': {}
                              }}
 
         if self.algorithm == "Laurent":
@@ -108,7 +108,7 @@ class PowerGrid():
 
             self.solution = self.net.run_pf(active_power=self.active_power)
 
-            # NODES[1-34], node_index[0-33]
+            # NODES[1-NODES], node_index[0-(NODES-1)]
             for node_index in range(len(self.net.bus_info.NODES)):
                 if node_index == 0:
                     obs['node_data']['voltage'][f'node_{node_index}'] = 1.0
@@ -126,9 +126,10 @@ class PowerGrid():
                 # self.net.load.p_mw[bus_index] = (
                 #     active_power[bus_index]) / self.s_base
                 # self.net.load.q_mvar[bus_index] = 0
-                self.net.load.loc[bus_index, "p_mw"] = active_power[bus_index] / self.s_base
+                self.net.load.loc[bus_index,
+                                  "p_mw"] = active_power[bus_index] / self.s_base
                 self.net.load.loc[bus_index, "q_mvar"] = 0
-                
+
             pp.runpp(self.net, algorithm='nr')
             v_real = self.net.res_bus["vm_pu"].values * \
                 np.cos(np.deg2rad(self.net.res_bus["va_degree"].values))
@@ -140,7 +141,7 @@ class PowerGrid():
                 bus_idx = self.net.load.at[node_index, 'bus']
                 obs['node_data']['voltage'][f'node_{node_index}'] = self.net.res_bus.vm_pu.at[bus_idx]
                 obs['node_data']['active_power'][f'node_{node_index}'] = active_power[node_index]
-                obs['node_data']['reactive_power'][f'node_{node_index}'] = self.net.res_load.q_mvar[node_index]
+                # obs['node_data']['reactive_power'][f'node_{node_index}'] = self.net.res_load.q_mvar[node_index]
 
         # return obs
         active_power = np.array(
@@ -148,10 +149,10 @@ class PowerGrid():
         # renewable_active_power = np.array(list(obs['node_data']['renewable_active_power'].values()))
         vm = np.array(list(obs['node_data']['voltage'].values()))
 
-        return (active_power, vm, self.current_step)
+        return active_power, vm
 
     def _runpf(self, action):
-        '''apply action to battery charge/discharge, update the battery condition, excute power flow, update the network condition'''
+
         if self.algorithm == "Laurent":
             v = self.solution["v"]
             v_totall = np.insert(v, 0, 1)
@@ -170,19 +171,14 @@ class PowerGrid():
             power_imported_from_ex_grid_after = current_each_node[0].real
             saved_energy = power_imported_from_ex_grid_before - \
                 power_imported_from_ex_grid_after
+
         else:
             power_imported_from_ex_grid_before = cp.deepcopy(
                 self.net.res_ext_grid['p_mw'])
 
-            # for i, node_index in enumerate(self.battery_list):
-            #     getattr(self, f"battery_{node_index}").step(action[i])
-            #     self.net.load.p_mw[node_index] += getattr(
-            #         self, f"battery_{node_index}").energy_change / 1000
-
             pp.runpp(self.net, algorithm='nr')
             vm_pu_after_control = cp.deepcopy(
                 self.net.res_bus.vm_pu).to_numpy(dtype=float)
-            # vm_pu_after_control_bat = vm_pu_after_control[self.battery_list]
 
             self.after_control = vm_pu_after_control
             power_imported_from_ex_grid_after = self.net.res_ext_grid['p_mw']
@@ -191,24 +187,16 @@ class PowerGrid():
 
         return saved_energy
 
-    def step(self, action: np.ndarray) -> tuple:
+    def step(self, actions: np.ndarray) -> tuple:
         """
         Advance the environment by one timestep based on the provided action.
-
-        :param action: Action to execute.
-        :type action: np.ndarray
-        :return: Tuple containing the next normalized observation, the reward, a boolean indicating if the episode has ended, and additional info.
-        :rtype: tuple
         """
-        # Apply battery actions and get updated observations
-        saved_energy = self._runpf(action)
 
-        # done = (self.current_step == self.episode_length - 1)
+        saved_energy = self._runpf(actions)
         self.current_step += 1
+        active_power, vm = self._build_state()
 
-        new_state = self._build_state()
-
-        return new_state, saved_energy
+        return active_power, vm, saved_energy
 
 
 class CustomUnpickler(pickle.Unpickler):

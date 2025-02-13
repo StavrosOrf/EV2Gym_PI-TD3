@@ -120,7 +120,6 @@ class EV2Gym(gym.Env):
             self.scenario = self.config['scenario']
             self.simulation_length = int(self.config['simulation_length'])
             self.simulate_grid = self.config['simulate_grid']
-            # Simulation time
 
             if self.config['random_day']:
                 if "random_hour" in self.config:
@@ -355,6 +354,10 @@ class EV2Gym(gym.Env):
 
         self.previous_power_usage = self.current_power_usage
         self.current_power_usage = np.zeros(self.simulation_length)
+        
+        self.node_active_power = np.zeros([self.grid.node_num, self.simulation_length])
+        self.node_voltage = np.zeros([self.grid.node_num, self.simulation_length])
+        self.node_ev_power = np.zeros([self.grid.node_num, self.simulation_length])
 
         # self.transformer_amps = np.zeros([self.number_of_transformers,
         #                                   self.simulation_length])
@@ -375,6 +378,7 @@ class EV2Gym(gym.Env):
         #                             self.cs,
         #                             self.simulation_length],
         #                            dtype=np.float16)
+        
         if not self.lightweight_plots:
             self.port_current = np.zeros([self.number_of_ports,
                                           self.cs,
@@ -455,12 +459,16 @@ class EV2Gym(gym.Env):
 
             port_counter += n_ports
         
-        # actions =random.sample(range(-1, 1),  self.grid.node_num-1)
-        actions = np.zeros(self.grid.node_num-1)
-        grid_state, saved_energy = self.grid.step(actions)
+        actions =random.sample(range(-100, 100),  self.grid.node_num-1)
+        # actions = np.zeros(self.grid.node_num-1)
+        active_power, vm, saved_energy = self.grid.step(actions)
         
-        if any(grid_state[1] < 0.95) or any(grid_state[1] > 1.05):            
-            return self._get_observation(), 0, True, True, 0
+        self.node_active_power[:, self.current_step] = active_power
+        self.node_voltage[:, self.current_step] = vm
+        self.node_ev_power[1:, self.current_step] = actions
+        
+        # if any(grid_state[1] < 0.95) or any(grid_state[1] > 1.05):            
+        #     return self._get_observation(), 0, True, True, 0
 
         # Spawn EVs
         counter = self.total_evs_spawned
