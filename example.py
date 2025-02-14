@@ -2,22 +2,17 @@
 This script is used to evaluate the performance of the ev2gym environment.
 """
 from ev2gym.models.ev2gym_env import EV2Gym
-from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
-from ev2gym.baselines.gurobi_models.profit_max import V2GProfitMaxOracleGB
-from ev2gym.baselines.mpc.ocmf_mpc import OCMF_V2G, OCMF_G2V
-from ev2gym.baselines.mpc.eMPC import eMPC_V2G, eMPC_G2V
-
-from ev2gym.baselines.mpc.eMPC_v2 import eMPC_V2G_v2, eMPC_G2V_v2
-
-from ev2gym.baselines.mpc.V2GProfitMax import V2GProfitMaxOracle
 
 from ev2gym.baselines.heuristics import RoundRobin, ChargeAsLateAsPossible, ChargeAsFastAsPossible
-from ev2gym.baselines.heuristics import ChargeAsFastAsPossibleToDesiredCapacity
+
+from agent.state import V2G_grid_state
+from agent.reward import V2G_grid_reward
 
 import numpy as np
 import matplotlib.pyplot as plt
 import gymnasium as gym
 import pandas as pd
+
 
 def eval():
     """
@@ -38,19 +33,22 @@ def eval():
                  verbose=False,
                  save_replay=False,
                  save_plots=save_plots,
+                 state_function=V2G_grid_state,
+                 reward_function=V2G_grid_reward,
                  )
 
-
+    print(env.action_space)
+    print(env.observation_space)
     new_replay_path = f"replay/replay_{env.sim_name}.pkl"
 
     agent = ChargeAsFastAsPossible()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
-    
+
     succesful_runs = 0
     failed_runs = 0
-    
+
     results_df = None
-    
+
     for i in range(100):
         state, _ = env.reset()
         for t in range(env.simulation_length):
@@ -63,7 +61,7 @@ def eval():
                 print(f"Voltage limits exceeded step: {t}")
                 failed_runs += 1
                 break
-            
+
             if done:
                 keys_to_print = ['total_ev_served',
                                  'total_energy_charged',
@@ -71,24 +69,26 @@ def eval():
                                  'voltage_up_violation_counter',
                                  'voltage_down_violation_counter',
                                  'saved_grid_energy',
-                                 'voltage_violation'
+                                 'voltage_violation',
+                                 'total_reward'
                                  ]
                 print({key: stats[key] for key in keys_to_print})
-                
+
                 new_stats = {key: stats[key] for key in keys_to_print}
-                
-                if i == 0:                    
+
+                if i == 0:
                     results_df = pd.DataFrame(new_stats, index=[0])
                 else:
                     results_df = pd.concat([results_df,
                                             pd.DataFrame(new_stats, index=[0])])
-                    
+
                 succesful_runs += 1
-                break        
-            
+                break
+
         if i % 100 == 0:
-            print(f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
-    
+            print(
+                f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
+
     print(results_df.describe())
     return
     # Solve optimally
@@ -99,10 +99,10 @@ def eval():
     # # Simulate in the gym environment and get the rewards
 
     env = EV2Gym(config_file=config_file,
-                       load_from_replay_path=new_replay_path,
-                       verbose=False,
-                       save_plots=True,
-                       )
+                 load_from_replay_path=new_replay_path,
+                 verbose=False,
+                 save_plots=True,
+                 )
     state, _ = env.reset()
     rewards_opt = []
 
@@ -114,7 +114,7 @@ def eval():
         new_state, reward, done, truncated, stats = env.step(
             actions, visualize=False)  # takes action
         rewards_opt.append(reward)
-        
+
         # if verbose:
         #     print(f'Reward: {reward} \t Done: {done}')
 
@@ -125,4 +125,4 @@ def eval():
 
 if __name__ == "__main__":
     # while True:
-        eval()    
+    eval()

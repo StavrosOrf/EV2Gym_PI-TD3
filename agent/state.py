@@ -1,12 +1,8 @@
 import math
 import numpy as np
-from torch_geometric.data import Data
 import math
 
-
-
-
-def PST_V2G_ProfitMax_state(env, *args):
+def V2G_grid_state(env, *args):
     '''
     This is the state function for the PST_V2GProfitMax scenario.
     '''
@@ -17,39 +13,30 @@ def PST_V2G_ProfitMax_state(env, *args):
         math.sin(env.sim_date.hour/24*2*math.pi),
         math.cos(env.sim_date.hour/24*2*math.pi),      
     ]
-    
-    if env.current_step < env.simulation_length:
-        setpoint = env.power_setpoints[env.current_step]
-    else:
-        setpoint = 0
-
-    state.append(setpoint)
 
     state.append(env.current_power_usage[env.current_step-1])
 
-    # charge_prices = abs(env.charge_prices[0, env.current_step:
-    #     env.current_step+20])
-    
-    # if len(charge_prices) < 20:
-    #     charge_prices = np.append(charge_prices, np.zeros(20-len(charge_prices)))
     if env.current_step < env.simulation_length:
         charge_prices = abs(env.charge_prices[0, env.current_step])
     else:
         charge_prices = 0
         
     state.append(charge_prices)
+    
+    state.append(env.node_voltage[:, env.current_step-1])
+    state.append(env.node_active_power[:, env.current_step-1])
        
     # For every transformer
     for tr in env.transformers:
         
-        state.append(tr.get_power_limits(env.current_step,horizon=1))
+        # state.append(tr.get_power_limits(env.current_step,horizon=1))
 
         # For every charging station connected to the transformer
         for cs in env.charging_stations:
             if cs.connected_transformer == tr.id:
-                state.append(cs.min_charge_current)
-                state.append(cs.max_charge_current)
-                state.append(cs.n_ports)
+                # state.append(cs.min_charge_current)
+                # state.append(cs.max_charge_current)
+                # state.append(cs.n_ports)
 
                 # For every EV connected to the charging station
                 for EV in cs.evs_connected:
