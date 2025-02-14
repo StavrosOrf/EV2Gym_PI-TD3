@@ -567,7 +567,7 @@ class GridTensor:
         else:
             # active_power = self.P_file[np.newaxis, :
             reactive_power = self.Q_file[np.newaxis, :]
-            print('zhong')
+            # print('zhong')
 
         self.ts_n = active_power.shape[0]  # Time steps to be simulated
         if flat_start:

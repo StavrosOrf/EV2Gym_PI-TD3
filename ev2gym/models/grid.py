@@ -111,7 +111,8 @@ class PowerGrid():
             self.reactive_power = self.active_power * 0.7
 
             self.solution = self.net.run_pf(active_power=self.active_power,
-                                            reactive_power=self.reactive_power)
+                                            # reactive_power=self.reactive_power
+                                            )
 
             # NODES[1-NODES], node_index[0-(NODES-1)]
             for node_index in range(len(self.net.bus_info.NODES)):
@@ -168,7 +169,8 @@ class PowerGrid():
             # my_v = self.calculate_PF(self.dense_Ybus, v_totall, self.active_power)
 
             self.solution = self.net.run_pf(active_power=self.active_power,
-                                            reactive_power=self.reactive_power)
+                                            # reactive_power=self.reactive_power
+                                            )
 
             # solution_v = self.solution["v"]
             # solution_v = np.insert(solution_v, 0, 1)

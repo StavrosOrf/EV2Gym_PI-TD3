@@ -448,7 +448,7 @@ def load_electricity_prices(env) -> Tuple[np.ndarray, np.ndarray]:
             year = 2022
             if day > 28:
                 day -= 1
-            print("Debug:", year, month, day, hour)
+            # print("Debug:", year, month, day, hour)
             charge_prices[:, i] = -data.loc[(data['year'] == year) & (data['month'] == month) & (data['day'] == day) & (data['hour'] == hour),
                                             'Price (EUR/MWhe)'].iloc[0]/1000  # €/kWh
             discharge_prices[:, i] = data.loc[(data['year'] == year) & (data['month'] == month) & (data['day'] == day) & (data['hour'] == hour),

@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument('--group_name', type=str, default="")
     parser.add_argument('--train_steps', type=int, default=2_000_000)        
     parser.add_argument('--config_file', type=str,
-                        default="./config_files/V2G_grid.yaml")
+                        default="./config_files/v2g_grid.yaml")
 
     algorithm = parser.parse_args().algorithm
     device = parser.parse_args().device
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     reward_function = V2G_grid_simple_reward    
     state_function = V2G_grid_state    
 
-    run_name = f'{run_name}'
+    run_name = f'{run_name}_{reward_function.__name__}_{state_function.__name__}'
 
     run = wandb.init(project='EVs4Grid',
                      sync_tensorboard=True,

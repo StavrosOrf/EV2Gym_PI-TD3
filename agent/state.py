@@ -2,33 +2,34 @@ import math
 import numpy as np
 import math
 
+
 def V2G_grid_state(env, *args):
     '''
     This is the state function for the PST_V2GProfitMax scenario.
     '''
-    
+
     state = [
         env.sim_date.weekday() / 7,
         # turn hour and minutes in sin and cos
         math.sin(env.sim_date.hour/24*2*math.pi),
-        math.cos(env.sim_date.hour/24*2*math.pi),      
+        math.cos(env.sim_date.hour/24*2*math.pi),
     ]
 
-    state.append(env.current_power_usage[env.current_step-1])
+    # state.append(env.current_power_usage[env.current_step-1])
 
     if env.current_step < env.simulation_length:
         charge_prices = abs(env.charge_prices[0, env.current_step])
     else:
         charge_prices = 0
-        
+
     state.append(charge_prices)
-    
+
     state.append(env.node_voltage[:, env.current_step-1])
     state.append(env.node_active_power[:, env.current_step-1])
-       
+
     # For every transformer
     for tr in env.transformers:
-        
+
         # state.append(tr.get_power_limits(env.current_step,horizon=1))
 
         # For every charging station connected to the transformer
@@ -45,7 +46,7 @@ def V2G_grid_state(env, *args):
                         state.append([
                             EV.get_soc(),
                             EV.time_of_departure - env.current_step,
-                            ])
+                        ])
 
                     # else if there is no EV connected put zeros
                     else:
@@ -55,8 +56,6 @@ def V2G_grid_state(env, *args):
 
     return state
 
-    
-    
 
 def PST_V2G_ProfitMaxGNN_state(env, *args):
     ''' 
@@ -79,7 +78,7 @@ def PST_V2G_ProfitMaxGNN_state(env, *args):
         math.sin(env.sim_date.hour/24*2*math.pi),
         math.cos(env.sim_date.hour/24*2*math.pi),
     ]
-    
+
     if env.current_step < env.simulation_length:
         setpoint = env.power_setpoints[env.current_step]
     else:
@@ -94,7 +93,7 @@ def PST_V2G_ProfitMaxGNN_state(env, *args):
         env_features.append(abs(env.charge_prices[0, env.current_step]))
     else:
         env_features.append(0)
-    
+
     env_features = [env_features]
 
     node_features = [env_features]
@@ -143,8 +142,8 @@ def PST_V2G_ProfitMaxGNN_state(env, *args):
                                                 cs.id
                                                 ]
 
-                            if not registered_tr:                                
-                                
+                            if not registered_tr:
+
                                 node_features.append([tr.max_power[env.current_step] -
                                                       tr.inflexible_load[env.current_step] +
                                                       tr.solar_power[env.current_step],
@@ -237,7 +236,6 @@ def PST_V2G_ProfitMaxGNN_state(env, *args):
     return data
 
 
-
 def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
     '''
     This function converts the state of the PST_V2GProfitMax scenario to a GNN state similar to the output of the PST_V2G_ProfitMaxGNN_state function.
@@ -249,11 +247,11 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
     Output:
         data: torch_geometric.data.Data
     '''
-    
+
     PST_V2G_ProfitMax_state_to_GNN.node_sizes = {
         'ev': 5, 'cs': 4, 'tr': 2, 'env': 6}
-    
-    assert config['number_of_ports_per_cs'] == 1, 'This function only supports one port per charging station.'    
+
+    assert config['number_of_ports_per_cs'] == 1, 'This function only supports one port per charging station.'
     idx = 0
 
     # Extract environment features
@@ -280,7 +278,7 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
     action_mapper = []
     cs_counter = -1
     ev_counter = 0
-    
+
     for tr in range(config['number_of_transformers']):
         any_evs_per_tr = False
         # Get transformer feature from state
@@ -300,13 +298,14 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
         edge_index_to.append(tr_node_index)
         edge_index_from.append(tr_node_index)
         edge_index_to.append(0)
-        
-        
-        chargers_per_tr = int(config['number_of_charging_stations'])/int(config['number_of_transformers'])
-        
+
+        chargers_per_tr = int(
+            config['number_of_charging_stations'])/int(config['number_of_transformers'])
+
         if chargers_per_tr != int(chargers_per_tr):
-            raise ValueError('The number of charging stations must be divisible by the number of transformers.')
-        
+            raise ValueError(
+                'The number of charging stations must be divisible by the number of transformers.')
+
         chargers_per_tr = int(chargers_per_tr)
         for cs in range(chargers_per_tr):
             cs_counter += 1
@@ -318,14 +317,16 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
             cs_n_ports = int(state[idx])
             idx += 1
             # print(f'cs {cs} : {cs_min_charge_current} {cs_max_charge_current} {cs_n_ports}')
-            #check if EVs are connected to the charging station
+            # check if EVs are connected to the charging station
             if state[idx] == 0 and state[idx+1] == 0:
                 idx += 2
                 ev_counter += cs_n_ports
                 continue
 
-            cs_features.append([cs_min_charge_current, cs_max_charge_current, cs_n_ports, cs_counter])
-            node_features.append([cs_min_charge_current, cs_max_charge_current, cs_n_ports, cs_counter])
+            cs_features.append(
+                [cs_min_charge_current, cs_max_charge_current, cs_n_ports, cs_counter])
+            node_features.append(
+                [cs_min_charge_current, cs_max_charge_current, cs_n_ports, cs_counter])
             node_types.append(2)  # 2 for charging station node
             node_names.append(f'Tr_{tr}_CS_{cs_counter}')
             cs_node_index = node_counter
@@ -344,7 +345,7 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
                 idx += 1
                 EV_tod = state[idx]
                 idx += 1
-                
+
                 EV_id = port_i  # Using port index as EV ID for simplicity
                 ev_features.append([EV_soc, EV_tod, EV_id, cs_counter, tr])
                 node_features.append([EV_soc, EV_tod, EV_id, cs_counter, tr])
@@ -360,11 +361,11 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
                 edge_index_to.append(ev_node_index)
                 edge_index_from.append(ev_node_index)
                 edge_index_to.append(cs_node_index)
-                
+
                 ev_counter += 1
                 any_evs_per_tr = True
-                
-        if not any_evs_per_tr:            
+
+        if not any_evs_per_tr:
             edge_index_from = edge_index_from[:-2]
             edge_index_to = edge_index_to[:-2]
             tr_features = tr_features[:-1]
@@ -373,15 +374,15 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
             node_types = node_types[:-1]
             node_features = node_features[:-1]
             node_counter -= 1
-    
+
     # print(f'idx: {idx}')
     # print(f'len(state): {len(state)}')
     # if idx != len(state):
     #     raise ValueError('The state was not fully processed.')
-    
+
     # if len(ev_features) == 0:
     #     edge_index_from = []
-    #     edge_index_to = []        
+    #     edge_index_to = []
     #     tr_features = []
     #     tr_indexes = []
     #     node_features = [env_features]
@@ -391,9 +392,12 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
     edge_index = np.array([edge_index_from, edge_index_to], dtype=int)
 
     # Convert lists to numpy arrays
-    ev_features_array = np.array(ev_features, dtype=float) if ev_features else np.empty((0, 5))
-    cs_features_array = np.array(cs_features, dtype=float) if cs_features else np.empty((0, 4))
-    tr_features_array = np.array(tr_features, dtype=float) if tr_features else np.empty((0, 2))
+    ev_features_array = np.array(
+        ev_features, dtype=float) if ev_features else np.empty((0, 5))
+    cs_features_array = np.array(
+        cs_features, dtype=float) if cs_features else np.empty((0, 4))
+    tr_features_array = np.array(
+        tr_features, dtype=float) if tr_features else np.empty((0, 2))
     env_features_array = np.array([env_features], dtype=float)
 
     node_types_array = np.array(node_types, dtype=int)
@@ -409,7 +413,7 @@ def PST_V2G_ProfitMax_state_to_GNN(state, config, *args):
         tr_features=tr_features_array,
         env_features=env_features_array,
         edge_index=edge_index,
-        node_types=node_types_array,        
+        node_types=node_types_array,
         sample_node_length=[len(node_features)],
         action_mapper=action_mapper_array,
         ev_indexes=ev_indexes_array,

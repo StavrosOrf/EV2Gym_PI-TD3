@@ -26,7 +26,7 @@ def eval():
 
     # config_file = "ev2gym/example_config_files/PublicPST.yaml"
     # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
-    config_file = "./config_files/V2G_grid.yaml"
+    config_file = "./config_files/v2g_grid.yaml"
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
