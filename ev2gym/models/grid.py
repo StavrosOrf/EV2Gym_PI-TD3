@@ -88,6 +88,8 @@ class PowerGrid():
 
         assert not np.isnan(self.load_data).any(
         ), "There are nan values in the load_data"
+        assert not np.isinf(self.load_data).any(
+        ), "There are inf values in the load_data"
 
         return *self._build_state(), 0
 

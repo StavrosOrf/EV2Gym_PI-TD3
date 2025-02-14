@@ -405,6 +405,10 @@ def load_electricity_prices(env) -> Tuple[np.ndarray, np.ndarray]:
         file_path = pkg_resources.resource_filename(
             'ev2gym', 'data/Netherlands_day-ahead-2015-2024.csv')
         env.price_data = pd.read_csv(file_path, sep=',', header=0)
+        # import polars as pl
+        # env.price_data = pl.read_csv(file_path).to_pandas()
+        
+        
         drop_columns = ['Country', 'Datetime (Local)']
 
         env.price_data.drop(drop_columns, inplace=True, axis=1)
@@ -470,8 +474,9 @@ def load_grid(env):
         grid = PowerGrid(env.config,
                              date=env.sim_date)
 
-        print(
-            f'Overriding the number of transformers to {grid.node_num-1} buses.')
+        # print(
+            # f'Overriding the number of transformers to {grid.node_num-1} buses.')
+        
         env.number_of_transformers = grid.node_num-1
         env.cs_transformers = [
             *np.arange(env.number_of_transformers)] * (env.cs // env.number_of_transformers)
@@ -480,8 +485,8 @@ def load_grid(env):
 
         assert env.charging_network_topology is None, "Charging network topology is not supported with grid simulation."
 
-        print(
-            f'Charging stations connected to transformers: {env.cs_transformers}')
+        # print(
+        #     f'Charging stations connected to transformers: {env.cs_transformers}')
         
         return grid
     

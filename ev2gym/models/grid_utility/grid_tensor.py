@@ -585,7 +585,7 @@ class GridTensor:
         active_power_pu = active_power / self.s_base
         # Vector with all reactive power except slack
         reactive_power_pu = reactive_power / self.s_base
-
+        
         S_nom = active_power_pu + 1j * reactive_power_pu  # (ts x nodes)
 
         n_steps = S_nom.shape[0]

@@ -85,7 +85,7 @@ class DataGenerator:
                                                   variables={'x1': day},
                                                   )
 
-                if not np.isnan(augmented_data).any():
+                if not np.isnan(augmented_data).any() and not np.isinf(augmented_data).any():
                     data[j*96:(j+1)*96, :] = augmented_data
                     break
 

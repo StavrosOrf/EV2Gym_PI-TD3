@@ -187,23 +187,12 @@ class EV2Gym(gym.Env):
 
         # Load grid data
         self.grid = load_grid(self)
-        # if self.simulate_grid:
-        #     if self.load_from_replay_path is not None:
-        #         load_data = self.replay.load_data
-        #     else:
-        #         load_data = None
-        #     active_power, vm, _ = self.grid.reset(
-        #         self.sim_date, load_data=load_data)
 
         # Instatiate Transformers
         self.transformers = load_transformers(self)
-        # for tr in self.transformers:
-        #     tr.reset(step=0)
 
         # Instatiate Charging Stations
         self.charging_stations = load_ev_charger_profiles(self)
-        # for cs in self.charging_stations:
-        #     cs.reset()
 
         # Calculate the total number of ports in the simulation
         self.number_of_ports = np.array(
@@ -213,22 +202,7 @@ class EV2Gym(gym.Env):
         if self.load_from_replay_path is None:
             load_ev_spawn_scenarios(self)
 
-        # Spawn EVs
-        # self.EVs_profiles = load_ev_profiles(self)
-        # self.EVs = []
-
-        # Load Electricity prices for every charging station
         self.price_data = None
-        # self.charge_prices, self.discharge_prices = load_electricity_prices(
-        #     self)
-
-        # Load power setpoint of simulation
-        # self.power_setpoints = load_power_setpoints(self)
-        # self.current_power_usage = np.zeros(self.simulation_length)
-
-        # self.init_statistic_variables()
-
-        # Variable showing whether the simulation is done or not
         self.reset(seed=seed)
         self.done = False
 
@@ -395,7 +369,7 @@ class EV2Gym(gym.Env):
         if self.simulate_grid:
             for tr in self.transformers:
                 self.node_ev_power[tr.id + 1:,
-                                self.current_step] = tr.current_power
+                                   self.current_step] = tr.current_power
 
             active_power, vm, saved_grid_energy = self.grid.step(
                 self.node_ev_power[tr.id + 1:, self.current_step])
@@ -438,16 +412,9 @@ class EV2Gym(gym.Env):
 
         self.current_evs_parked += self.current_ev_arrived - self.current_ev_departed
 
-        # Call step for the grid
-        if False and self.simulate_grid:
-            # TODO: transform actions -> grid_actions
-            raise NotImplementedError
-            grid_report = self.grid.step(actions=actions)
-            reward = self._calculate_reward(grid_report)
-        else:
-            reward = self._calculate_reward(total_costs,
-                                            user_satisfaction_list,
-                                            total_invalid_action_punishment)
+        reward = self._calculate_reward(total_costs,
+                                        user_satisfaction_list,
+                                        total_invalid_action_punishment)
 
         if self.cost_function is not None:
             cost = self.cost_function(self,
