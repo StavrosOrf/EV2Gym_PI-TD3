@@ -443,15 +443,6 @@ class EV2Gym(gym.Env):
 
         # Check if the episode is done or any constraint is violated
         if self.current_step >= self.simulation_length:
-            """Terminate if:
-                - The simulation length is reached
-                - Any user satisfaction score is below the threshold
-                - Any charging station is overloaded
-                Dont terminate when overloading if :
-                - generate_rnd_game is True
-                Carefull: if generate_rnd_game is True,
-                the simulation might end up in infeasible problem
-                """
 
             self.done = True
             self.stats = get_statistics(self)
@@ -461,13 +452,7 @@ class EV2Gym(gym.Env):
 
             if self.verbose:
                 print_statistics(self)
-
-                if any(tr.is_overloaded() for tr in self.transformers):
-                    print(
-                        f"Transformer overloaded, {self.current_step} timesteps\n")
-                else:
-                    print(
-                        f"Episode finished after {self.current_step} timesteps\n")
+                print(f"Episode finished after {self.current_step} timesteps\n")
 
             if self.save_replay:
                 self._save_sim_replay()

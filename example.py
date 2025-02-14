@@ -28,13 +28,6 @@ def eval():
 
     replay_path = "./replay/replay_sim_2025_02_14_047599.pkl"
     replay_path = None
-    # {'total_ev_served': 123,
-    # 'total_energy_charged': 3563.1249408365056,
-    # 'average_user_satisfaction': 1.0,
-    # 'voltage_up_violation_counter': 0,
-    # 'voltage_down_violation_counter': (463,),
-    # 'saved_grid_energy': (-6.488108142363382,),
-    # 'voltage_violation': (23.150000000000034,)}
 
     # config_file = "ev2gym/example_config_files/PublicPST.yaml"
     # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
@@ -50,26 +43,6 @@ def eval():
 
     new_replay_path = f"replay/replay_{env.sim_name}.pkl"
 
-    # ev_profiles = env.EVs_profiles
-    # max_time_of_stay = max([ev.time_of_departure - ev.time_of_arrival
-    #                         for ev in ev_profiles])
-    # min_time_of_stay = min([ev.time_of_departure - ev.time_of_arrival
-    #                         for ev in ev_profiles])
-
-    # print(f'Number of EVs: {len(ev_profiles)}')
-    # print(f'Max time of stay: {max_time_of_stay}')
-    # print(f'Min time of stay: {min_time_of_stay}')
-    
-    # exit()
-    # agent = OCMF_V2G(env, control_horizon=30, verbose=True)
-    # agent = OCMF_G2V(env, control_horizon=25, verbose=True)
-    # agent = eMPC_V2G(env, control_horizon=15, verbose=False)
-    # agent = V2GProfitMaxOracle(env,verbose=True)
-    # agent = PowerTrackingErrorrMin(new_replay_path)
-    # agent = eMPC_G2V(env, control_horizon=15, verbose=False)
-    # agent = eMPC_V2G_v2(env, control_horizon=10, verbose=False)        
-    # agent = RoundRobin(env, verbose=False)
-    # agent = ChargeAsLateAsPossible(verbose=False)
     agent = ChargeAsFastAsPossible()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
     
@@ -110,8 +83,6 @@ def eval():
                     results_df = pd.concat([results_df,
                                             pd.DataFrame(new_stats, index=[0])])
                     
-                
-                # print(f'End of simulation at step {env.current_step}')
                 succesful_runs += 1
                 break        
             
