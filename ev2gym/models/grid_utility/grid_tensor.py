@@ -48,7 +48,7 @@ class GridTensor:
                  lines_file_path: str = None,
                  *,
                  s_base: int = 1000,  # kVA - 1 phase
-                 v_base: float = 11,  # kV - 1 phase
+                 v_base: float = 11,  # kV - 1 phase #11
                  iterations: int = 100,
                  tolerance: float = 1e-5,
                  from_file=True,
@@ -557,7 +557,7 @@ class GridTensor:
                       flat_start: bool = True,
                       compute: str = "cpu") -> dict:
         if (active_power is not None) and (reactive_power is not None):
-            print('ok')
+            # print('ok')
             assert len(
                 active_power.shape) == 2, "Array must be two dimensional."
             assert len(
@@ -567,7 +567,7 @@ class GridTensor:
         else:
             # active_power = self.P_file[np.newaxis, :
             reactive_power = self.Q_file[np.newaxis, :]
-            # print('zhong')
+            print('zhong')
 
         self.ts_n = active_power.shape[0]  # Time steps to be simulated
         if flat_start:
@@ -617,7 +617,6 @@ class GridTensor:
             # t.set_description(f"Chunk: {ii + 1} of {n_chunks}", refresh=True)
 
             ts_chunk = idx[ii + 1] - idx[ii]  # Size of the chunk
-            # TODO
 
             self.v_0 = np.ones((ts_chunk, self.nb - 1)) + 1j * \
                 np.zeros((ts_chunk, self.nb - 1))  # Flat start

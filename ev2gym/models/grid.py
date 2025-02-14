@@ -100,10 +100,12 @@ class PowerGrid():
         if self.algorithm == "Laurent":
 
             active_power = cp.copy(self.load_data[self.current_step, :])
-            self.active_power = (active_power)[1:self.node_num]
-            reactive_power = np.zeros(self.node_num)
+            self.active_power = (active_power)[1:self.node_num].reshape(1, -1)
+            # reactive_power = np.zeros(self.node_num)
+            self.reactive_power = self.active_power * 0.7
 
-            self.solution = self.net.run_pf(active_power=self.active_power)
+            self.solution = self.net.run_pf(active_power=self.active_power,
+                                            reactive_power=self.reactive_power)
 
             # NODES[1-NODES], node_index[0-(NODES-1)]
             for node_index in range(len(self.net.bus_info.NODES)):
@@ -157,8 +159,15 @@ class PowerGrid():
             power_imported_from_ex_grid_before = current_each_node[0].real
 
             self.active_power += action
+            # my_v = self.calculate_PF(self.dense_Ybus, v_totall, self.active_power)
 
-            self.solution = self.net.run_pf(active_power=self.active_power)
+            self.solution = self.net.run_pf(active_power=self.active_power,
+                                            reactive_power=self.reactive_power)
+
+            # solution_v = self.solution["v"]
+            # solution_v = np.insert(solution_v, 0, 1)
+            # print(f'v error: {np.linalg.norm(my_v - solution_v)}')
+            # exit()
 
             v = self.solution["v"]
             v_totall = np.insert(v, 0, 1)
@@ -195,6 +204,18 @@ class PowerGrid():
         active_power, vm = self._build_state()
 
         return active_power, vm, saved_energy
+
+    def calculate_PF(self,
+                     Ybus,
+                     v,
+                     p):
+
+        print(f'v: {v}')
+        print(f'p: {p}')
+        print(f'Q: {self.net.Q_file}')
+        print(f'Ybus: {Ybus}')
+
+        return v
 
 
 class CustomUnpickler(pickle.Unpickler):
