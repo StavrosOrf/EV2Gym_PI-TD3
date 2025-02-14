@@ -28,7 +28,7 @@ class EvCityReplay():
         self.n_transformers = env.number_of_transformers
         self.timescale = env.timescale
         self.sim_date = env.sim_starting_date
-        # self.cs_transformers = env.cs_transformers
+        self.cs_transformers = env.cs_transformers
         self.power_setpoints = env.power_setpoints
         self.scenario = env.scenario
         self.heterogeneous_specs = env.heterogeneous_specs
@@ -38,6 +38,9 @@ class EvCityReplay():
         self.transformers = env.transformers
         self.charging_stations = env.charging_stations
         self.EVs = env.EVs
+        self.grid = env.grid
+        if env.simulate_grid:
+            self.load_data = env.grid.load_data
         
         self.unstirred_EVs = None
         self.unstirred_stats = None

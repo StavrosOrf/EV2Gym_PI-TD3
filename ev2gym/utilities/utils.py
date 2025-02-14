@@ -291,7 +291,7 @@ def spawn_single_EV(env,
                   max_ac_charge_power=env.ev_specs[sampled_ev]["max_ac_charge_power"],
                   max_dc_charge_power=env.ev_specs[sampled_ev]["max_dc_charge_power"],
                   max_discharge_power=-
-                  env.ev_specs[sampled_ev]["max_dc_discharge_power"],
+                  env.ev_specs[sampled_ev]["max_ac_discharge_power"],
                   min_emergency_battery_capacity=min_emergency_battery_capacity,
                   charge_efficiency=charge_efficiency,
                   discharge_efficiency=discharge_efficiency,
@@ -421,7 +421,7 @@ def spawn_single_EV_GF(env,
                   max_ac_charge_power=env.ev_specs[sampled_ev]["max_ac_charge_power"],
                   max_dc_charge_power=env.ev_specs[sampled_ev]["max_dc_charge_power"],
                   max_discharge_power=-
-                  env.ev_specs[sampled_ev]["max_dc_discharge_power"],
+                  env.ev_specs[sampled_ev]["max_ac_discharge_power"],
                   discharge_efficiency=np.round(1 -
                                                 (np.random.rand()+0.00001)/20, 3),  # [0.95-1]
                   transition_soc=np.round(0.9 -
@@ -775,3 +775,70 @@ def calculate_charge_power_potential(env) -> float:
             power_potential += cs_power_potential
 
     return power_potential
+
+def init_statistic_variables(env):
+        '''
+        Initializes the variables used for keeping simulation statistics
+        '''
+        env.current_step = 0
+        env.total_evs_spawned = 0
+        env.total_reward = 0
+
+        env.current_ev_departed = 0
+        env.current_ev_arrived = 0
+        env.current_evs_parked = 0
+
+        env.current_power_usage = np.zeros(env.simulation_length)
+        env.saved_grid_energy = np.zeros(env.simulation_length)
+        env.charge_power_potential = np.zeros(env.simulation_length)
+
+        if env.simulate_grid:
+            env.node_active_power = np.zeros(
+                [env.grid.node_num, env.simulation_length])
+            env.node_voltage = np.zeros(
+                [env.grid.node_num, env.simulation_length])
+            env.node_ev_power = np.zeros(
+                [env.grid.node_num, env.simulation_length])
+
+        env.cs_power = np.zeros([env.cs, env.simulation_length])
+        env.cs_current = np.zeros([env.cs, env.simulation_length])
+
+        env.tr_overload = np.zeros(
+            [env.number_of_transformers, env.simulation_length])
+
+        env.tr_inflexible_loads = np.zeros(
+            [env.number_of_transformers, env.simulation_length])
+
+        env.tr_solar_power = np.zeros(
+            [env.number_of_transformers, env.simulation_length])
+
+        # env.port_power = np.zeros([env.number_of_ports,
+        #                             env.cs,
+        #                             env.simulation_length],
+        #                            dtype=np.float16)
+
+        if not env.lightweight_plots:
+            env.port_current = np.zeros([env.number_of_ports,
+                                          env.cs,
+                                          env.simulation_length],
+                                         dtype=np.float16,
+                                         )
+            env.port_current_signal = np.zeros([env.number_of_ports,
+                                                 env.cs,
+                                                 env.simulation_length],
+                                                dtype=np.float16,
+                                                )
+
+            env.port_energy_level = np.zeros([env.number_of_ports,
+                                               env.cs,
+                                               env.simulation_length],
+                                              dtype=np.float16)
+            # env.port_charging_cycles = np.zeros([env.number_of_ports,
+            #                                       env.cs,
+            #                                       env.simulation_length],
+            #                                      dtype=np.float16)
+            env.port_arrival = dict({f'{j}.{i}': []
+                                      for i in range(env.number_of_ports)
+                                      for j in range(env.cs)})
+
+        env.done = False

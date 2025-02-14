@@ -13,6 +13,7 @@ from typing import List, Tuple
 from ev2gym.models.ev_charger import EV_Charger
 from ev2gym.models.ev import EV
 from ev2gym.models.transformer import Transformer
+from ev2gym.models.grid import PowerGrid
 
 from ev2gym.utilities.utils import EV_spawner, generate_power_setpoints, EV_spawner_GF
 
@@ -22,13 +23,13 @@ def load_ev_spawn_scenarios(env) -> None:
 
     # Load the EV specs
     if env.config['heterogeneous_ev_specs']:
-        
+
         if "ev_specs_file" in env.config:
             ev_specs_file = env.config['ev_specs_file']
-        else:            
+        else:
             ev_specs_file = pkg_resources.resource_filename(
                 'ev2gym', 'data/ev_specs.json')
-        
+
         with open(ev_specs_file) as f:
             env.ev_specs = json.load(f)
 
@@ -97,7 +98,7 @@ def load_power_setpoints(env) -> np.ndarray:
         return env.replay.power_setpoints
     else:
         if not env.config['power_setpoint_enabled']:
-            return  np.zeros(env.simulation_length)
+            return np.zeros(env.simulation_length)
         else:
             return generate_power_setpoints(env)
 
@@ -387,6 +388,7 @@ def load_ev_profiles(env) -> List[EV]:
     else:
         return env.replay.EVs
 
+
 def load_electricity_prices(env) -> Tuple[np.ndarray, np.ndarray]:
     '''Loads the electricity prices of the simulation
     If load_from_replay_path is None, then the electricity prices are created randomly
@@ -403,13 +405,17 @@ def load_electricity_prices(env) -> Tuple[np.ndarray, np.ndarray]:
         file_path = pkg_resources.resource_filename(
             'ev2gym', 'data/Netherlands_day-ahead-2015-2024.csv')
         env.price_data = pd.read_csv(file_path, sep=',', header=0)
-        drop_columns = ['Country', 'Datetime (Local)']        
+        drop_columns = ['Country', 'Datetime (Local)']
 
         env.price_data.drop(drop_columns, inplace=True, axis=1)
-        env.price_data['year'] = pd.DatetimeIndex(env.price_data['Datetime (UTC)']).year
-        env.price_data['month'] = pd.DatetimeIndex(env.price_data['Datetime (UTC)']).month
-        env.price_data['day'] = pd.DatetimeIndex(env.price_data['Datetime (UTC)']).day
-        env.price_data['hour'] = pd.DatetimeIndex(env.price_data['Datetime (UTC)']).hour
+        env.price_data['year'] = pd.DatetimeIndex(
+            env.price_data['Datetime (UTC)']).year
+        env.price_data['month'] = pd.DatetimeIndex(
+            env.price_data['Datetime (UTC)']).month
+        env.price_data['day'] = pd.DatetimeIndex(
+            env.price_data['Datetime (UTC)']).day
+        env.price_data['hour'] = pd.DatetimeIndex(
+            env.price_data['Datetime (UTC)']).hour
 
     # assume charge and discharge prices are the same
     # assume prices are the same for all charging stations
@@ -450,3 +456,41 @@ def load_electricity_prices(env) -> Tuple[np.ndarray, np.ndarray]:
 
     discharge_prices = discharge_prices * env.config['discharge_price_factor']
     return charge_prices, discharge_prices
+
+
+def load_grid(env):
+    '''Loads the grid of the simulation'''
+
+    if env.load_from_replay_path is not None:
+        env.cs_transformers = env.replay.cs_transformers
+        return env.replay.grid
+
+    # Simulate grid
+    if env.simulate_grid:
+        grid = PowerGrid(env.config,
+                             date=env.sim_date)
+
+        print(
+            f'Overriding the number of transformers to {grid.node_num-1} buses.')
+        env.number_of_transformers = grid.node_num-1
+        env.cs_transformers = [
+            *np.arange(env.number_of_transformers)] * (env.cs // env.number_of_transformers)
+        env.cs_transformers += np.arange(
+            env.cs % env.number_of_transformers).tolist()
+
+        assert env.charging_network_topology is None, "Charging network topology is not supported with grid simulation."
+
+        print(
+            f'Charging stations connected to transformers: {env.cs_transformers}')
+        
+        return grid
+    
+    if env.charging_network_topology is None:
+        env.cs_transformers = [
+            *np.arange(env.number_of_transformers)] * (env.cs // env.number_of_transformers)
+        env.cs_transformers += np.arange(
+            env.cs % env.number_of_transformers).tolist()
+        
+    return None
+
+   

@@ -163,6 +163,7 @@ rl_adn/.DS_Store
 .DS_Store
 
 results/
-replays/
+replay/
 custom_llm_end2end/
 wandb/
+

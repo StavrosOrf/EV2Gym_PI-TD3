@@ -65,9 +65,9 @@ class PowerGrid():
         # self.episode_length: int = 24 * 60 / self.data_manager.time_interval
         self.episode_length = config['simulation_length']
 
-        self.reset(date)
+        self.reset(date, None)
 
-    def reset(self, date) -> np.ndarray:
+    def reset(self, date, load_data) -> np.ndarray:
         """
         Reset the environment to its initial state and return the initial state.
         """
@@ -76,11 +76,15 @@ class PowerGrid():
         minute = date.minute
         time_slot = hour * 4 + minute // 15
         self.current_step = 0
-        self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
-                                                         n_steps=self.episode_length + 24,
-                                                         start_day=date.weekday(),
-                                                         start_step=time_slot,
-                                                         )
+
+        if load_data is not None:
+            self.load_data = load_data
+        else:
+            self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
+                                                             n_steps=self.episode_length + 24,
+                                                             start_day=date.weekday(),
+                                                             start_step=time_slot,
+                                                             )
 
         assert not np.isnan(self.load_data).any(
         ), "There are nan values in the load_data"

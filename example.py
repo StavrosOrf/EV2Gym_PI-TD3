@@ -26,8 +26,15 @@ def eval():
 
     save_plots = True
 
-    replay_path = "./replay/replay_sim_2024_07_05_106720.pkl"
+    replay_path = "./replay/replay_sim_2025_02_14_751646.pkl"
     replay_path = None
+    # {'total_ev_served': 123,
+    # 'total_energy_charged': 3563.1249408365056,
+    # 'average_user_satisfaction': 1.0,
+    # 'voltage_up_violation_counter': 0,
+    # 'voltage_down_violation_counter': (463,),
+    # 'saved_grid_energy': (-6.488108142363382,),
+    # 'voltage_violation': (23.150000000000034,)}
 
     # config_file = "ev2gym/example_config_files/PublicPST.yaml"
     # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
@@ -36,7 +43,7 @@ def eval():
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
                  verbose=False,
-                 save_replay=False,
+                 save_replay=True,
                  save_plots=save_plots,
                  )
 
@@ -71,10 +78,10 @@ def eval():
     
     results_df = None
     
-    for i in range(1):
+    for i in range(5):
         state, _ = env.reset()
         for t in range(env.simulation_length):
-            actions = agent.get_action(env)*-1
+            actions = agent.get_action(env)*1
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
@@ -88,10 +95,10 @@ def eval():
                 keys_to_print = ['total_ev_served',
                                  'total_energy_charged',
                                  'average_user_satisfaction',
-                                 'voltage_up_violation_counter',
-                                 'voltage_down_violation_counter',
-                                 'saved_grid_energy',
-                                 'voltage_violation'
+                                #  'voltage_up_violation_counter',
+                                #  'voltage_down_violation_counter',
+                                #  'saved_grid_energy',
+                                #  'voltage_violation'
                                  ]
                 print({key: stats[key] for key in keys_to_print})
                 
