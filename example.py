@@ -49,7 +49,7 @@ def eval():
 
     results_df = None
 
-    for i in range(100):
+    for i in range(1):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)*1
