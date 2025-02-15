@@ -46,6 +46,7 @@ class VoltageViolationLoss(nn.Module):
 
         v0 = v0.view(-1, 1)
         S = S.view(-1, 1)
+        print(f'S shape {S.shape}')
         
         while iteration < self.iterations and tol >= self.tolerance:
             L = torch.conj(S * (1 / (v0)))
