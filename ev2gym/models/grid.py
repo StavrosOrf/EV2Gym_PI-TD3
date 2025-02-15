@@ -177,16 +177,16 @@ class PowerGrid():
             #                                     self.S,
             #                                     self.dense_Ybus[1:, 1:]*self.net.z_base,
             #                                     )
-            v_prev = self.solution['v']
-            v_prev = np.insert(v_prev, 0, 1).real
-            v_approx, angle = continuation_power_flow(Ybus=self.dense_Ybus,
-                                                      P_spec=np.insert(
-                                                          active_power_pu, 0, 0),
-                                                      Q_spec=np.insert(
-                                                          reactive_power_pu, 0, 0),
-                                                      slack_index=0,
-                                                      V_slack=1,
-                                                      theta_slack=0,)
+            # v_prev = self.solution['v']
+            # v_prev = np.insert(v_prev, 0, 1).real
+            v_approx, iter = power_flow_tensor_constant_power(K=self.net._K_,
+                                                              L=self.net._L_,
+                                                              S=self.S,
+                                                              v0=np.array([1+0j], dtype=complex),
+                                                              ts=1,
+                                                              nb=self.net.nb,
+                                                              iterations=100,
+                                                              tolerance=1e-6)
 
             #      (np.array([1+0j], dtype=complex),
             # self.dense_Ybus,
@@ -203,7 +203,7 @@ class PowerGrid():
             # solution_v = np.insert(solution_v, 0, 1)
             print(f'True v: {solution_v}')
             print(f'Approx: {v_approx}')
-            print(f'v error: {np.linalg.norm(v_approx - solution_v)}')
+            print(f'v error: {np.linalg.norm(v_approx - solution_v)} | iter: {iter}')
             input()
 
             v = self.solution["v"]
@@ -250,232 +250,58 @@ class CustomUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 
-def newton_raphson_power_flow(Ybus, P_spec, Q_spec, slack_index, V_slack, theta_slack,
-                              V_init, theta_init, tol=1e-6, max_iter=50, damping=0.7):
+def power_flow_tensor_constant_power(K,
+                                     L,
+                                     S,
+                                     v0,
+                                     ts,
+                                     nb,
+                                     iterations,
+                                     tolerance
+                                     ):
     """
-    Solve the full AC power flow equations in polar coordinates using Newton–Raphson.
+    Performs the tensor-based power flow calculation for constant power loads.
 
-    For non-slack buses (assumed PQ buses), the equations are:
-      P_i = V_i * sum_{k=1}^{N} V_k [G_ik cos(theta_i-theta_k) + B_ik sin(theta_i-theta_k)]
-      Q_i = V_i * sum_{k=1}^{N} V_k [G_ik sin(theta_i-theta_k) - B_ik cos(theta_i-theta_k)]
+    Parameters:
+    K (np.ndarray): Matrix K.
+    L (np.ndarray): Matrix L.
+    S (np.ndarray): Power values.
+    v0 (np.ndarray): Initial voltage values.
+    ts (int): Number of time steps.
+    nb (int): Number of buses.
+    iterations (int): Maximum number of iterations.
+    tolerance (float): Convergence tolerance.
 
-    Mismatches:
-      ΔP_i = P_spec[i] - P_i
-      ΔQ_i = Q_spec[i] - Q_i
-
-    The unknowns are the voltage angles and magnitudes for non-slack buses.
-
-    Parameters
-    ----------
-    Ybus : ndarray, shape (N, N)
-        Full bus admittance matrix (in per unit).
-    P_spec : ndarray, shape (N,)
-        Specified real power injections (p.u.) for all buses.
-    Q_spec : ndarray, shape (N,)
-        Specified reactive power injections (p.u.) for all buses.
-    slack_index : int
-        Index of the slack bus.
-    V_slack : float
-        Voltage magnitude at the slack bus (p.u.).
-    theta_slack : float
-        Voltage angle at the slack bus (radians).
-    V_init : ndarray, shape (N,)
-        Initial guess for bus voltage magnitudes.
-    theta_init : ndarray, shape (N,)
-        Initial guess for bus voltage angles.
-    tol : float, optional
-        Convergence tolerance.
-    max_iter : int, optional
-        Maximum iterations.
-    damping : float, optional
-        Damping factor for updates.
-
-    Returns
-    -------
-    V : ndarray, shape (N,)
-        Converged voltage magnitudes (p.u.).
-    theta : ndarray, shape (N,)
-        Converged voltage angles (radians).
+    Returns:
+    tuple: Tuple containing the final voltage values and the number of iterations performed.
     """
-    N = Ybus.shape[0]
-    G = np.real(Ybus)
-    B = np.imag(Ybus)
+    iteration = 0
+    tol = np.inf
+    S = S.T
+    v0 = v0.T
 
-    V = V_init.copy()
-    theta = theta_init.copy()
-    # Fix slack bus:
-    V[slack_index] = V_slack
-    theta[slack_index] = theta_slack
+    LAMBDA = np.zeros((nb - 1, ts)).astype(np.complex128)
+    Z = np.zeros((nb - 1, ts)).astype(np.complex128)
+    voltage_k = np.zeros((nb - 1, ts)).astype(np.complex128)
+    epsilon = 1e-10
 
-    non_slack = [i for i in range(N) if i != slack_index]
+    while iteration < iterations and tol >= tolerance:
+        # safe_v0 = np.where(np.abs(v0) < epsilon, epsilon, v0)
+        # v0 = np.nan_to_num(v0, nan=0.0, posinf=0.0, neginf=0.0)
+        # S = np.nan_to_num(S, nan=0.0, posinf=0.0, neginf=0.0)
+        assert not np.isinf(S).any(), "There are inf values in the S values"
+        assert not np.isnan(S).any(), "There are nan values in the S values"
+        
+        # Hadamard product ( (nb-1) x ts)
+        LAMBDA = np.conj(S * (1 / (v0+epsilon)))
+        Z = K @ LAMBDA  # Matrix ( (nb-1) x ts )
+        # This is a broadcasted sum dim => ( (nb-1) x ts  +  (nb-1) x 1 => (nb-1) x ts )
+        voltage_k = Z + L
+        tol = np.max(np.abs(np.abs(voltage_k) - np.abs(v0)))
+        v0 = voltage_k
+        iteration += 1
 
-    for iteration in range(max_iter):
-        dP = np.zeros(N)
-        dQ = np.zeros(N)
-        # Compute calculated P and Q at each bus
-        for i in range(N):
-            sum_P = 0.0
-            sum_Q = 0.0
-            for k in range(N):
-                angle_diff = theta[i] - theta[k]
-                sum_P += V[k] * (G[i, k] * np.cos(angle_diff) +
-                                 B[i, k] * np.sin(angle_diff))
-                sum_Q += V[k] * (G[i, k] * np.sin(angle_diff) -
-                                 B[i, k] * np.cos(angle_diff))
-            P_calc = V[i] * sum_P
-            Q_calc = V[i] * sum_Q
-            dP[i] = P_spec[i] - P_calc
-            dQ[i] = Q_spec[i] - Q_calc
+    S = S.T  # Recover the original shape of the power
+    v0 = v0.T  # Recover the original shape of the power
 
-        # Assemble mismatch vector for non-slack buses:
-        F = []
-        for i in non_slack:
-            F.append(dP[i])
-        for i in non_slack:
-            F.append(dQ[i])
-        F = np.array(F)
-
-        if np.linalg.norm(F, np.inf) < tol:
-            # Convergence reached.
-            return V, theta
-
-        n_ns = len(non_slack)
-        J11 = np.zeros((n_ns, n_ns))  # dP/dtheta
-        J12 = np.zeros((n_ns, n_ns))  # dP/dV
-        J21 = np.zeros((n_ns, n_ns))  # dQ/dtheta
-        J22 = np.zeros((n_ns, n_ns))  # dQ/dV
-
-        # Build Jacobian for each non-slack bus:
-        for idx_i, i in enumerate(non_slack):
-            for idx_k, k in enumerate(non_slack):
-                if i == k:
-                    sum_term = 0.0
-                    for m in range(N):
-                        if m == i:
-                            continue
-                        angle_diff = theta[i] - theta[m]
-                        sum_term += V[m] * (-G[i, m]*np.sin(angle_diff) +
-                                            B[i, m]*np.cos(angle_diff))
-                    J11[idx_i, idx_k] = -V[i] * sum_term
-                else:
-                    angle_diff = theta[i] - theta[k]
-                    J11[idx_i, idx_k] = V[i]*V[k] * \
-                        (G[i, k]*np.sin(angle_diff) - B[i, k]*np.cos(angle_diff))
-
-            # dP/dV for bus i (diagonal)
-            sum_term = 0.0
-            for m in range(N):
-                angle_diff = theta[i] - theta[m]
-                sum_term += V[m]*(G[i, m]*np.cos(angle_diff) +
-                                  B[i, m]*np.sin(angle_diff))
-            J12[idx_i, idx_i] = sum_term
-
-            # Off-diagonal dP/dV:
-            for idx_k, k in enumerate(non_slack):
-                if i != k:
-                    angle_diff = theta[i] - theta[k]
-                    J12[idx_i, idx_k] = V[i] * \
-                        (G[i, k]*np.cos(angle_diff) + B[i, k]*np.sin(angle_diff))
-
-        for idx_i, i in enumerate(non_slack):
-            for idx_k, k in enumerate(non_slack):
-                if i == k:
-                    sum_term = 0.0
-                    for m in range(N):
-                        if m == i:
-                            continue
-                        angle_diff = theta[i] - theta[m]
-                        sum_term += V[m]*(G[i, m]*np.cos(angle_diff) +
-                                          B[i, m]*np.sin(angle_diff))
-                    J21[idx_i, idx_k] = V[i] * sum_term
-                else:
-                    angle_diff = theta[i] - theta[k]
-                    J21[idx_i, idx_k] = -V[i]*V[k] * \
-                        (G[i, k]*np.cos(angle_diff) + B[i, k]*np.sin(angle_diff))
-
-            for idx_i, i in enumerate(non_slack):
-                sum_term = 0.0
-                for m in range(N):
-                    angle_diff = theta[i] - theta[m]
-                    sum_term += V[m]*(G[i, m]*np.sin(angle_diff) -
-                                      B[i, m]*np.cos(angle_diff))
-                J22[idx_i, idx_i] = sum_term
-                for idx_k, k in enumerate(non_slack):
-                    if i != k:
-                        angle_diff = theta[i] - theta[k]
-                        J22[idx_i, idx_k] = V[i] * \
-                            (G[i, k]*np.sin(angle_diff) -
-                             B[i, k]*np.cos(angle_diff))
-
-        J_full = np.block([[J11, J12],
-                           [J21, J22]])
-
-        try:
-            dx = np.linalg.solve(J_full, -F)
-        except np.linalg.LinAlgError:
-            print("Jacobian singular at iteration", iteration)
-            break
-
-        # Update non-slack voltages and angles:
-        for idx, i in enumerate(non_slack):
-            theta[i] += damping * dx[idx]
-        for idx, i in enumerate(non_slack):
-            V[i] += damping * dx[n_ns + idx]
-
-        # Fix slack bus:
-        theta[slack_index] = theta_slack
-        V[slack_index] = V_slack
-
-    print("Newton-Raphson did not converge within max_iter.")
-    return V, theta
-
-
-def continuation_power_flow(Ybus, P_spec, Q_spec, slack_index, V_slack, theta_slack,
-                            n_steps=20, tol=1e-6, max_iter=50, damping=0.7):
-    """
-    Solve the full AC power flow using a continuation method.
-
-    Starting from a no-load condition (alpha = 0), we gradually increase the load to full (alpha = 1)
-    in n_steps, using the previous solution as the initial guess for the next step.
-
-    Parameters
-    ----------
-    Ybus : ndarray, shape (N, N)
-        Full bus admittance matrix (in per unit).
-    P_spec : ndarray, shape (N,)
-        Specified real power injections (p.u.) at all buses (for loads, use negative values).
-    Q_spec : ndarray, shape (N,)
-        Specified reactive power injections (p.u.) at all buses (for loads, use negative values).
-    slack_index : int
-        Index of the slack bus.
-    V_slack : float
-        Slack bus voltage magnitude (p.u.).
-    theta_slack : float
-        Slack bus voltage angle (radians).
-    n_steps : int, optional
-        Number of continuation steps (default is 20).
-    tol, max_iter, damping : parameters for the NR solver.
-
-    Returns
-    -------
-    V : ndarray, shape (N,)
-        Bus voltage magnitudes (p.u.) at full load (alpha = 1).
-    theta : ndarray, shape (N,)
-        Bus voltage angles (radians) at full load.
-    """
-    N = Ybus.shape[0]
-    alphas = np.linspace(0, 1, n_steps)
-
-    # Initialize solution at no-load: all buses at slack voltage.
-    V = V_slack * np.ones(N)
-    theta = theta_slack * np.ones(N)
-
-    for alpha in alphas[1:]:
-        P_target = P_spec * alpha
-        Q_target = Q_spec * alpha
-        # Use previous solution as initial guess:
-        V, theta = newton_raphson_power_flow(Ybus, P_target, Q_target, slack_index, V_slack, theta_slack,
-                                             V, theta, tol=tol, max_iter=max_iter, damping=damping)
-        # Optionally print iteration info:
-        # print(f"Alpha = {alpha:.3f}, V = {V}, theta = {theta}")
-    return V, theta
+    return v0, iteration
