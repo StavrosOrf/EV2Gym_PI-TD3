@@ -372,7 +372,7 @@ class EV2Gym(gym.Env):
                                    self.current_step] = tr.current_power
 
             active_power, vm, saved_grid_energy = self.grid.step(
-                self.node_ev_power[tr.id + 1:, self.current_step])
+                self.node_ev_power[1:, self.current_step])
 
             self.node_active_power[:, self.current_step] = active_power
             self.node_voltage[:, self.current_step] = vm
@@ -452,7 +452,8 @@ class EV2Gym(gym.Env):
 
             if self.verbose:
                 print_statistics(self)
-                print(f"Episode finished after {self.current_step} timesteps\n")
+                print(
+                    f"Episode finished after {self.current_step} timesteps\n")
 
             if self.save_replay:
                 self._save_sim_replay()

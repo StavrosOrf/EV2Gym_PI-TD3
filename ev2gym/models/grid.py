@@ -19,6 +19,8 @@ from ev2gym.models.grid_utility.grid_utils import create_pandapower_net
 from ev2gym.models.data_augment import DataGenerator
 import pkg_resources
 
+from agent.loss import VoltageViolationLoss
+
 
 class PowerGrid():
     """
@@ -161,49 +163,41 @@ class PowerGrid():
             current_each_node = np.matmul(self.dense_Ybus, v_totall)
             power_imported_from_ex_grid_before = current_each_node[0].real
 
+            
+
+            # active_power_pu = self.active_power / self.s_base
+            # reactive_power_pu = self.reactive_power / self.s_base
+            # self.S = active_power_pu + 1j * reactive_power_pu
+
+            # v_approx, iter = power_flow_tensor_constant_power(K=self.net._K_,
+            #                                                   L=self.net._L_,
+            #                                                   S=self.S,
+            #                                                   v0=np.array([1+0j], dtype=complex),
+            #                                                   ts=1,
+            #                                                   nb=self.net.nb,
+            #                                                   iterations=100,
+            #                                                   tolerance=1e-6)
+            # print(f'v_approx: {v_approx.shape}')
+            # v_approx = v_approx.real
+
+            loss = VoltageViolationLoss(K=self.net._K_,
+                                        L=self.net._L_,
+                                        s_base=self.net.s_base,
+                                        num_buses=self.net.nb)
+            
+            v_approx = loss(EV_power_per_bus=action,
+                          active_power_per_bus=self.active_power,
+                          reactive_power_per_bus=np.zeros_like(self.active_power))
+
             self.active_power += action
-            # my_v = self.calculate_PF(self.dense_Ybus, v_totall, self.active_power)
-
-            # print(f'self.net.z_base: {self.net.z_base}')
-            self.Z = np.linalg.inv(self.dense_Ybus[1:, 1:]) / self.net.z_base
-            active_power_pu = self.active_power / self.s_base
-            # Vector with all reactive power except slack
-            reactive_power_pu = self.reactive_power / self.s_base
-
-            self.S = active_power_pu + 1j * reactive_power_pu
-
-            # v_approx = laurent_voltage_adaptive(np.array([1+0j], dtype=complex),
-            #                                     self.Z,
-            #                                     self.S,
-            #                                     self.dense_Ybus[1:, 1:]*self.net.z_base,
-            #                                     )
-            # v_prev = self.solution['v']
-            # v_prev = np.insert(v_prev, 0, 1).real
-            v_approx, iter = power_flow_tensor_constant_power(K=self.net._K_,
-                                                              L=self.net._L_,
-                                                              S=self.S,
-                                                              v0=np.array([1+0j], dtype=complex),
-                                                              ts=1,
-                                                              nb=self.net.nb,
-                                                              iterations=100,
-                                                              tolerance=1e-6)
-
-            #      (np.array([1+0j], dtype=complex),
-            # self.dense_Ybus,
-            # np.zeros(self.node_num,dtype=complex),
-            # v_prev,
-            # )
-
-            v_approx = v_approx.real
             self.solution = self.net.run_pf(active_power=self.active_power,
                                             # reactive_power=self.reactive_power
                                             )
 
-            solution_v = self.solution["v"].real
-            # solution_v = np.insert(solution_v, 0, 1)
+            # solution_v = self.solution["v"].real
             # print(f'True v: {solution_v}')
             # print(f'Approx: {v_approx}')
-            # print(f'v error: {np.linalg.norm(v_approx - solution_v)} | iter: {iter}')
+            # print(f'v error: {np.linalg.norm(v_approx - solution_v)}')
             # input()
 
             v = self.solution["v"]
@@ -288,7 +282,7 @@ def power_flow_tensor_constant_power(K,
     while iteration < iterations and tol >= tolerance:
 
         # Hadamard product ( (nb-1) x ts)
-        LAMBDA = np.conj(S * (1 / (v0))) #+ epsilon
+        LAMBDA = np.conj(S * (1 / (v0)))  # + epsilon
         Z = K @ LAMBDA  # Matrix ( (nb-1) x ts )
         # This is a broadcasted sum dim => ( (nb-1) x ts  +  (nb-1) x 1 => (nb-1) x ts )
         voltage_k = Z + L

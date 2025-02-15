@@ -7,12 +7,13 @@ from ev2gym.baselines.heuristics import RoundRobin, ChargeAsLateAsPossible, Char
 
 from agent.state import V2G_grid_state
 from agent.reward import V2G_grid_reward
+from agent.loss import VoltageViolationLoss
 
 import numpy as np
 import matplotlib.pyplot as plt
 import gymnasium as gym
 import pandas as pd
-
+import torch
 
 def eval():
     """
@@ -44,6 +45,11 @@ def eval():
     agent = ChargeAsFastAsPossible()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
 
+    loss = VoltageViolationLoss(K=env.grid.net._K_,
+                                L=env.grid.net._L_,
+                                s_base=env.grid.net.s_base,
+                                num_buses=env.grid.net.nb)
+
     succesful_runs = 0
     failed_runs = 0
 
@@ -56,6 +62,16 @@ def eval():
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
+
+            if t > 0:
+                loss_v = loss(EV_power_per_bus=env.node_ev_power[1:, t],
+                              active_power_per_bus=env.node_active_power[1:, t-1],
+                              reactive_power_per_bus=np.zeros_like(env.node_active_power[1:, t-1]))
+                              
+                print(f'  Loss voltage: {loss_v}')
+                print(f'actual Voltage: {env.node_voltage[1:, t]}')
+                print(f' error: {torch.linalg.norm(torch.tensor(env.node_voltage[1:, t]) - torch.tensor(loss_v))}')
+                input()
 
             if done and truncated:
                 print(f"Voltage limits exceeded step: {t}")
