@@ -92,7 +92,7 @@ def eval():
             loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
             print(f'Loss V: {loss_v}')
-            reward_loss = np.abs(reward + loss.cpu().detach().numpy())
+            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
             print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
 
             if reward_loss != 0 or reward != 0 or loss != 0:                
@@ -169,3 +169,4 @@ def eval():
 if __name__ == "__main__":
     # while True:
     eval()
+    

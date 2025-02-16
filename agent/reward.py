@@ -14,7 +14,7 @@ def V2G_grid_reward(env, total_costs, user_satisfaction_list, *args):
     v_m = env.node_voltage[:, current_step]
 
     loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
-    return reward - 1000 * loss_v
+    return reward + 1000 * loss_v
 
 
 def V2G_grid_simple_reward(env, total_costs, user_satisfaction_list, *args):
@@ -29,4 +29,4 @@ def V2G_grid_simple_reward(env, total_costs, user_satisfaction_list, *args):
 
     loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
 
-    return -1000 * loss_v
+    return 1000 * loss_v

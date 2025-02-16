@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 
-
 class VoltageViolationLoss(nn.Module):
 
     def __init__(self,
@@ -20,9 +19,8 @@ class VoltageViolationLoss(nn.Module):
 
         super(VoltageViolationLoss, self).__init__()
 
-        # grid parameters
-        self.K = torch.tensor(K, device=device)
-        self.L = torch.tensor(L, device=device)
+        self.K = torch.from_numpy(K).to(device)
+        self.L = torch.from_numpy(L).to(device)
         self.s_base = torch.tensor(s_base, device=device)
         self.num_buses = num_buses
 
@@ -173,10 +171,12 @@ class VoltageViolationLoss(nn.Module):
         L = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
         Z = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
         v_k = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
-        v0 = torch.tensor([1+0j]*batch_size, dtype=torch.complex128, device=self.device)
+        v0 = torch.tensor([1+0j]*(self.num_buses - 1), dtype=torch.complex128, device=self.device)
+        v0 = torch.repeat_interleave(v0.view(-1, 1), batch_size, dim=1)
 
         v0 = v0.view(-1, batch_size)
         S = S.view(-1, batch_size)
+        print(f'S {S}')
         # if self.verbose:
         #     print(f'S shape {S.shape}')
         #     print(f'v0 shape {v0.shape}')
@@ -184,6 +184,12 @@ class VoltageViolationLoss(nn.Module):
         #     print(f'self.L shape {self.L.shape}')
         #     print(f'L shape {L.shape}')
         #     print(f'Z shape {Z.shape}')
+        
+        print(f'K shape: {self.K.shape}')
+        print(f'L shape: {self.L.shape}')
+        print(f'S shape: {S.shape}')
+        print(f'v0 shape: {v0.shape}')
+        print(f'vk shape: {v_k.shape}')
 
         while iteration < self.iterations and tol >= self.tolerance:
             L = torch.conj(S * (1 / (v0)))
