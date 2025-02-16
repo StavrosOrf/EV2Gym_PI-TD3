@@ -75,7 +75,7 @@ if __name__ == "__main__":
                             type=int)  # original 25e5
         parser.add_argument("--eval_freq", default=2250,
                             type=int)  # in episodes
-        parser.add_argument("--batch_size", default=256, type=int)  # 256
+        parser.add_argument("--batch_size", default=64, type=int)  # 256
 
     parser.add_argument("--max_timesteps", default=10_000_000, type=int)
     parser.add_argument("--name", default="ModelBasedRL", type=str)
@@ -205,6 +205,7 @@ if __name__ == "__main__":
 
         # Train agent after collecting sufficient data
         if t >= args.start_timesteps:
+            # print(f'Training at timestep {t}')
             start_time = time.time()
             loss = policy.train(replay_buffer,
                                 args.batch_size)
