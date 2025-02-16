@@ -74,10 +74,10 @@ def eval():
 
     results_df = None
 
-    for i in range(100):
+    for i in range(50):
         state, _ = env.reset()
         for t in range(env.simulation_length):
-            actions = agent.get_action(env)*1
+            actions = agent.get_action(env)*0
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
@@ -111,10 +111,11 @@ def eval():
             if done:
                 keys_to_print = ['total_ev_served',
                                  'total_energy_charged',
+                                 'total_profits',
                                  'average_user_satisfaction',
                                  'voltage_up_violation_counter',
                                  'voltage_down_violation_counter',
-                                 'saved_grid_energy',
+                                #  'saved_grid_energy',
                                  'voltage_violation',
                                  'total_reward'
                                  ]

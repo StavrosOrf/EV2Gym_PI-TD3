@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-torch.set_printoptions(precision=10)
+# torch.set_printoptions(precision=10)
 class VoltageViolationLoss(nn.Module):
 
     def __init__(self,
@@ -42,69 +42,7 @@ class VoltageViolationLoss(nn.Module):
         self.verbose = verbose
         self.timescale = 15
 
-    def forward(self, EV_power_per_bus, active_power_per_bus, reactive_power_per_bus):
-        
-        batch_size = 1
-        active_power_pu = (active_power_per_bus +
-                           EV_power_per_bus) / self.s_base
-        # print(f'!!!active_power_pu {active_power_pu}')
-
-        reactive_power_pu = reactive_power_per_bus / self.s_base
-
-        S = active_power_pu + 1j * reactive_power_pu
-        S = torch.tensor(S, dtype=torch.complex128, device=self.device)
-
-        tol = torch.inf
-        iteration = 0
-        L = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
-        Z = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
-        v_k = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
-        v0 = torch.tensor([1+0j]*(self.num_buses - 1), dtype=torch.complex128, device=self.device)
-        v0 = torch.repeat_interleave(v0.view(-1, 1), batch_size, dim=1)
-
-        v0 = v0.view(-1, batch_size)
-        # print(f'S shape {S.shape}')
-        S = S.view(-1, batch_size)
-        # print(f'S_single {S}')
-        if self.verbose:
-            print(f'S shape {S.shape}')
-            print(f'v0 shape {v0.shape}')
-            print(f'self.K shape {self.K.shape}')
-            print(f'self.L shape {self.L.shape}')
-            print(f'L shape {L.shape}')
-            print(f'Z shape {Z.shape}')
-        
-        # print(f'K shape: {self.K.shape}')
-        # print(f'L shape: {self.L.shape}')
-        # print(f'S shape: {S.shape}')
-        # print(f'v0 shape: {v0.shape}')
-        # print(f'vk shape: {v_k.shape}')
-
-        while iteration < self.iterations and tol >= self.tolerance:
-            L = torch.conj(S * (1 / (v0)))
-            Z = self.K @ L
-            v_k = Z + self.L
-            tol = torch.max(torch.abs(torch.abs(v_k) - torch.abs(v0)))
-            v0 = v_k
-
-            iteration += 1
-
-        v0 = v0.view(batch_size, -1)
-        
-        # TODO: consider masking loss components where EVs are not connected
-        # loss = torch.min(0, (1.05-0.95)/2 - torch.abs(1-v0.real))
-        loss = torch.min(torch.zeros_like(v0.real, device=self.device),
-                         0.05 - torch.abs(1-v0.real))
-        
-        # if self.verbose:
-        #     print(f'voltage shape {v0.real.shape}')
-        #     print(f'Voltage: {v0.real}')
-        #     print(f'Loss: {loss}')
-        #     print(f'Loss: {loss.shape}')       
-        
-        return 1000*loss.sum(), v0.real.cpu().detach().numpy()
-
-    def forward_v2(self, action, state):
+    def forward(self, action, state):
 
         if self.verbose:
             print("==================================================")
@@ -135,6 +73,8 @@ class VoltageViolationLoss(nn.Module):
         ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
             (batch_size, number_of_cs), device=self.device)
 
+        # print(f'battery_capacity: {battery_capacity.shape}')
+        # print(f'current_capacity: {current_capacity.shape}')
         # max_ev_charge_power is bound by max battery capacity and min battery capacity
         max_ev_charge_power = torch.min(
             max_ev_charge_power, (battery_capacity - current_capacity)/timescale)
@@ -175,8 +115,8 @@ class VoltageViolationLoss(nn.Module):
 
         if self.verbose:
             print("--------------------------------------------------")
-        print(f'EV_power_per_bus: {EV_power_per_bus}')            
-            # print(f'active_power_per_bus: {active_power_per_bus}')
+            print(f'EV_power_per_bus: {EV_power_per_bus}')            
+            print(f'active_power_per_bus: {active_power_per_bus}')
             # print("--------------------------------------------------")
             # print(f'EV_power_per_bus: {EV_power_per_bus.shape}')
             # print(f'active_power_per_bus: {active_power_per_bus.shape}')
@@ -235,4 +175,5 @@ class VoltageViolationLoss(nn.Module):
         # print(f'Loss: {loss}')
         #     print(f'Loss: {loss.shape}')       
         
-        return 1000*loss.sum(), v0.real.cpu().detach().numpy()
+        # return 1000*loss.sum(), v0.real.cpu().detach().numpy()
+        return 1000*loss.sum()
