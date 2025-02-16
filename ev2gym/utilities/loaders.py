@@ -276,9 +276,9 @@ def load_transformers(env) -> List[Transformer]:
             transformers.append(transformer)
 
     else:
-        if env.number_of_transformers > env.cs:
-            raise ValueError(
-                'The number of transformers cannot be greater than the number of charging stations')
+        # if env.number_of_transformers > env.cs:
+        #     raise ValueError(
+        #         'The number of transformers cannot be greater than the number of charging stations')
         for i in range(env.number_of_transformers):
             # get indexes where the transformer is connected
             transformer = Transformer(id=i,
@@ -407,8 +407,7 @@ def load_electricity_prices(env) -> Tuple[np.ndarray, np.ndarray]:
         env.price_data = pd.read_csv(file_path, sep=',', header=0)
         # import polars as pl
         # env.price_data = pl.read_csv(file_path).to_pandas()
-        
-        
+
         drop_columns = ['Country', 'Datetime (Local)']
 
         env.price_data.drop(drop_columns, inplace=True, axis=1)
@@ -472,30 +471,29 @@ def load_grid(env):
     # Simulate grid
     if env.simulate_grid:
         grid = PowerGrid(env.config,
-                             date=env.sim_date)
+                         date=env.sim_date)
 
         # print(
-            # f'Overriding the number of transformers to {grid.node_num-1} buses.')
-        
+        # f'Overriding the number of transformers to {grid.node_num-1} buses.')
+
         env.number_of_transformers = grid.node_num-1
         env.cs_transformers = [
             *np.arange(env.number_of_transformers)] * (env.cs // env.number_of_transformers)
         env.cs_transformers += np.arange(
             env.cs % env.number_of_transformers).tolist()
+        # print(f'cs_transformers: {env.cs_transformers}')
 
         assert env.charging_network_topology is None, "Charging network topology is not supported with grid simulation."
 
         # print(
         #     f'Charging stations connected to transformers: {env.cs_transformers}')
-        
+
         return grid
-    
+
     if env.charging_network_topology is None:
         env.cs_transformers = [
             *np.arange(env.number_of_transformers)] * (env.cs // env.number_of_transformers)
         env.cs_transformers += np.arange(
             env.cs % env.number_of_transformers).tolist()
-        
-    return None
 
-   
+    return None

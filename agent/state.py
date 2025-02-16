@@ -81,7 +81,13 @@ def V2G_grid_state_ModelBasedRL(env, *args):
             charge_prices, np.zeros(step_ahead-len(charge_prices)))    
         
     state.append(charge_prices)
-    state.append(env.node_active_power[1:, env.current_step-1])
+    step = env.current_step
+    if step == 0:
+        state.append(env.node_active_power[1:, step])
+    else:
+        state.append(env.node_active_power[1:, step-1])
+    
+    # print('============\nstep:', env.current_step, '\n============')
 
     # For every transformer
     # for tr in env.transformers:              

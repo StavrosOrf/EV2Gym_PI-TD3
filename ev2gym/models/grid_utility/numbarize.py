@@ -298,14 +298,14 @@ def power_flow_tensor_constant_power(K,
     LAMBDA = np.zeros((nb - 1, ts)).astype(np.complex128)
     Z = np.zeros((nb - 1, ts)).astype(np.complex128)
     voltage_k = np.zeros((nb - 1, ts)).astype(np.complex128)
-    epsilon = 1e-10
+    # epsilon = 1e-10
     
     while iteration < iterations and tol >= tolerance:
         # safe_v0 = np.where(np.abs(v0) < epsilon, epsilon, v0)
         # v0 = np.nan_to_num(v0, nan=0.0, posinf=0.0, neginf=0.0)
-        S = np.nan_to_num(S, nan=0.0, posinf=0.0, neginf=0.0)
-        assert not np.isinf(S).any(), "There are inf values in the S values"
-        LAMBDA = np.conj(S * (1 / (v0+epsilon)))  # Hadamard product ( (nb-1) x ts)
+        # S = np.nan_to_num(S, nan=0.0, posinf=0.0, neginf=0.0)
+        # assert not np.isinf(S).any(), "There are inf values in the S values"
+        LAMBDA = np.conj(S * (1 / (v0)))  # Hadamard product ( (nb-1) x ts)
         Z = K @ LAMBDA  # Matrix ( (nb-1) x ts )
         voltage_k = Z + L  # This is a broadcasted sum dim => ( (nb-1) x ts  +  (nb-1) x 1 => (nb-1) x ts )
         tol = np.max(np.abs(np.abs(voltage_k) - np.abs(v0)))

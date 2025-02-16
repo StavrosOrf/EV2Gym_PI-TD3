@@ -252,14 +252,18 @@ class PowerGrid():
                                                              start_day=date.weekday(),
                                                              start_step=time_slot,
                                                              )
+            
+        self.load_data = self.load_data.round(1)
         self.active_power = self.load_data[self.current_step, 1:self.node_num].reshape(1, -1)
         self.reactive_power = self.active_power * 0
 
         return self.active_power, self.reactive_power
 
     def step(self, actions: np.ndarray) -> tuple:
-
+        print(f'GRID| actions: {actions}')
         self.active_power += actions
+        print(f'GRID| active power: {self.active_power}')
+        
         self.solution = self.net.run_pf(active_power=self.active_power,
                                         # reactive_power=self.reactive_power
                                         )
@@ -319,7 +323,6 @@ def power_flow_tensor_constant_power(K,
     LAMBDA = np.zeros((nb - 1, ts)).astype(np.complex128)
     Z = np.zeros((nb - 1, ts)).astype(np.complex128)
     voltage_k = np.zeros((nb - 1, ts)).astype(np.complex128)
-    epsilon = 1e-10
 
     while iteration < iterations and tol >= tolerance:
 

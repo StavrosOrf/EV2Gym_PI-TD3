@@ -300,6 +300,7 @@ class EV2Gym(gym.Env):
 
         self.EVs = []
         init_statistic_variables(self)
+        
         if self.simulate_grid:
             if self.load_from_replay_path is not None:
                 load_data = self.replay.load_data
@@ -309,10 +310,12 @@ class EV2Gym(gym.Env):
                 self.sim_date, load_data=load_data)
             
             self.node_active_power[1:, self.current_step] = active_power
-            self.node_active_power[1:, self.current_step] = reactive_power
+            self.node_reactive_power[1:, self.current_step] = reactive_power
             # self.node_voltage[:, self.current_step] = vm
-
-        return self._get_observation(), {}
+        
+        state = self._get_observation()
+        
+        return state, {}
 
     def step(self, actions, visualize=False):
         ''''
