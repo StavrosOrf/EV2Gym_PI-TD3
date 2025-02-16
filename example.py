@@ -48,9 +48,10 @@ def eval():
 
     max_cs_power = env.charging_stations[0].get_max_power()
     min_cs_power = env.charging_stations[0].get_min_power()
-
+    
     # print(f'Max CS power: {max_cs_power}')
     # print(f'Min CS power: {min_cs_power}')
+    # exit()
 
     ev_battery_capacity = env.EVs_profiles[0].battery_capacity
     ev_min_battery_capacity = env.EVs_profiles[0].min_battery_capacity
@@ -65,7 +66,7 @@ def eval():
                                    ev_battery_capacity=ev_battery_capacity,
                                    ev_min_battery_capacity=ev_min_battery_capacity,
                                    device=device,
-                                   verbose=True,
+                                   verbose=False,
                                    )
 
     succesful_runs = 0
@@ -80,23 +81,25 @@ def eval():
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
-
-            loss, v = loss_fn.forward_v2(action=torch.tensor(actions, device=device).reshape(1, -1),
-                                         state=torch.tensor(state, device=device).reshape(1, -1))
-
-            v_m = env.node_voltage[1:, t]
-            print(f'V real: {v_m}')
-            print(f'V pred: {v}')
-            print(f'v_loss {np.abs(v - v_m).mean()}')
             
-            loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
+            # print("============================================================================")
+            # loss, v = loss_fn.forward_v2(action=torch.tensor(actions, device=device).reshape(1, -1),
+            #                              state=torch.tensor(state, device=device).reshape(1, -1))
 
-            print(f'Loss V: {loss_v}')
-            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
-            print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
+            # v_m = env.node_voltage[1:, t]
+            # # print(f'\n \n')
+            # print(f'V real: {v_m}')
+            # print(f'V pred: {v}')
+            # print(f'v_loss {np.abs(v - v_m).mean()}')
+            
+            # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
-            if reward_loss != 0 or reward != 0 or loss != 0:                
-                input("Press Enter to continue...\n------------------------------------------------------------------------")
+            # print(f'Loss V: {loss_v}')
+            # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
+            # print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
+
+            # if reward_loss != 0 or reward != 0 or loss != 0:                
+            #     input("Press Enter to continue...\n------------------------------------------------------------------------")
 
             state = new_state
 
