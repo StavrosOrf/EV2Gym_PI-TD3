@@ -48,8 +48,8 @@ def eval():
     max_cs_power = env.charging_stations[0].get_max_power()
     min_cs_power = env.charging_stations[0].get_min_power()
     
-    print(f'Max CS power: {max_cs_power}')
-    print(f'Min CS power: {min_cs_power}')
+    # print(f'Max CS power: {max_cs_power}')
+    # print(f'Min CS power: {min_cs_power}')
     
     ev_battery_capacity = env.EVs_profiles[0].battery_capacity
     ev_min_battery_capacity = env.EVs_profiles[0].min_battery_capacity
@@ -71,7 +71,7 @@ def eval():
 
     results_df = None
 
-    for i in range(1):
+    for i in range(100):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)*1
@@ -81,13 +81,14 @@ def eval():
             # loss_v = loss.forward_v2(action=torch.tensor(actions,device=device).reshape(1,-1),
             #                          state=torch.tensor(state,device=device).reshape(1,-1))
             
-            loss_v = loss.forward_v2(action=torch.tensor([actions,actions],device=device).reshape(2,-1),
-                                     state=torch.tensor(([state],[state]),
-                                                        device=device).reshape(2,-1))
+            # loss_v = loss.forward_v2(action=torch.tensor([actions,actions],device=device).reshape(2,-1),
+            #                          state=torch.tensor(([state],[state]),
+            #                                             device=device).reshape(2,-1))
             
-            print(f'  Loss: {loss_v}')      
-            if loss_v != 0:
-                input('Loss not zero')
+            # print(f'  Loss: {loss_v}')      
+            # if loss_v != 0:
+            #     input('Loss not zero')
+                
             # input()
             # if t > 0:
             #     loss_v = loss(EV_power_per_bus=env.node_ev_power[1:, t],

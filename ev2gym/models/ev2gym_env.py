@@ -305,10 +305,12 @@ class EV2Gym(gym.Env):
                 load_data = self.replay.load_data
             else:
                 load_data = None
-            active_power, vm, _ = self.grid.reset(
+            active_power, reactive_power = self.grid.reset(
                 self.sim_date, load_data=load_data)
-            self.node_active_power[:, self.current_step] = active_power
-            self.node_voltage[:, self.current_step] = vm
+            
+            self.node_active_power[1:, self.current_step] = active_power
+            self.node_active_power[1:, self.current_step] = reactive_power
+            # self.node_voltage[:, self.current_step] = vm
 
         return self._get_observation(), {}
 
@@ -371,12 +373,13 @@ class EV2Gym(gym.Env):
                 self.node_ev_power[tr.id + 1:,
                                    self.current_step] = tr.current_power
 
-            active_power, vm, saved_grid_energy = self.grid.step(
+            active_power, reactive_power, vm = self.grid.step(
                 self.node_ev_power[1:, self.current_step])
 
-            self.node_active_power[:, self.current_step] = active_power
+            self.node_active_power[1:, self.current_step] = active_power
+            self.node_reactive_power[1:, self.current_step] = reactive_power
             self.node_voltage[:, self.current_step] = vm
-            self.saved_grid_energy[self.current_step] = saved_grid_energy
+            # self.saved_grid_energy[self.current_step] = saved_grid_energy
 
         # if any(grid_state[1] < 0.95) or any(grid_state[1] > 1.05):
         #     return self._get_observation(), 0, True, True, 0

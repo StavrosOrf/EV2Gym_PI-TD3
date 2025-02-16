@@ -1,4 +1,3 @@
-
 import numpy as np
 
 def V2G_grid_reward(env, total_costs, user_satisfaction_list, *args):

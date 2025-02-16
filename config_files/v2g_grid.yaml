@@ -38,7 +38,7 @@ discharge_price_factor: 1 # how many times more abs(expensive/cheaper) it is to 
 # Distribution Network Settings
 ##############################################################################
 v2g_enabled: True # True or False
-number_of_charging_stations: 40 # Play somewhere 5-20
+number_of_charging_stations: 240 # Play somewhere 5-20
 number_of_transformers: -1
 number_of_ports_per_cs: 1
 # Provide path if you want to load a specific charging topology
@@ -141,6 +141,6 @@ ev:
   min_battery_capacity: 15 # in kWh
   min_time_of_stay: 200 # in minutes
   min_emergency_battery_capacity: 15 # in kWh
-  desired_capacity: 0.8 # in (0-1) (0% - 100%)
+  desired_capacity: 1 # in (0-1) (0% - 100%)
   #if trasition_soc is < 1, the curve of the line is affected by:
   transition_soc_multiplier: 50 # default 1 (the higher the number the shorter the effect of CCCV region)

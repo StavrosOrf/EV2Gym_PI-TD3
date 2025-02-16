@@ -795,6 +795,8 @@ def init_statistic_variables(env):
         if env.simulate_grid:
             env.node_active_power = np.zeros(
                 [env.grid.node_num, env.simulation_length])
+            env.node_reactive_power = np.zeros(
+                [env.grid.node_num, env.simulation_length])
             env.node_voltage = np.zeros(
                 [env.grid.node_num, env.simulation_length])
             env.node_ev_power = np.zeros(

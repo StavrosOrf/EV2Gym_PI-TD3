@@ -70,26 +70,26 @@ class PowerGrid():
 
         self.reset(date, None)
 
-    def reset(self, date, load_data) -> np.ndarray:
-        """
-        Reset the environment to its initial state and return the initial state.
-        """
+    # def reset(self, date, load_data) -> np.ndarray:
+    #     """
+    #     Reset the environment to its initial state and return the initial state.
+    #     """
 
-        hour = date.hour
-        minute = date.minute
-        time_slot = hour * 4 + minute // 15
-        self.current_step = 0
+    #     hour = date.hour
+    #     minute = date.minute
+    #     time_slot = hour * 4 + minute // 15
+    #     self.current_step = 0
 
-        if load_data is not None:
-            self.load_data = load_data
-        else:
-            self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
-                                                             n_steps=self.episode_length + 24,
-                                                             start_day=date.weekday(),
-                                                             start_step=time_slot,
-                                                             )
+    #     if load_data is not None:
+    #         self.load_data = load_data
+    #     else:
+    #         self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
+    #                                                          n_steps=self.episode_length + 24,
+    #                                                          start_day=date.weekday(),
+    #                                                          start_step=time_slot,
+    #                                                          )
 
-        return *self._build_state(), 0
+    #     return *self._build_state(), 0
 
     def _build_state(self) -> np.ndarray:
         """
@@ -163,8 +163,6 @@ class PowerGrid():
             current_each_node = np.matmul(self.dense_Ybus, v_totall)
             power_imported_from_ex_grid_before = current_each_node[0].real
 
-            
-
             # active_power_pu = self.active_power / self.s_base
             # reactive_power_pu = self.reactive_power / self.s_base
             # self.S = active_power_pu + 1j * reactive_power_pu
@@ -180,14 +178,14 @@ class PowerGrid():
             # print(f'v_approx: {v_approx.shape}')
             # v_approx = v_approx.real
 
-            loss = VoltageViolationLoss(K=self.net._K_,
-                                        L=self.net._L_,
-                                        s_base=self.net.s_base,
-                                        num_buses=self.net.nb)
-            
-            v_approx = loss(EV_power_per_bus=action,
-                          active_power_per_bus=self.active_power,
-                          reactive_power_per_bus=np.zeros_like(self.active_power))
+            # loss = VoltageViolationLoss(K=self.net._K_,
+            #                             L=self.net._L_,
+            #                             s_base=self.net.s_base,
+            #                             num_buses=self.net.nb)
+
+            # v_approx = loss(EV_power_per_bus=action,
+            #               active_power_per_bus=self.active_power,
+            #               reactive_power_per_bus=np.zeros_like(self.active_power))
 
             self.active_power += action
             self.solution = self.net.run_pf(active_power=self.active_power,
@@ -224,17 +222,61 @@ class PowerGrid():
 
         return saved_energy
 
+    # def step(self, actions: np.ndarray) -> tuple:
+    #     """
+    #     Advance the environment by one timestep based on the provided action.
+    #     """
+
+    #     # Update active power of each node based on EVs and run power flow
+    #     saved_energy = self._runpf(actions)
+    #     self.current_step += 1
+    #     active_power, vm = self._build_state()
+
+    #     return active_power, vm, saved_energy
+
+    def reset(self, date, load_data) -> np.ndarray:
+        """
+        Reset the environment to its initial state and return the initial state.
+        """
+
+        hour = date.hour
+        minute = date.minute
+        time_slot = hour * 4 + minute // 15
+        self.current_step = 0
+
+        if load_data is not None:
+            self.load_data = load_data
+        else:
+            self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
+                                                             n_steps=self.episode_length + 24,
+                                                             start_day=date.weekday(),
+                                                             start_step=time_slot,
+                                                             )
+        self.active_power = self.load_data[self.current_step, 1:self.node_num].reshape(1, -1)
+        self.reactive_power = self.active_power * 0
+
+        return self.active_power, self.reactive_power
+
     def step(self, actions: np.ndarray) -> tuple:
-        """
-        Advance the environment by one timestep based on the provided action.
-        """
 
-        # Update active power of each node based on EVs and run power flow
-        saved_energy = self._runpf(actions)
+        self.active_power += actions
+        self.solution = self.net.run_pf(active_power=self.active_power,
+                                        # reactive_power=self.reactive_power
+                                        )
+        v = self.solution["v"]
+        v_totall = np.insert(v, 0, 1)
+        vm_pu_after_control = cp.deepcopy(abs(v_totall))
+
         self.current_step += 1
-        active_power, vm = self._build_state()
 
-        return active_power, vm, saved_energy
+        active_power = cp.copy(self.load_data[self.current_step, :])
+        self.active_power = (active_power)[1:self.node_num].reshape(1, -1)
+        self.reactive_power = self.active_power * 0
+        
+        # print(f'vm_pu_after_control: {vm_pu_after_control.shape}')
+        # print(f'active_power: {self.active_power.shape}')        
+        # input()
+        return self.active_power, self.reactive_power, vm_pu_after_control
 
 
 class CustomUnpickler(pickle.Unpickler):
