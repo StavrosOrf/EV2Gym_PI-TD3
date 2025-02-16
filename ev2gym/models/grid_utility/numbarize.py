@@ -299,13 +299,13 @@ def power_flow_tensor_constant_power(K,
     Z = np.zeros((nb - 1, ts)).astype(np.complex128)
     voltage_k = np.zeros((nb - 1, ts)).astype(np.complex128)
     
-    print(f'------numbarize-----')
-    print(f'S: {S}')
-    print(f'K shape: {K.shape}')
-    print(f'L shape: {L.shape}')
-    print(f'S shape: {S.shape}')
-    print(f'v0 shape: {v0.shape}')
-    print(f'voltage_k shape: {voltage_k.shape}')    
+    # print(f'------numbarize-----')
+    # print(f'S: {S}')
+    # print(f'K shape: {K.shape}')
+    # print(f'L shape: {L.shape}')
+    # print(f'S shape: {S.shape}')
+    # print(f'v0 shape: {v0.shape}')
+    # print(f'voltage_k shape: {voltage_k.shape}')    
     
     while iteration < iterations and tol >= tolerance:
         # safe_v0 = np.where(np.abs(v0) < epsilon, epsilon, v0)
