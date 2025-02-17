@@ -10,7 +10,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 
 from ev2gym.models.ev2gym_env import EV2Gym
 from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
-from agent.state import V2G_grid_state
+from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 
 import gymnasium as gym
 import argparse
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     group_name = "150_SB3_tests"
     reward_function = V2G_grid_simple_reward    
-    state_function = V2G_grid_state    
+    state_function = V2G_grid_state_ModelBasedRL    
 
     run_name = f'{run_name}_{reward_function.__name__}_{state_function.__name__}'
 

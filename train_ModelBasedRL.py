@@ -72,7 +72,7 @@ if __name__ == "__main__":
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
         parser.add_argument("--eval_episodes", default=100, type=int)
         parser.add_argument("--start_timesteps", default=2500,
-                            type=int)  # original 25e5
+                            type=int) 
         parser.add_argument("--eval_freq", default=2250,
                             type=int)  # in episodes
         parser.add_argument("--batch_size", default=64, type=int)  # 256

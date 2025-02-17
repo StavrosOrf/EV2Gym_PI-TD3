@@ -9,7 +9,6 @@ Volume 19, 2025, 100457, ISSN 2666-5468, https://doi.org/10.1016/j.egyai.2024.10
 
 import copy as cp
 import numpy as np
-from numpy.linalg import eigvals
 import pandapower as pp
 import pandas as pd
 import pickle

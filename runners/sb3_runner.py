@@ -19,7 +19,7 @@ strt_run = 0
 
 for algorithm in ['ppo', 'td3', 'sac','tqc']:
     for run in range(strt_run, strt_run+n_runs):
-        run_name = f'No_reactive_{algorithm}_run_{run}_{random.randint(0, 100000)}'
+        run_name = f'NewReward_No_reactive_{algorithm}_run_{run}_{random.randint(0, 100000)}'
         command = 'tmux new-session -d \; send-keys "/home/sorfanouda/anaconda3/envs/dt/bin/python train_sb3.py' + \
             ' --algorithm ' + algorithm + \
             ' --device cuda:0' + \

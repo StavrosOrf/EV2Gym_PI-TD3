@@ -55,7 +55,7 @@ class RoundRobin():
 
         # this function returns the action list based on the round robin algorithm
 
-        total_power = env.power_setpoints[env.current_step] * 1000  # in W        
+        total_power = env.power_setpoints[env.current_step] * 1000  # in W
 
         number_of_EVs_to_charge = total_power / self.average_power
 
@@ -145,12 +145,40 @@ class ChargeAsLateAsPossible():
         return action_list
 
 
+class DoNothing():
+
+    algo_name = "DO NOTHING"
+
+    def __init__(self, verbose=False, **kwargs):
+        self.verbose = verbose
+
+    def get_action(self, env) -> np.ndarray:
+
+        action_list = np.zeros(env.number_of_ports)
+        return action_list
+
+
+class RandomAgent():
+
+    algo_name = "Random Actions"
+
+    def __init__(self, verbose=False, **kwargs):
+        self.verbose = verbose
+
+    def get_action(self, env) -> np.ndarray:
+        min_action = env.action_space.low
+        max_action = env.action_space.high
+        action_list = np.random.uniform(
+            min_action, max_action, env.number_of_ports)
+        return action_list
+
+
 class ChargeAsFastAsPossible():
     '''
     This class contains the Charge As Fast As Possible heuristic algorithm.
     '''
     algo_name = "Charge As Fast As Possible"
-    
+
     def __init__(self, verbose=False, **kwargs):
         self.verbose = verbose
 
@@ -161,16 +189,17 @@ class ChargeAsFastAsPossible():
         action_list = np.ones(env.number_of_ports)
         return action_list
 
+
 class ChargeAsFastAsPossibleWithPowerLimit():
     '''
     This class contains the Charge As Fast As Possible heuristic algorithm with power limit capacity.
     '''
-    
+
     algo_name = "Charge As Fast As Possible"
-    
+
     def __init__(self, env, power_limit, verbose=False, **kwargs):
         self.verbose = verbose
-        
+
         self.average_power = 0
         for cs in env.charging_stations:
             self.average_power += cs.max_charge_current * \
@@ -179,7 +208,7 @@ class ChargeAsFastAsPossibleWithPowerLimit():
         print(f'Average power: {self.average_power}')
         self.power_limit = power_limit * 1000  # in W
         self.ev_buffer = []
-        
+
     def update_ev_buffer(self, env) -> None:
         '''
         This function updates the EV buffer list with the EVs that are currently parked by adding or removing them.
@@ -205,24 +234,26 @@ class ChargeAsFastAsPossibleWithPowerLimit():
         '''
         This function returns the action list based on the charge as fast as possible algorithm.
         '''
-        
+
         number_of_EVs_to_charge = self.power_limit / self.average_power
         # print(f'Number of EVs to charge: {number_of_EVs_to_charge}')
         self.update_ev_buffer(env)
         # print(f'EV buffer: {self.ev_buffer}')
-        
-        evs_to_charge = np.random.choice(self.ev_buffer, min(int(np.ceil(number_of_EVs_to_charge)), len(self.ev_buffer)), replace=False)
+
+        evs_to_charge = np.random.choice(self.ev_buffer, min(
+            int(np.ceil(number_of_EVs_to_charge)), len(self.ev_buffer)), replace=False)
         # print(f'Evs to charge: {evs_to_charge}')
         # print(f'Number of EVs to charge: {len(evs_to_charge)}')
-                
+
         action_list = np.zeros(env.number_of_ports)
         # set the action for the EVs to charge
         for i, ev in enumerate(evs_to_charge):
             action_list[ev] = 1 / env.number_of_ports_per_cs
-            if i == len(evs_to_charge) - 1 and number_of_EVs_to_charge < len(evs_to_charge) :
+            if i == len(evs_to_charge) - 1 and number_of_EVs_to_charge < len(evs_to_charge):
                 action_list[ev] = (number_of_EVs_to_charge - i)
         # print(action_list)
         return action_list
+
 
 class ChargeAsFastAsPossibleToDesiredCapacity():
     '''
