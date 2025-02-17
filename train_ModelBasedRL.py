@@ -78,7 +78,7 @@ if __name__ == "__main__":
         parser.add_argument("--batch_size", default=64, type=int)  # 256
 
     parser.add_argument("--max_timesteps", default=1_000_000, type=int)
-    parser.add_argument("--name", default="ModelBasedRL", type=str)
+    parser.add_argument("--name", default="mean_ModelBasedRL", type=str)
     parser.add_argument('--group_name', type=str, default='')
 
     parser.add_argument("--K", default=10, type=int,

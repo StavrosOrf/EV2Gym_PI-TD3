@@ -176,4 +176,4 @@ class VoltageViolationLoss(nn.Module):
         #     print(f'Loss: {loss.shape}')       
         
         # return 1000*loss.sum(), v0.real.cpu().detach().numpy()
-        return 1000*loss.sum()
+        return 1000*loss.mean()
