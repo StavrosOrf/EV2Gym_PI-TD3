@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -193,6 +193,9 @@ if __name__ == "__main__":
     parser.add_argument('--PST_correction_layer', type=bool, default=False)
     parser.add_argument('--noisy_communication', type=float, default=0)
 
+    # Physics loss #############################################
+    parser.add_argument('--ph_coeff', type=float, default=1)
+    
     scale = 1
     args = parser.parse_args()
 
@@ -295,7 +298,7 @@ if __name__ == "__main__":
                                    num_buses=env.get_wrapper_attr(
                                        'grid').net.nb,
                                    device=device,
-                                   verbose=True,
+                                   verbose=False,
                                    )
 
     # Set seeds
@@ -416,6 +419,8 @@ if __name__ == "__main__":
         kwargs['load_path'] = load_path
 
         kwargs['loss_fn'] = loss_fn
+        kwargs['ph_coeff'] = args.ph_coeff
+        
         # kwargs['loss_fn'] = None
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:

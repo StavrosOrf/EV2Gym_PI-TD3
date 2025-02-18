@@ -28,7 +28,7 @@ def eval():
 
     # config_file = "ev2gym/example_config_files/PublicPST.yaml"
     # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
-    config_file = "./config_files/v2g_grid.yaml"
+    config_file = "./config_files/v2g_grid_150.yaml"
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
@@ -77,29 +77,29 @@ def eval():
     for i in range(50):
         state, _ = env.reset()
         for t in range(env.simulation_length):
-            actions = agent.get_action(env)*0
+            actions = agent.get_action(env)*1
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
             
-            # print("============================================================================")
-            # loss, v = loss_fn.forward_v2(action=torch.tensor(actions, device=device).reshape(1, -1),
-            #                              state=torch.tensor(state, device=device).reshape(1, -1))
+            print("============================================================================")
+            loss, v = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
+                                         state=torch.tensor(state, device=device).reshape(1, -1))
 
-            # v_m = env.node_voltage[1:, t]
-            # # print(f'\n \n')
-            # print(f'V real: {v_m}')
-            # print(f'V pred: {v}')
-            # print(f'v_loss {np.abs(v - v_m).mean()}')
+            v_m = env.node_voltage[1:, t]
+            # print(f'\n \n')
+            print(f'V real: {v_m}')
+            print(f'V pred: {v}')
+            print(f'v_loss {np.abs(v - v_m).mean()}')
             
-            # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
+            loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
-            # print(f'Loss V: {loss_v}')
-            # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
-            # print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
+            print(f'Loss V: {loss_v}')
+            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
+            print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
 
-            # if reward_loss != 0 or reward != 0 or loss != 0:                
-            #     input("Press Enter to continue...\n------------------------------------------------------------------------")
+            if reward_loss != 0 or reward != 0 or loss != 0:                
+                input("Press Enter to continue...\n------------------------------------------------------------------------")
 
             state = new_state
 

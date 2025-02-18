@@ -74,6 +74,7 @@ class TD3(object):
             state_dim,
             action_dim,
             max_action,
+            ph_coeff=1,
             discount=0.99,
             tau=0.005,
             policy_noise=0.2,
@@ -102,6 +103,7 @@ class TD3(object):
         self.noise_clip = noise_clip
         self.policy_freq = policy_freq
 
+        self.ph_coeff = ph_coeff
         self.loss_fn = loss_fn
 
         self.total_it = 0
@@ -155,9 +157,7 @@ class TD3(object):
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
 
-            if self.loss_fn is not None:
-                ph_coeff = 1e-4
-                # ph_coeff = 100
+            if self.loss_fn is not None:                
                 if torch.isnan(state).any():
                     print("-------------------!!!-------------------------------")
                 action_vector = self.actor(state)
@@ -166,16 +166,16 @@ class TD3(object):
                 # print(f'state: {state.shape}')
                 self.loss_dict['physics_loss'] = physics_loss.item()
                 self.loss_dict['actor_loss'] = actor_loss.item()
-                print(f'actor_loss: {actor_loss.item()}')
-                print(f'physics_loss: {physics_loss.item()}')
+                # print(f'actor_loss: {actor_loss.item()}')
+                # print(f'physics_loss: {physics_loss.item()}')
                 
                 
-                actor_loss -= ph_coeff * physics_loss
-                print(f'actor_loss after: {actor_loss.item()}')
-                if physics_loss != 0:
-                    print(f'physics_loss!!')
+                actor_loss -= self.ph_coeff * physics_loss
+                # print(f'actor_loss after: {actor_loss.item()}')
+                # if physics_loss != 0:
+                #     print(f'physics_loss!!')
                 
-                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)        
+                # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)        
             else:
                 actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 

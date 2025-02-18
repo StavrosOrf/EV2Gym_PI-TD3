@@ -3,6 +3,7 @@ from torch import nn
 # torch.set_printoptions(precision=10)
 torch.autograd.set_detect_anomaly(True)
 
+
 class VoltageViolationLoss(nn.Module):
 
     def __init__(self,
@@ -94,11 +95,11 @@ class VoltageViolationLoss(nn.Module):
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)
-        
+
         if torch.isnan(power_usage).any():
             print("-------------------!!!-------------------------------")
             pass
-            
+
         if self.verbose:
             print("--------------------------------------------------")
             print(f'power_usage: {power_usage}')
@@ -106,14 +107,19 @@ class VoltageViolationLoss(nn.Module):
         power_usage = torch.min(power_usage, max_ev_charge_power)
         if self.verbose:
             print("--------------------------------------------------")
-            print(f'power_usage: {power_usage}')        
+            print(f'power_usage: {power_usage}')
 
         # go from power usage to EV_power_per_bus
         EV_power_per_bus = torch.zeros(
-            (batch_size, self.num_buses-1), device=self.device)
-        for i in range(number_of_cs):
-            EV_power_per_bus[:, connected_bus[:,
-                                              i].long()] += power_usage[:, i]
+            (batch_size, self.num_buses-1),
+            device=self.device,
+            dtype=power_usage.dtype)
+
+        EV_power_per_bus = EV_power_per_bus.scatter_add(
+            dim=1,
+            index=connected_bus.long(),
+            src=power_usage
+        )
 
         active_power_per_bus = state[:, 4:4+self.num_buses-1]
         reactive_power_per_bus = torch.zeros_like(
@@ -121,7 +127,7 @@ class VoltageViolationLoss(nn.Module):
 
         if self.verbose:
             print("--------------------------------------------------")
-            print(f'EV_power_per_bus: {EV_power_per_bus}')            
+            print(f'EV_power_per_bus: {EV_power_per_bus}')
             print(f'active_power_per_bus: {active_power_per_bus}')
             # print("--------------------------------------------------")
             # print(f'EV_power_per_bus: {EV_power_per_bus.shape}')
@@ -129,17 +135,21 @@ class VoltageViolationLoss(nn.Module):
 
         active_power_pu = (active_power_per_bus +
                            EV_power_per_bus) / self.s_base
-        
+
         reactive_power_pu = reactive_power_per_bus / self.s_base
 
         S = active_power_pu + 1j * reactive_power_pu
-
+        # return S.abs().mean()
         tol = torch.inf
         iteration = 0
-        L = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
-        Z = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
-        v_k = torch.zeros((self.num_buses - 1, batch_size), dtype=torch.complex128, device=self.device)
-        v0 = torch.tensor([1+0j]*(self.num_buses - 1), dtype=torch.complex128, device=self.device)
+        L = torch.zeros((self.num_buses - 1, batch_size),
+                        dtype=torch.complex128, device=self.device)
+        Z = torch.zeros((self.num_buses - 1, batch_size),
+                        dtype=torch.complex128, device=self.device)
+        v_k = torch.zeros((self.num_buses - 1, batch_size),
+                          dtype=torch.complex128, device=self.device)
+        v0 = torch.tensor([1+0j]*(self.num_buses - 1),
+                          dtype=torch.complex128, device=self.device)
         v0 = torch.repeat_interleave(v0.view(-1, 1), batch_size, dim=1)
 
         v0 = v0.view(-1, batch_size)
@@ -152,43 +162,42 @@ class VoltageViolationLoss(nn.Module):
         #     print(f'self.L shape {self.L.shape}')
         #     print(f'L shape {L.shape}')
         #     print(f'Z shape {Z.shape}')
-        
+
         # print(f'K shape: {self.K.shape}')
         # print(f'L shape: {self.L.shape}')
         # print(f'S shape: {S.shape}')
         # print(f'v0 shape: {v0.shape}')
         # print(f'vk shape: {v_k.shape}')
-        epsilon = 1e-8
+
         while iteration < self.iterations and tol >= self.tolerance:
-            
-            L = torch.conj(S * (1 / (v0 + epsilon)))
+
+            L = torch.conj(S * (1 / (v0)))
             Z = self.K @ L
             v_k = Z + self.L
             tol = torch.max(torch.abs(torch.abs(v_k) - torch.abs(v0)))
-            print(f"Iteration {iteration}: v0.abs().min() = {torch.abs(v0).min().item()}, v0.abs().max() = {torch.abs(v0).max().item()}")
             v0 = v_k
 
             iteration += 1
 
         # Convert v0 to a real tensor (for example using its real part)
         v0_real = torch.abs(v0)
+        # return v0_real.mean()
 
         # Clamp v0_real to avoid extreme values
-        v0_clamped = torch.clamp(v0_real, min=1e-3, max=2.0)
-        v0_clamped = v0_clamped.view(batch_size, -1)
+        # v0_clamped = torch.clamp(v0_real, min=1e-3, max=2.0)
+        v0_clamped = v0_real.view(batch_size, -1)
 
         # Compute the loss as a real number
         # For example, penalty on deviation from 1.0
         loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
-                        0.05 - torch.abs(1 - v0_clamped))
-        
+                         0.05 - torch.abs(1 - v0_clamped))
+
         if self.verbose:
-            print(f'voltage shape {v0.real.shape}')
-            print(f'Voltage: {v0.real}')
+            print(f'voltage shape {v0_clamped.real.shape}')
+            print(f'Voltage: {v0_clamped.real}')
             print(f'Loss: {loss}')
-            print(f'Loss: {loss.shape}')       
-        if loss.sum() != 0:
-            print("Violation")
-            
-        # return 1000*loss.sum(), v0.real.cpu().detach().numpy()
+            print(f'Loss: {loss.shape}'
+                  )
+
+        # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
         return 1000*loss.sum(axis=1)
