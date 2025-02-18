@@ -15,6 +15,7 @@ from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
 from agent.loss import VoltageViolationLoss
 
+from ev2gym.models.ev2gym_env import EV2Gym
 
 # from ev2gym.rl_agent.state import V2G_profit_max, PublicPST, V2G_profit_max_loads
 # from GNN.state import PublicPST_GNN, V2G_ProfitMax_with_Loads_GNN
@@ -52,22 +53,25 @@ class PyGDataSpace(Space):
 # A fixed seed is used for the eval environment
 
 
-def eval_policy(policy, args, eval_episodes=30,
+def eval_policy(policy,
+                args,
+                eval_config,
                 config_file=None,
-                discrete_actions=1,
-                PST_correction_layer=False,
-                noise_communication=0.0
                 ):
-    eval_env = gym.make('evs-v1')
 
-    if "GNN" in args.policy:
-        eval_env.observation_space = PyGDataSpace()
+    eval_episodes = len(eval_config['eval_replays'])
 
     avg_reward = 0.
     stats_list = []
     eval_stats = {}
+    for replay in tqdm(eval_config['eval_replays']):
+        replay = f'{eval_config["eval_path"]}{replay}'
+        eval_env = EV2Gym(config_file=config_file,
+                          load_from_replay_path=replay,
+                          state_function=eval_config['state_function'],
+                          reward_function=eval_config['reward_function'],
+                          )
 
-    for _ in tqdm(range(eval_episodes)):
         state, _ = eval_env.reset()
         done = False
         while not done:
@@ -102,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid.yaml")
+    parser.add_argument("--config", default="v2g_grid_150.yaml")
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
     parser.add_argument("--load_model", default="")
@@ -111,7 +115,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -229,11 +233,52 @@ if __name__ == "__main__":
 
     env = gym.make('evs-v1')
 
-    # if args.PST_correction_layer:
-    #     env = Rescale_RepairLayer(env)
+    # =========================================================================
+    problem_name = config_file.split('/')[-1].split('.')[0]
+    eval_replay_path = f'./replay/{problem_name}_{args.eval_episodes}evals/'
+    print(f'Looking for replay files in {eval_replay_path}')
+    try:
+        eval_replay_files = [f for f in os.listdir(
+            eval_replay_path) if os.path.isfile(os.path.join(eval_replay_path, f))]
+        print(
+            f'Found {len(eval_replay_files)} replay files in {eval_replay_path}')
 
-    if "GNN" in args.policy:
-        env.observation_space = PyGDataSpace()
+        replays_exist = True
+
+    except:
+        replays_exist = False
+
+    def generate_replay(evaluation_name):
+        env = EV2Gym(config_file=config_file,
+                     generate_rnd_game=True,
+                     save_replay=True,
+                     replay_save_path=f"{evaluation_name}/",
+                     )
+
+        replay_path = f"{evaluation_name}/replay_{env.sim_name}.pkl"
+
+        for _ in range(env.simulation_length):
+            actions = np.ones(env.cs)
+
+            new_state, reward, done, truncated, _ = env.step(
+                actions, visualize=False)  # takes action
+
+            if done:
+                break
+
+        return replay_path
+
+    if not replays_exist:
+        eval_replay_files = [generate_replay(
+            eval_replay_path) for _ in range(args.eval_episodes)]
+
+    eval_config = {
+        'eval_path': eval_replay_path,
+        'eval_replays': eval_replay_files,
+        'state_function': state_function,
+        'reward_function': reward_function,
+    }
+    # =========================================================================
 
     global_target_return = 0
 
@@ -243,10 +288,10 @@ if __name__ == "__main__":
     else:
         load_path = None
 
-    loss_fn = VoltageViolationLoss(K=env.grid.net._K_,
-                                   L=env.grid.net._L_,
-                                   s_base=env.grid.net.s_base,
-                                   num_buses=env.grid.net.nb,
+    loss_fn = VoltageViolationLoss(K=env.get_wrapper_attr('grid').net._K_,
+                                   L=env.get_wrapper_attr('grid').net._L_,
+                                   s_base=env.get_wrapper_attr('grid').net.s_base,
+                                   num_buses=env.get_wrapper_attr('grid').net.nb,
                                    device=device,
                                    verbose=False,
                                    )
@@ -325,40 +370,40 @@ if __name__ == "__main__":
         "critic_num_gcn_layers": args.critic_num_gcn_layers,
     }
 
-    # Initialize policy
-    if args.policy == "TD3_GNN" or args.policy == "TD3_ActionGNN":
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs["lr"] = args.lr
+    # # Initialize policy
+    # if args.policy == "TD3_GNN" or args.policy == "TD3_ActionGNN":
+    #     # Target policy smoothing is scaled wrt the action scale
+    #     kwargs["policy_noise"] = args.policy_noise * max_action
+    #     kwargs["noise_clip"] = args.noise_clip * max_action
+    #     kwargs["policy_freq"] = args.policy_freq
+    #     kwargs["device"] = device
+    #     kwargs["lr"] = args.lr
 
-        kwargs['load_path'] = load_path
-        kwargs['discrete_actions'] = args.discrete_actions
+    #     kwargs['load_path'] = load_path
+    #     kwargs['discrete_actions'] = args.discrete_actions
 
-        # if statefunction has attribute node_sizes
-        if hasattr(state_function, 'node_sizes'):
-            kwargs['fx_node_sizes'] = state_function.node_sizes
+    #     # if statefunction has attribute node_sizes
+    #     if hasattr(state_function, 'node_sizes'):
+    #         kwargs['fx_node_sizes'] = state_function.node_sizes
 
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
+    #     # Save kwargs to local path
+    #     with open(f'{save_path}/kwargs.yaml', 'w') as file:
+    #         yaml.dump(kwargs, file)
 
-        if args.policy == "TD3_GNN":
-            policy = TD3_GNN(**kwargs)
-            replay_buffer = GNN_ReplayBuffer(action_dim=action_dim,
-                                             max_size=replay_buffer_size,)
-            # save the TD3_GNN.py file using cp
-            os.system(f'cp TD3/TD3_GNN.py {save_path}')
+    #     if args.policy == "TD3_GNN":
+    #         policy = TD3_GNN(**kwargs)
+    #         replay_buffer = GNN_ReplayBuffer(action_dim=action_dim,
+    #                                          max_size=replay_buffer_size,)
+    #         # save the TD3_GNN.py file using cp
+    #         os.system(f'cp TD3/TD3_GNN.py {save_path}')
 
-        elif args.policy == "TD3_ActionGNN":
-            policy = TD3_ActionGNN(**kwargs)
-            replay_buffer = ActionGNN_ReplayBuffer(action_dim=action_dim,
-                                                   max_size=replay_buffer_size,)
-            os.system(f'cp TD3/TD3_ActionGNN.py {save_path}')
+    #     elif args.policy == "TD3_ActionGNN":
+    #         policy = TD3_ActionGNN(**kwargs)
+    #         replay_buffer = ActionGNN_ReplayBuffer(action_dim=action_dim,
+    #                                                max_size=replay_buffer_size,)
+    #         os.system(f'cp TD3/TD3_ActionGNN.py {save_path}')
 
-    elif args.policy == "TD3":
+    if args.policy == "TD3":
         state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale
         kwargs["policy_noise"] = args.policy_noise * max_action
@@ -367,7 +412,7 @@ if __name__ == "__main__":
         kwargs["device"] = device
         kwargs['state_dim'] = state_dim
         kwargs['load_path'] = load_path
-        
+
         kwargs['loss_fn'] = loss_fn
         kwargs['loss_fn'] = None
         # Save kwargs to local path
@@ -377,48 +422,48 @@ if __name__ == "__main__":
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
-    elif "SAC" in args.policy:
+    # elif "SAC" in args.policy:
 
-        kwargs["device"] = device
-        kwargs["alpha"] = args.alpha
-        kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
-        kwargs["updates_per_step"] = args.updates_per_step
-        kwargs["target_update_interval"] = args.target_update_interval
-        kwargs["discount"] = args.discount
-        kwargs["tau"] = args.tau
-        kwargs['policy'] = args.policy_SAC
-        kwargs['lr'] = args.lr
-        kwargs['hidden_size'] = args.mlp_hidden_dim
+    #     kwargs["device"] = device
+    #     kwargs["alpha"] = args.alpha
+    #     kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
+    #     kwargs["updates_per_step"] = args.updates_per_step
+    #     kwargs["target_update_interval"] = args.target_update_interval
+    #     kwargs["discount"] = args.discount
+    #     kwargs["tau"] = args.tau
+    #     kwargs['policy'] = args.policy_SAC
+    #     kwargs['lr'] = args.lr
+    #     kwargs['hidden_size'] = args.mlp_hidden_dim
 
-        if hasattr(state_function, 'node_sizes'):
-            fx_node_sizes = state_function.node_sizes
+    #     if hasattr(state_function, 'node_sizes'):
+    #         fx_node_sizes = state_function.node_sizes
 
-        if args.policy == "SAC_GNN":
+        # if args.policy == "SAC_GNN":
 
-            policy = SAC(num_inputs=-1,
-                         action_space=env.action_space,
-                         args=kwargs,
-                         fx_node_sizes=fx_node_sizes,
-                         GNN_fx=True)
-            replay_buffer = GNN_ReplayBuffer(action_dim=action_dim,
-                                             max_size=replay_buffer_size,)
-            os.system(f'cp SAC/sac.py {save_path}')
+        #     policy = SAC(num_inputs=-1,
+        #                  action_space=env.action_space,
+        #                  args=kwargs,
+        #                  fx_node_sizes=fx_node_sizes,
+        #                  GNN_fx=True)
+        #     replay_buffer = GNN_ReplayBuffer(action_dim=action_dim,
+        #                                      max_size=replay_buffer_size,)
+        #     os.system(f'cp SAC/sac.py {save_path}')
 
-        elif args.policy == "SAC_ActionGNN":
-            policy = SAC_ActionGNN(action_space=env.action_space,
-                                   fx_node_sizes=fx_node_sizes,
-                                   args=kwargs,)
-            replay_buffer = ActionGNN_ReplayBuffer(action_dim=action_dim,
-                                                   max_size=replay_buffer_size,)
-            os.system(f'cp SAC/actionSAC.py {save_path}')
+        # elif args.policy == "SAC_ActionGNN":
+        #     policy = SAC_ActionGNN(action_space=env.action_space,
+        #                            fx_node_sizes=fx_node_sizes,
+        #                            args=kwargs,)
+        #     replay_buffer = ActionGNN_ReplayBuffer(action_dim=action_dim,
+        #                                            max_size=replay_buffer_size,)
+        #     os.system(f'cp SAC/actionSAC.py {save_path}')
 
-        elif args.policy == "SAC":
-            state_dim = env.observation_space.shape[0]
-            policy = SAC(num_inputs=state_dim,
-                         action_space=env.action_space,
-                         args=kwargs)
-            replay_buffer = ReplayBuffer(state_dim, action_dim)
-            os.system(f'cp SAC/sac.py {save_path}')
+        # elif args.policy == "SAC":
+        #     state_dim = env.observation_space.shape[0]
+        #     policy = SAC(num_inputs=state_dim,
+        #                  action_space=env.action_space,
+        #                  args=kwargs)
+        #     replay_buffer = ReplayBuffer(state_dim, action_dim)
+        #     os.system(f'cp SAC/sac.py {save_path}')
 
     else:
         raise ValueError("Policy not recognized.")
@@ -567,13 +612,10 @@ if __name__ == "__main__":
         # Evaluate episode
         if (t + 1) % args.eval_freq == 0:
 
-            avg_reward, eval_stats = eval_policy(policy,
+            avg_reward, eval_stats = eval_policy(policy=policy,
                                                  args=args,
-                                                 eval_episodes=args.eval_episodes,
+                                                 eval_config=eval_config,
                                                  config_file=config_file,
-                                                 discrete_actions=args.discrete_actions,
-                                                 PST_correction_layer=args.PST_correction_layer,
-                                                 noise_communication=args.noisy_communication
                                                  )
             evaluations.append(avg_reward)
 

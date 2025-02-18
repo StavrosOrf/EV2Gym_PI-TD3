@@ -148,9 +148,10 @@ class TD3(object):
         if self.total_it % self.policy_freq == 0:
 
             if self.loss_fn is not None:
-                # Compute actor losse
-                actor_loss = -self.critic.Q1(state, self.actor(state)).mean() + \
-                    self.loss_fn(action=self.actor(state), state=state)
+            
+                physics_loss = self.loss_fn(action=self.actor(state), state=state)
+                actor_loss = -self.critic.Q1(state, self.actor(state)).mean() 
+                    
             else:
                 actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 
