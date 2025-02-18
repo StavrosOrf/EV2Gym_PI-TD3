@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
     parser.add_argument("--config", default="v2g_grid_150.yaml")
-    parser.add_argument("--seed", default=0, type=int)
+    parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
     parser.add_argument("--load_model", default="")
     parser.add_argument("--device", default="cuda")
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         parser.add_argument("--start_timesteps", default=10,
                             type=int)
         parser.add_argument('--eval_freq', default=300, type=int)
-        parser.add_argument("--batch_size", default=3, type=int)  # 256
+        parser.add_argument("--batch_size", default=256, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
@@ -290,10 +290,12 @@ if __name__ == "__main__":
 
     loss_fn = VoltageViolationLoss(K=env.get_wrapper_attr('grid').net._K_,
                                    L=env.get_wrapper_attr('grid').net._L_,
-                                   s_base=env.get_wrapper_attr('grid').net.s_base,
-                                   num_buses=env.get_wrapper_attr('grid').net.nb,
+                                   s_base=env.get_wrapper_attr(
+                                       'grid').net.s_base,
+                                   num_buses=env.get_wrapper_attr(
+                                       'grid').net.nb,
                                    device=device,
-                                   verbose=False,
+                                   verbose=True,
                                    )
 
     # Set seeds
@@ -414,7 +416,7 @@ if __name__ == "__main__":
         kwargs['load_path'] = load_path
 
         kwargs['loss_fn'] = loss_fn
-        kwargs['loss_fn'] = None
+        # kwargs['loss_fn'] = None
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
@@ -580,12 +582,13 @@ if __name__ == "__main__":
                               step=t)
 
             else:
-                critic_loss, actor_loss = policy.train(
+                loss_dict = policy.train(
                     replay_buffer, args.batch_size)
 
-                if args.log_to_wandb and actor_loss is not None:
-                    wandb.log({'train/critic_loss': critic_loss,
-                               'train/actor_loss': actor_loss,
+                if args.log_to_wandb:
+                    wandb.log({'train/critic_loss': loss_dict['critic_loss'],
+                               'train/actor_loss': loss_dict['actor_loss'],
+                               'train/physics_loss': loss_dict['physics_loss'],
                                'train/time': time.time() - start_time, },
                               step=t)
 
