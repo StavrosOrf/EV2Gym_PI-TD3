@@ -16,13 +16,14 @@ from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
 # from SAC.old_actionSAC import SAC_ActionGNN as SAC_ActionGNN_old
 # from SAC.actionSAC import SAC_ActionGNN
 # from SAC.sac import SAC
-# from TD3.TD3 import TD3
+from TD3.TD3 import TD3
 # from Model_RL.model_based_RL import ModelBasedRL, ModelBasedRL_LSTM
 # from TD3.old_TD3_ActionGNN import TD3_ActionGNN as TD3_ActionGNN_old
 # from TD3.TD3_ActionGNN import TD3_ActionGNN
 # from TD3.TD3_GNN import TD3_GNN
 from sb3_contrib import TQC, TRPO, ARS, RecurrentPPO
-from stable_baselines3 import PPO, A2C, DDPG, SAC, TD3
+from stable_baselines3 import PPO, A2C, DDPG, SAC
+from stable_baselines3 import TD3 as TD3_SB3
 from ev2gym.baselines.mpc.V2GProfitMax import V2GProfitMaxOracle, V2GProfitMaxLoadsOracle
 from ev2gym.baselines.mpc.eMPC_v2 import eMPC_V2G_v2
 from ev2gym.baselines.mpc.eMPC import eMPC_V2G, eMPC_G2V
@@ -70,7 +71,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 100
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -82,7 +83,7 @@ def evaluator():
     # values in [0-1] probability of obs-delayed communication
     p_delay_list = [0]
 
-    config_file = "./config_files/v2g_grid.yaml"
+    config_file = "./config_files/v2g_grid_150.yaml"
 
     # config_file = "./config_files/V2G_ProfixMaxWithLoads_25.yaml"
     # config_file = "./config_files/V2G_ProfixMaxWithLoads_100.yaml"
@@ -100,9 +101,13 @@ def evaluator():
         ChargeAsFastAsPossible,
         DoNothing,
         RandomAgent,
-        # ChargeAsLateAsPossible,
+        # ChargeAsLateAsPossible,        
         '150_SB3_tests/NewReward_No_reactive_td3_run_0_27619_V2G_grid_simple_reward_V2G_grid_state_ModelBasedRL',
         "ModelBasedRL-ModelBasedRL-757975",
+        'TD3_loss_0x-190015',
+        'TD3_loss_0.00001-640434',
+        'TD3_loss_0.01X-284656',
+        
         # RoundRobin,
         # eMPC_V2G,
         # eMPC_V2G_v2,
@@ -243,227 +248,231 @@ def evaluator():
                     # initialize the timer
                     timer = time.time()
                     state, _ = env.reset()
-                    try:
-                        if type(algorithm) == str:
-                            if algorithm.split('_')[0] in ['OCMF', 'eMPC']:
-                                h = int(algorithm.split('_')[2])
-                                algorithm = algorithm.split(
-                                    '_')[0] + '_' + algorithm.split('_')[1]
-                                print(
-                                    f'Algorithm: {algorithm} with control horizon {h}')
-                                if algorithm == 'OCMF_V2G':
-                                    model = OCMF_V2G(
-                                        env=env, control_horizon=h)
-                                    algorithm = OCMF_V2G
-                                elif algorithm == 'OCMF_G2V':
-                                    model = OCMF_G2V(
-                                        env=env, control_horizon=h)
-                                    algorithm = OCMF_G2V
-                                elif algorithm == 'eMPC_V2G':
-                                    model = eMPC_V2G(
-                                        env=env, control_horizon=h)
-                                    algorithm = eMPC_V2G
-                                elif algorithm == 'eMPC_G2V':
-                                    model = eMPC_G2V(
-                                        env=env, control_horizon=h)
-                                    algorithm = eMPC_G2V
+                    # try:
+                    if type(algorithm) == str:
+                        if algorithm.split('_')[0] in ['OCMF', 'eMPC']:
+                            h = int(algorithm.split('_')[2])
+                            algorithm = algorithm.split(
+                                '_')[0] + '_' + algorithm.split('_')[1]
+                            print(
+                                f'Algorithm: {algorithm} with control horizon {h}')
+                            if algorithm == 'OCMF_V2G':
+                                model = OCMF_V2G(
+                                    env=env, control_horizon=h)
+                                algorithm = OCMF_V2G
+                            elif algorithm == 'OCMF_G2V':
+                                model = OCMF_G2V(
+                                    env=env, control_horizon=h)
+                                algorithm = OCMF_G2V
+                            elif algorithm == 'eMPC_V2G':
+                                model = eMPC_V2G(
+                                    env=env, control_horizon=h)
+                                algorithm = eMPC_V2G
+                            elif algorithm == 'eMPC_G2V':
+                                model = eMPC_G2V(
+                                    env=env, control_horizon=h)
+                                algorithm = eMPC_G2V
 
-                                algorithm_name = algorithm.__name__
+                            algorithm_name = algorithm.__name__
 
-                            elif any(algo in algorithm for algo in ['td3', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
-                            
-                                gym.envs.register(id='evs-v0', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
-                                                  kwargs={'config_file': config_file,
-                                                          'generate_rnd_game': True,
-                                                          'state_function': state_function_Normal,
-                                                          'reward_function': reward_function,
-                                                          'load_from_replay_path': replay_path,
-                                                          })
-                                env = gym.make('evs-v0')
+                        elif any(algo in algorithm for algo in ['td3', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
+                        
+                            gym.envs.register(id='evs-v0', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
+                                                kwargs={'config_file': config_file,
+                                                        'generate_rnd_game': True,
+                                                        'state_function': state_function_Normal,
+                                                        'reward_function': reward_function,
+                                                        'load_from_replay_path': replay_path,
+                                                        })
+                            env = gym.make('evs-v0')
 
-                                load_path = f'./saved_models/{algorithm}/best_model.zip'
+                            load_path = f'./saved_models/{algorithm}/best_model.zip'
 
-                                # initialize the timer
-                                timer = time.time()
-                                algorithm_name = algorithm.split('_')[0]
+                            # initialize the timer
+                            timer = time.time()
+                            algorithm_name = algorithm.split('_')[0]
 
-                                if 'rppo' in algorithm:
-                                    sb3_algo = RecurrentPPO
-                                elif 'ppo' in algorithm:
-                                    sb3_algo = PPO
-                                elif 'a2c' in algorithm:
-                                    sb3_algo = A2C
-                                elif 'ddpg' in algorithm:
-                                    sb3_algo = DDPG
-                                elif 'tqc' in algorithm:
-                                    sb3_algo = TQC
-                                elif 'trpo' in algorithm:
-                                    sb3_algo = TRPO
-                                elif 'td3' in algorithm:
-                                    sb3_algo = TD3
-                                else:
-                                    exit()
-
-                                model = sb3_algo.load(load_path,
-                                                      env,
-                                                      device=device)
-                                # set replay buffer to None
-
-                                if 'tqc' in algorithm or 'ddpg' in algorithm:
-                                    model.replay_buffer = model.replay_buffer.__class__(1,
-                                                                                        model.observation_space,
-                                                                                        model.action_space,
-                                                                                        device=model.device,
-                                                                                        optimize_memory_usage=model.replay_buffer.optimize_memory_usage)
-
-                                env = model.get_env()
-                                state = env.reset()
-
-                            elif "SAC" in algorithm:
-                                #remove _SL from the algorithm name
-                                
-                                algorithm_path = algorithm.split('_noSL')[0]
-                                load_model_path = f'./eval_models/{algorithm_path}/'
-                                # Load kwargs.yaml as a dictionary
-                                with open(f'{load_model_path}kwargs.yaml') as file:
-                                    kwargs = yaml.load(
-                                        file, Loader=yaml.FullLoader)
-
-                                if hasattr(state_function, 'node_sizes'):
-                                    fx_node_sizes = state_function.node_sizes
-
-                                if "ActionGNN" in algorithm:
-                                    algorithm_name = "SAC_ActionGNN"
-                                    if 'actor_num_gcn_layers' in kwargs:
-                                        model = SAC_ActionGNN(action_space=env.action_space,
-                                                              fx_node_sizes=fx_node_sizes,
-                                                              args=kwargs,)
-                                    else:
-                                        model = SAC_ActionGNN_old(action_space=env.action_space,
-                                                                  fx_node_sizes=fx_node_sizes,
-                                                                  args=kwargs,)
-
-                                    if "extraLayers" in algorithm:
-                                        state_dict = torch.load(f'{load_model_path}model.best')[
-                                            'policy_state_dict']
-                                        new_state_dict = {}
-                                        rename_map = {
-                                            "gcn_conv2.bias": "gcn_layers.0.bias",
-                                            "gcn_conv2.lin.weight": "gcn_layers.0.lin.weight",
-                                            "gcn_conv2_1.bias": "gcn_layers.1.bias",
-                                            "gcn_conv2_1.lin.weight": "gcn_layers.1.lin.weight",
-                                            "gcn_conv2_2.bias": "gcn_layers.2.bias",
-                                            "gcn_conv2_2.lin.weight": "gcn_layers.2.lin.weight",
-                                        }
-
-                                        for old_key, new_key in rename_map.items():
-                                            if old_key in state_dict:
-                                                new_state_dict[new_key] = state_dict[old_key]
-                                        # Now we need to check if there are other keys in the state_dict that do not need renaming
-                                        for key in state_dict:
-                                            if key not in rename_map:
-                                                new_state_dict[key] = state_dict[key]
-
-                                        model.policy.load_state_dict(
-                                            new_state_dict)
-                                    else:
-                                        model.load(ckpt_path=f'{load_model_path}model.best',
-                                                   evaluate=True)
-
-                                elif "GNN" in algorithm:
-                                    model = SAC(num_inputs=-1,
-                                                action_space=env.action_space,
-                                                args=kwargs,
-                                                fx_node_sizes=fx_node_sizes,
-                                                GNN_fx=True)
-
-                                    algorithm_name = "SAC_GNN"
-                                    model.load(ckpt_path=f'{load_model_path}model.best',
-                                               evaluate=True)
-                                else:
-                                    state_dim = env.observation_space.shape[0]
-                                    model = SAC(num_inputs=state_dim,
-                                                action_space=env.action_space,
-                                                args=kwargs)
-
-                                    algorithm_name = "SAC"
-                                    model.load(ckpt_path=f'{load_model_path}model.best',
-                                               evaluate=True)
-
-                                if k == 0:
-                                    actor_model = model.policy
-                                    model_parameters = filter(
-                                        lambda p: p.requires_grad, actor_model.parameters())
-                                    params = sum([np.prod(p.size())
-                                                  for p in model_parameters])
-                                    print(
-                                        f'Actor model has {params} trainable parameters')
-
-                            elif "TD3" in algorithm:
-                                algorithm_path = algorithm.split('_noSL')[0]
-                                load_model_path = f'./eval_models/{algorithm_path}/'
-                                # Load kwargs.yaml as a dictionary
-                                with open(f'{load_model_path}kwargs.yaml') as file:
-                                    kwargs = yaml.load(
-                                        file, Loader=yaml.FullLoader)
-
-                                if "ActionGNN" in algorithm:
-                                    algorithm_name = "TD3_ActionGNN"
-                                    print("Loading TD3_ActionGNN")
-                                    if 'actor_num_gcn_layers' in kwargs:
-                                        model = TD3_ActionGNN(**kwargs)
-                                    else:
-                                        model = TD3_ActionGNN_old(**kwargs)
-
-                                    model.load(
-                                        filename=f'{load_model_path}model.best')
-
-                                elif "GNN" in algorithm:
-                                    model = TD3_GNN(**kwargs)
-                                    algorithm_name = "TD3_GNN"
-                                    model.load(
-                                        filename=f'{load_model_path}model.best')
-
-                                else:
-                                    print("Loading TD3 model")
-                                    model = TD3(**kwargs)
-                                    algorithm_name = "TD3"
-                                    model.load(
-                                        filename=f'{load_model_path}model.best')
-
-                                if k == 0:
-                                    actor_model = model.actor
-                                    model_parameters = filter(
-                                        lambda p: p.requires_grad, actor_model.parameters())
-                                    params = sum([np.prod(p.size())
-                                                  for p in model_parameters])
-                                    print(
-                                        f'Actor model has {params} trainable parameters')
-
-                            elif "LSTM-ModelBasedRL" in algorithm:
-                                model = ModelBasedRL_LSTM(state_dim=env.observation_space.shape[0],
-                                                          mlp_hidden_dim=32,
-                                                          hidden_state_dim=32,
-                                                          action_dim=env.action_space.shape[0],
-                                                          sequence_length=3)
-
-                                model.load(
-                                    f'./eval_models/{algorithm}/model.best')
-                                model.actor.eval()
-                                algorithm_name = "LSTM-ModelBasedRL"
-
-                            elif "ModelBasedRL" in algorithm:
-                                model = ModelBasedRL(state_dim=env.observation_space.shape[0],
-                                                     mlp_hidden_dim=128,
-                                                     action_dim=env.action_space.shape[0],)
-                                model.load(
-                                    f'./saved_models/{algorithm}/model.best')
-                                model.actor.eval()
-                                algorithm_name = "ModelBasedRL"
+                            if 'rppo' in algorithm:
+                                sb3_algo = RecurrentPPO
+                            elif 'ppo' in algorithm:
+                                sb3_algo = PPO
+                            elif 'a2c' in algorithm:
+                                sb3_algo = A2C
+                            elif 'ddpg' in algorithm:
+                                sb3_algo = DDPG
+                            elif 'tqc' in algorithm:
+                                sb3_algo = TQC
+                            elif 'trpo' in algorithm:
+                                sb3_algo = TRPO
+                            elif 'td3' in algorithm:
+                                print("Loading TD3-SB3 model")
+                                sb3_algo = TD3_SB3
 
                             else:
-                                raise ValueError(
-                                    f'Unknown algorithm {algorithm}')
+                                exit()
+
+                            model = sb3_algo.load(load_path,
+                                                    env,
+                                                    device=device
+                                                    )
+                            # set replay buffer to None
+
+                            if 'tqc' in algorithm or 'ddpg' in algorithm:
+                                model.replay_buffer = model.replay_buffer.__class__(1,
+                                                                                    model.observation_space,
+                                                                                    model.action_space,
+                                                                                    device=model.device,
+                                                                                    optimize_memory_usage=model.replay_buffer.optimize_memory_usage)
+
+                            env = model.get_env()
+                            state = env.reset()
+
+                        elif "SAC" in algorithm:
+                            #remove _SL from the algorithm name
+                            
+                            algorithm_path = algorithm.split('_noSL')[0]
+                            load_model_path = f'./eval_models/{algorithm_path}/'
+                            # Load kwargs.yaml as a dictionary
+                            with open(f'{load_model_path}kwargs.yaml') as file:
+                                kwargs = yaml.load(
+                                    file, Loader=yaml.FullLoader)
+
+                            if hasattr(state_function, 'node_sizes'):
+                                fx_node_sizes = state_function.node_sizes
+
+                            if "ActionGNN" in algorithm:
+                                algorithm_name = "SAC_ActionGNN"
+                                if 'actor_num_gcn_layers' in kwargs:
+                                    model = SAC_ActionGNN(action_space=env.action_space,
+                                                            fx_node_sizes=fx_node_sizes,
+                                                            args=kwargs,)
+                                else:
+                                    model = SAC_ActionGNN_old(action_space=env.action_space,
+                                                                fx_node_sizes=fx_node_sizes,
+                                                                args=kwargs,)
+
+                                if "extraLayers" in algorithm:
+                                    state_dict = torch.load(f'{load_model_path}model.best')[
+                                        'policy_state_dict']
+                                    new_state_dict = {}
+                                    rename_map = {
+                                        "gcn_conv2.bias": "gcn_layers.0.bias",
+                                        "gcn_conv2.lin.weight": "gcn_layers.0.lin.weight",
+                                        "gcn_conv2_1.bias": "gcn_layers.1.bias",
+                                        "gcn_conv2_1.lin.weight": "gcn_layers.1.lin.weight",
+                                        "gcn_conv2_2.bias": "gcn_layers.2.bias",
+                                        "gcn_conv2_2.lin.weight": "gcn_layers.2.lin.weight",
+                                    }
+
+                                    for old_key, new_key in rename_map.items():
+                                        if old_key in state_dict:
+                                            new_state_dict[new_key] = state_dict[old_key]
+                                    # Now we need to check if there are other keys in the state_dict that do not need renaming
+                                    for key in state_dict:
+                                        if key not in rename_map:
+                                            new_state_dict[key] = state_dict[key]
+
+                                    model.policy.load_state_dict(
+                                        new_state_dict)
+                                else:
+                                    model.load(ckpt_path=f'{load_model_path}model.best',
+                                                evaluate=True)
+
+                            elif "GNN" in algorithm:
+                                model = SAC(num_inputs=-1,
+                                            action_space=env.action_space,
+                                            args=kwargs,
+                                            fx_node_sizes=fx_node_sizes,
+                                            GNN_fx=True)
+
+                                algorithm_name = "SAC_GNN"
+                                model.load(ckpt_path=f'{load_model_path}model.best',
+                                            evaluate=True)
+                            else:
+                                state_dim = env.observation_space.shape[0]
+                                model = SAC(num_inputs=state_dim,
+                                            action_space=env.action_space,
+                                            args=kwargs)
+
+                                algorithm_name = "SAC"
+                                model.load(ckpt_path=f'{load_model_path}model.best',
+                                            evaluate=True)
+
+                            if k == 0:
+                                actor_model = model.policy
+                                model_parameters = filter(
+                                    lambda p: p.requires_grad, actor_model.parameters())
+                                params = sum([np.prod(p.size())
+                                                for p in model_parameters])
+                                print(
+                                    f'Actor model has {params} trainable parameters')
+
+                        elif "TD3" in algorithm:
+                            algorithm_path = algorithm.split('_noSL')[0]
+                            load_model_path = f'./eval_models/{algorithm_path}/'
+                            # Load kwargs.yaml as a dictionary
+                            # with open(f'{load_model_path}kwargs.yaml') as file:
+                            #     kwargs = yaml.load(
+                            #         file, Loader=yaml.FullLoader)
+                            with open(f'{load_model_path}kwargs.yaml') as file:
+                                kwargs = yaml.load(file, Loader=yaml.UnsafeLoader)
+                            if "ActionGNN" in algorithm:
+                                algorithm_name = "TD3_ActionGNN"
+                                print("Loading TD3_ActionGNN")
+                                if 'actor_num_gcn_layers' in kwargs:
+                                    model = TD3_ActionGNN(**kwargs)
+                                else:
+                                    model = TD3_ActionGNN_old(**kwargs)
+
+                                model.load(
+                                    filename=f'{load_model_path}model.best')
+
+                            elif "GNN" in algorithm:
+                                model = TD3_GNN(**kwargs)
+                                algorithm_name = "TD3_GNN"
+                                model.load(
+                                    filename=f'{load_model_path}model.best')
+
+                            else:
+                                print("Loading TD3 model")
+                                model = TD3(**kwargs)
+                                algorithm_name = "TD3"
+                                model.load(
+                                    filename=f'{load_model_path}model.best')
+
+                            if k == 0:
+                                actor_model = model.actor
+                                model_parameters = filter(
+                                    lambda p: p.requires_grad, actor_model.parameters())
+                                params = sum([np.prod(p.size())
+                                                for p in model_parameters])
+                                print(
+                                    f'Actor model has {params} trainable parameters')
+
+                        elif "LSTM-ModelBasedRL" in algorithm:
+                            model = ModelBasedRL_LSTM(state_dim=env.observation_space.shape[0],
+                                                        mlp_hidden_dim=32,
+                                                        hidden_state_dim=32,
+                                                        action_dim=env.action_space.shape[0],
+                                                        sequence_length=3)
+
+                            model.load(
+                                f'./eval_models/{algorithm}/model.best')
+                            model.actor.eval()
+                            algorithm_name = "LSTM-ModelBasedRL"
+
+                        elif "ModelBasedRL" in algorithm:
+                            model = ModelBasedRL(state_dim=env.observation_space.shape[0],
+                                                    mlp_hidden_dim=128,
+                                                    action_dim=env.action_space.shape[0],)
+                            model.load(
+                                f'./saved_models/{algorithm}/model.best')
+                            model.actor.eval()
+                            algorithm_name = "ModelBasedRL"
+
+                        else:
+                            raise ValueError(
+                                f'Unknown algorithm {algorithm}')
 
                         # elif algorithm == DecisionTransformer:
                         #     model_path = "K=12,embed_dim=128,n_layer=3,max_iters=2000,num_steps_per_iter=20000,batch_size=128,n_head=4,num_eval_episodes=30,scale=1-RR_10_000-231028"
@@ -475,16 +484,16 @@ def evaluator():
                         #     algorithm_name = algorithm.__name__
                         #     model.eval()
 
-                        else:
-                            model = algorithm(env=env,
-                                              replay_path=replay_path,
-                                              verbose=False)
-                            algorithm_name = algorithm.__name__
-                    except Exception as error:
-                        print(error)
-                        print(
-                            f'!!!!!!!!!! Error in {algorithm} with replay {replay_path}')
-                        continue
+                    else:
+                        model = algorithm(env=env,
+                                            replay_path=replay_path,
+                                            verbose=False)
+                        algorithm_name = algorithm.__name__
+                    # except Exception as error:
+                    #     print(error)
+                    #     print(
+                    #         f'!!!!!!!!!! Error in {algorithm} with replay {replay_path}')
+                    #     continue
 
                     rewards = []
 
@@ -651,30 +660,17 @@ def evaluator():
 
     results_grouped = results.groupby('algorithm_version',).agg(['mean', 'std'])
 
-    # print columns of the results
-    # print(results_grouped.columns)
-
-    # savethe latex results in a txt file
-    # with open(save_path + 'results_grouped.txt', 'w') as f:
-    #     f.write(results_grouped.to_latex())
-
-    # results_grouped.to_csv('results_grouped.csv')
-    # print(results_grouped[['tracking_error', 'energy_tracking_error']])
-    # print(results_grouped[['tracking_error',
-    #       'total_transformer_overload', 'time']])
-    
     #sort results by tracking error
     results_grouped = results_grouped.sort_values(
-        by=('tracking_error', 'mean'), ascending=True)
+        by=('voltage_violation', 'mean'), ascending=True)
     
     print(results_grouped[['voltage_violation',
                            'average_user_satisfaction',
                            'total_energy_charged',
                            'total_energy_discharged',
+                           'total_reward',
                            ]])
-    #    ]])
-    #    'average_user_satisfaction']])
-    # input('Press Enter to continue')
+
     
     with gzip.open(save_path + 'plot_results_dict.pkl.gz', 'wb') as f:
         pickle.dump(plot_results_dict, f)
@@ -711,9 +707,9 @@ def evaluator():
     #                        save_path=save_path,
     #                        algorithm_names=algorithm_names)
 
-    plot_actual_power_vs_setpoint(results_path=save_path + 'plot_results_dict.pkl',
-                                  save_path=save_path,
-                                  algorithm_names=algorithm_names)
+    # plot_actual_power_vs_setpoint(results_path=save_path + 'plot_results_dict.pkl',
+    #                               save_path=save_path,
+    #                               algorithm_names=algorithm_names)
 
     # plot_total_power_V2G(results_path=save_path + 'plot_results_dict.pkl',
     #                      save_path=save_path,
