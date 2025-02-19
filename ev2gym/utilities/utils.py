@@ -66,15 +66,9 @@ def get_statistics(env) -> Dict:
     
     # find amount of voltage outside 0.95-1.05 p.u.
     if env.simulate_grid:
-        voltage_violation = np.reshape(env.node_voltage, (-1))        
-        counter = np.where(voltage_violation > 1.05)[0]
-        voltage_up_violation_counter = len(counter)
-        counter = np.where(voltage_violation < 0.95)[0]
-        voltage_down_violation_counter = len(counter)
-                
-        voltage_violation = np.sum(voltage_violation > 1.05) - 1.05 * voltage_up_violation_counter +\
-                            np.sum(voltage_violation < 0.95) - 0.95 * voltage_down_violation_counter
-
+        v_m = np.reshape(env.node_voltage, (-1))        
+        voltage_violation = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
+        
     stats = {'total_ev_served': total_ev_served,
              'total_profits': total_profits,
              'total_energy_charged': total_energy_charged,
@@ -95,8 +89,6 @@ def get_statistics(env) -> Dict:
              }
     
     if env.simulate_grid:
-        stats['voltage_up_violation_counter'] = voltage_up_violation_counter
-        stats['voltage_down_violation_counter']= voltage_down_violation_counter,
         stats['saved_grid_energy'] = saved_grid_energy,
         stats['voltage_violation'] = voltage_violation,
                          

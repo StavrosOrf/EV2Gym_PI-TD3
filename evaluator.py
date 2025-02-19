@@ -71,7 +71,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 100
+    n_test_cycles = 3
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -102,12 +102,12 @@ def evaluator():
         DoNothing,
         RandomAgent,
         # ChargeAsLateAsPossible,        
-        '150_SB3_tests/NewReward_No_reactive_td3_run_0_27619_V2G_grid_simple_reward_V2G_grid_state_ModelBasedRL',
+        # '150_SB3_tests/NewReward_No_reactive_td3_run_0_27619_V2G_grid_simple_reward_V2G_grid_state_ModelBasedRL',
         "ModelBasedRL-ModelBasedRL-757975",
         'TD3_loss_0x-190015',
         'TD3_loss_0.00001-640434',
         'TD3_loss_0.01X-284656',
-        
+        'TD3_loss_0.01-520824',
         # RoundRobin,
         # eMPC_V2G,
         # eMPC_V2G_v2,
@@ -662,7 +662,7 @@ def evaluator():
 
     #sort results by tracking error
     results_grouped = results_grouped.sort_values(
-        by=('voltage_violation', 'mean'), ascending=True)
+        by=('voltage_violation', 'mean'), ascending=False)
     
     print(results_grouped[['voltage_violation',
                            'average_user_satisfaction',
