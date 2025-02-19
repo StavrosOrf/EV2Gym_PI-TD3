@@ -4,7 +4,7 @@ import gymnasium as gym
 # from state_action_eda import AnalysisReplayBuffer
 from ev2gym.visuals.evaluator_plot import plot_comparable_EV_SoC_single, plot_prices
 from ev2gym.visuals.evaluator_plot import plot_total_power_V2G, plot_actual_power_vs_setpoint
-from ev2gym.visuals.evaluator_plot import plot_total_power, plot_comparable_EV_SoC
+from ev2gym.visuals.evaluator_plot import plot_total_power, plot_comparable_EV_SoC, plot_grid_metrics
 from ev2gym.rl_agent.state import V2G_profit_max, PublicPST, V2G_profit_max_loads
 from ev2gym.rl_agent.reward import profit_maximization, ProfitMax_TrPenalty_UserIncentives
 from ev2gym.rl_agent.reward import SquaredTrackingErrorReward, SimpleReward
@@ -62,7 +62,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # from DT.load_model import load_DT_model
 
 #set seeds
-seed = 15
+seed = 9
 np.random.seed(seed)
 torch.manual_seed(seed)
 random.seed(seed)
@@ -71,7 +71,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 3
+    n_test_cycles = 1
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -101,20 +101,12 @@ def evaluator():
         ChargeAsFastAsPossible,
         DoNothing,
         RandomAgent,
-        # ChargeAsLateAsPossible,        
         # '150_SB3_tests/NewReward_No_reactive_td3_run_0_27619_V2G_grid_simple_reward_V2G_grid_state_ModelBasedRL',
-        "ModelBasedRL-ModelBasedRL-757975",
+        # "ModelBasedRL-ModelBasedRL-757975",
+        
         'TD3_loss_0x-190015',
-        'TD3_loss_0.00001-640434',
-        'TD3_loss_0.01X-284656',
+        # 'TD3_loss_0.00001-640434',
         'TD3_loss_0.01-520824',
-        # RoundRobin,
-        # eMPC_V2G,
-        # eMPC_V2G_v2,
-        # # V2GProfitMaxLoadsOracle,
-        # V2GProfitMaxOracleGB,
-        # V2GProfitMaxOracle,
-        # PowerTrackingErrorrMin
     ]
 
     # create a AnalysisReplayBuffer object for each algorithm
@@ -687,7 +679,8 @@ def evaluator():
                     '_')[0] + '_' + algorithm.split('_')[1])
                 
             else:
-                algorithm_names.append(algorithm.split('_')[0])
+                # algorithm_names.append(algorithm.split('_')[0])
+                algorithm_names.append(algorithm)
         else:
             algorithm_names.append(algorithm.__name__)
 
@@ -698,6 +691,11 @@ def evaluator():
             f.write("%s\n" % item)
             
     print(f'Plottting results at {save_path}')
+    
+    plot_grid_metrics(results_path=save_path + 'plot_results_dict.pkl.gz',
+                        save_path=save_path,
+                        algorithm_names=algorithm_names)
+    
 
     # plot_total_power(results_path=save_path + 'plot_results_dict.pkl',
     #                  save_path=save_path,
