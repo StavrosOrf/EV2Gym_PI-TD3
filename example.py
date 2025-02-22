@@ -7,7 +7,7 @@ from ev2gym.baselines.heuristics import RoundRobin, ChargeAsLateAsPossible, Char
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
-from agent.loss import VoltageViolationLoss
+from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,24 +16,24 @@ import pandas as pd
 import torch
 import time
 
+
 def eval():
     """
     Runs an evaluation of the ev2gym environment.
     """
-    
+
     replay_path = "./replay/replay_sim_2025_02_22_360719.pkl"
 
     replay_path = None
 
-    # config_file = "ev2gym/example_config_files/PublicPST.yaml"
-    # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
     config_file = "./config_files/v2g_grid_150.yaml"
+    # config_file = "./config_files/v2g_grid_3.yaml"
     seed = 0
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
                  verbose=False,
-                #  seed=seed,
+                 #  seed=seed,
                  save_replay=False,
                  save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
@@ -66,12 +66,17 @@ def eval():
                                    verbose=False,
                                    )
 
+    state_transition = V2G_Grid_StateTransition(verbose=False,
+                                                device=device,
+                                                num_buses=env.grid.net.nb
+                                                )
+
     succesful_runs = 0
     failed_runs = 0
 
     results_df = None
     total_timer = 0
-    
+
     for i in range(100):
         state, _ = env.reset()
         for t in range(env.simulation_length):
@@ -79,10 +84,28 @@ def eval():
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
-            
+            # print(
+            #     "============================================================================")
+            predicted_state = state_transition(state=torch.tensor(state, device=device).reshape(1, -1),
+                                               new_state=torch.tensor(
+                                                   new_state, device=device).reshape(1, -1),
+                                               action=torch.tensor(
+                                                   actions, device=device).reshape(1, -1),
+                                               )
+
+            predicted_state = predicted_state.cpu().detach().numpy().reshape(-1)
+            # print(f'Prev State: {state}')
+            # print(f'Predicted State: {predicted_state}')
+            # print(f'New State: {new_state}')
+            # print(f'diff: {np.abs(predicted_state - new_state).mean()}')
+            if np.abs(predicted_state - new_state).mean() > 0.001:
+                # make noise beep
+                input()
+                
+
             # print("============================================================================")
             # timer = time.time()
-            # loss, v = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
+            # loss, v = loss_fn.calc_v(action=torch.tensor(actions, device=device).reshape(1, -1),
             #                              state=torch.tensor(state, device=device).reshape(1, -1))
             # total_timer += time.time() - timer
 
@@ -98,23 +121,21 @@ def eval():
             # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
             # print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
 
-            
-            # if reward_loss != 0 or reward != 0 or loss != 0:                
+            # if reward_loss != 0 or reward != 0 or loss != 0:
             #     input("Press Enter to continue...\n------------------------------------------------------------------------")
 
             state = new_state
 
-            if done and truncated:                
-                failed_runs += 1                
+            if done and truncated:
+                failed_runs += 1
                 break
 
             if done:
-                
                 keys_to_print = ['total_ev_served',
                                  'total_energy_charged',
                                  'total_profits',
                                  'average_user_satisfaction',
-                                #  'saved_grid_energy',
+                                 #  'saved_grid_energy',
                                  'voltage_violation',
                                  'total_reward'
                                  ]
@@ -172,4 +193,3 @@ def eval():
 if __name__ == "__main__":
     # while True:
     eval()
-    

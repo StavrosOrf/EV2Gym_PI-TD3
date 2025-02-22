@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import torch
 
@@ -5,9 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 torch.autograd.set_detect_anomaly(True)
-
-import numpy as np
-import copy
 
 
 class SimpleNN(nn.Module):
@@ -48,7 +46,7 @@ class ModelBasedRL(object):
         self.device = device
         self.max_action = max_action
 
-        self.actor = SimpleNN(state_dim, 
+        self.actor = SimpleNN(state_dim,
                               action_dim,
                               max_action,
                               mlp_hidden_dim).to(device)
@@ -113,6 +111,7 @@ class ModelBasedRL(object):
         self.optimizer.load_state_dict(
             torch.load(filename + "optimizer"))
 
+
 class ReplayBuffer(object):
     def __init__(self,
                  state_dim,
@@ -142,3 +141,4 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.state[ind]).to(self.device),
             torch.FloatTensor(self.action[ind]).to(self.device),
         )
+

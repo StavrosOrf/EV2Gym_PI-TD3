@@ -82,6 +82,7 @@ class TD3(object):
             policy_freq=2,
             mlp_hidden_dim=256,
             loss_fn=None,
+            transition_fn=None,
             **kwargs
     ):
 
@@ -105,6 +106,7 @@ class TD3(object):
 
         self.ph_coeff = ph_coeff
         self.loss_fn = loss_fn
+        self.transition_fn = transition_fn
 
         self.total_it = 0
         self.loss_dict = {
@@ -150,36 +152,37 @@ class TD3(object):
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
-        
+
         self.loss_dict['critic_loss'] = critic_loss.item()
-        
 
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
 
-            if self.loss_fn is not None:                
-                if torch.isnan(state).any():
-                    print("-------------------!!!-------------------------------")
+            if self.transition_fn is not None:
                 action_vector = self.actor(state)
-                physics_loss = self.loss_fn(action=action_vector, state=state).mean()
-                actor_loss = -self.critic.Q1(state, action_vector).mean() 
-                # print(f'state: {state.shape}')
+                next_state_pred = self.transition_fn(state,
+                                                     next_state,
+                                                     action_vector)
+                reward_pred = self.loss_fn(state=state,
+                                           action=action_vector)
+                
+                actor_loss = - (reward_pred + self.discount * \
+                    self.critic.Q1(next_state_pred, self.actor(next_state_pred)).mean())                
+
+            elif self.loss_fn is not None:
+
+                action_vector = self.actor(state)
+                physics_loss = self.loss_fn(
+                    action=action_vector, state=state).mean()
+                actor_loss = -self.critic.Q1(state, action_vector).mean()
+
                 self.loss_dict['physics_loss'] = physics_loss.item()
                 self.loss_dict['actor_loss'] = actor_loss.item()
-                # print(f'actor_loss: {actor_loss.item()}')
-                # print(f'physics_loss: {physics_loss.item()}')
-                
-                
                 actor_loss -= self.ph_coeff * physics_loss
-                # print(f'actor_loss after: {actor_loss.item()}')
-                # if physics_loss != 0:
-                #     print(f'physics_loss!!')
-                
-                # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)        
+
             else:
                 actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 
-            
             # Optimize the actor
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
@@ -193,9 +196,9 @@ class TD3(object):
             for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
                 target_param.data.copy_(
                     self.tau * param.data + (1 - self.tau) * target_param.data)
-            
+
             # input()
-            
+
         return self.loss_dict
 
     def save(self, filename):

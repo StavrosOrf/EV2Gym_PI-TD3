@@ -111,6 +111,7 @@ class PowerGrid():
                                            1:self.node_num].reshape(1, -1)
 
         self.reactive_power = self.active_power * self.net.pf
+        self.reactive_power = self.reactive_power.round(1)
         self.active_power -= self.pv_data[self.current_step,
                                           1:self.node_num].reshape(1, -1)
 
@@ -154,6 +155,7 @@ class PowerGrid():
 
         self.active_power = (active_power)[1:self.node_num].reshape(1, -1)
         self.reactive_power = self.active_power * self.net.pf
+        self.reactive_power = self.reactive_power.round(1)
         self.active_power -= (pv_data)[1:self.node_num].reshape(1, -1)
 
         return self.active_power, self.reactive_power, vm_pu_after_control

@@ -13,7 +13,7 @@ import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
-from agent.loss import VoltageViolationLoss
+from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 
 from ev2gym.models.ev2gym_env import EV2Gym
 
@@ -195,7 +195,7 @@ if __name__ == "__main__":
 
     # Physics loss #############################################
     parser.add_argument('--ph_coeff', type=float, default=1)
-    
+
     scale = 1
     args = parser.parse_args()
 
@@ -300,6 +300,12 @@ if __name__ == "__main__":
                                    device=device,
                                    verbose=False,
                                    )
+
+    transition_fn = V2G_Grid_StateTransition(verbose=False,
+                                             device=device,
+                                             num_buses=env.get_wrapper_attr(
+                                                 'grid').net.nb,
+                                             )
 
     # Set seeds
     # env.seed(args.seed)
@@ -421,6 +427,8 @@ if __name__ == "__main__":
         kwargs['loss_fn'] = loss_fn
         kwargs['ph_coeff'] = args.ph_coeff
         
+        kwargs['transition_fn'] = transition_fn
+
         # kwargs['loss_fn'] = None
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
