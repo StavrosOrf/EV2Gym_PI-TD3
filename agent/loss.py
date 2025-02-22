@@ -200,4 +200,4 @@ class VoltageViolationLoss(nn.Module):
                   )
 
         # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
-        return 1000*loss.sum(axis=1), v0_clamped.real.cpu().detach().numpy()
+        return 1000*loss.sum(axis=1)
