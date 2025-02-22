@@ -41,6 +41,7 @@ class EvCityReplay():
         self.grid = env.grid
         if env.simulate_grid:
             self.load_data = env.grid.load_data
+            self.pv_data = env.grid.pv_data
         
         self.unstirred_EVs = None
         self.unstirred_stats = None

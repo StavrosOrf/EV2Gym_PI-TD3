@@ -470,11 +470,13 @@ def load_grid(env):
 
     # Simulate grid
     if env.simulate_grid:
+        if env.load_from_replay_path is None:
+            pv_profile = load_pv_profiles(env)
+            
         grid = PowerGrid(env.config,
-                         date=env.sim_date)
-
-        # print(
-        # f'Overriding the number of transformers to {grid.node_num-1} buses.')
+                         env=env,
+                         pv_profile=pv_profile,
+                         )
 
         env.number_of_transformers = grid.node_num-1
         env.cs_transformers = [
@@ -485,8 +487,7 @@ def load_grid(env):
 
         assert env.charging_network_topology is None, "Charging network topology is not supported with grid simulation."
 
-        # print(
-        #     f'Charging stations connected to transformers: {env.cs_transformers}')
+        
 
         return grid
 
@@ -497,3 +498,43 @@ def load_grid(env):
             env.cs % env.number_of_transformers).tolist()
 
     return None
+
+
+def load_pv_profiles(env) -> np.ndarray:
+
+    # Load the data
+    data_path = pkg_resources.resource_filename(
+        'ev2gym', 'data/pv_netherlands.csv')
+    data = pd.read_csv(data_path, sep=',', header=0)
+    data.drop(['time', 'local_time'], inplace=True, axis=1)
+
+    desired_timescale = env.timescale
+
+    dataset_timescale = 60
+    dataset_starting_date = '2019-01-01 00:00:00'
+
+    if desired_timescale > dataset_timescale:
+        data = data.groupby(
+            data.index // (desired_timescale/dataset_timescale)).max()
+    elif desired_timescale < dataset_timescale:
+        data = data.loc[data.index.repeat(
+            dataset_timescale/desired_timescale)].reset_index(drop=True)
+
+    # smooth data by taking the mean of every 5 rows
+    data['electricity'] = data['electricity'].rolling(
+        window=60//desired_timescale, min_periods=1).mean()
+    # use other type of smoothing
+    data['electricity'] = data['electricity'].ewm(
+        span=60//desired_timescale, adjust=True).mean()
+
+    # duplicate the data to have two years of data
+    data = pd.concat([data, data], ignore_index=True)
+
+    # add a date column to the dataframe
+    data['date'] = pd.date_range(
+        start=dataset_starting_date, periods=data.shape[0], freq=f'{desired_timescale}min')
+
+    return data
+
+
+

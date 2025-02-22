@@ -16,10 +16,9 @@ import time
 
 from ev2gym.models.grid_utility.grid_tensor import GridTensor
 from ev2gym.models.grid_utility.grid_utils import create_pandapower_net
-from ev2gym.models.data_augment import DataGenerator
-import pkg_resources
+from ev2gym.models.data_augment import DataGenerator, get_pv_load
 
-from agent.loss import VoltageViolationLoss
+import pkg_resources
 
 
 class PowerGrid():
@@ -31,9 +30,14 @@ class PowerGrid():
 
         """
 
-    def __init__(self, env_config, date) -> None:
+    def __init__(self,
+                 env_config,
+                 env,
+                 pv_profile=None
+                 ) -> None:
 
         config = env_config
+        self.env = env
 
         self.algorithm = config['pf_solver']
         self.network_info = config['network_info']
@@ -49,8 +53,6 @@ class PowerGrid():
                                   self.network_info['branch_info_file'])
             self.net.Q_file = np.zeros(self.node_num-1)
             self.dense_Ybus = self.net._make_y_bus().toarray()
-            
-                        
 
         elif self.algorithm == "PandaPower":
             # Logic for initializing with PandaPower
@@ -70,9 +72,11 @@ class PowerGrid():
         # self.episode_length: int = 24 * 60 / self.data_manager.time_interval
         self.episode_length = config['simulation_length']
 
-        self.reset(date, None)
+        self.pv_profile = pv_profile
 
-    def reset(self, date, load_data) -> np.ndarray:
+        # self.reset(date, None, None)
+
+    def reset(self, date, load_data, pv_data) -> np.ndarray:
         """
         Reset the environment to its initial state and return the initial state.
         """
@@ -84,23 +88,31 @@ class PowerGrid():
 
         if load_data is not None:
             self.load_data = load_data
+            self.pv_data = pv_data
         else:
             self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
                                                              n_steps=self.episode_length + 24,
                                                              start_day=date.weekday(),
                                                              start_step=time_slot,
                                                              )
-            # normalize data from 0 to 1
-        self.load_data = (self.load_data - self.load_data.min()) / \
-            (self.load_data.max() - self.load_data.min())
-            
-        self.load_data = self.load_data * self.net.p_values            
+            # normalize active power profile data from 0 to 1
+            self.load_data = (self.load_data - self.load_data.min()) / \
+                (self.load_data.max() - self.load_data.min())
 
-        self.load_data = self.load_data.round(1)
-        self.active_power = self.load_data[self.current_step, 1:self.node_num].reshape(
-            1, -1)
-        
+            self.load_data = self.load_data * self.net.p_values
+            self.load_data = self.load_data.round(1)
+
+            self.pv_data = get_pv_load(self.pv_profile,
+                                       self.env)
+            self.pv_data = self.pv_data * self.net.p_values * 0.4
+            self.pv_data = self.pv_data.round(1)
+
+        self.active_power = self.load_data[self.current_step,
+                                           1:self.node_num].reshape(1, -1)
+
         self.reactive_power = self.active_power * self.net.pf
+        self.active_power -= self.pv_data[self.current_step,
+                                          1:self.node_num].reshape(1, -1)
 
         return self.active_power, self.reactive_power
 
@@ -138,8 +150,11 @@ class PowerGrid():
         self.current_step += 1
 
         active_power = cp.copy(self.load_data[self.current_step, :])
+        pv_data = cp.copy(self.pv_data[self.current_step, :])
+
         self.active_power = (active_power)[1:self.node_num].reshape(1, -1)
         self.reactive_power = self.active_power * self.net.pf
+        self.active_power -= (pv_data)[1:self.node_num].reshape(1, -1)
 
         return self.active_power, self.reactive_power, vm_pu_after_control
 

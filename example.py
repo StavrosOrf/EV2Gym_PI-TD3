@@ -20,11 +20,9 @@ def eval():
     """
     Runs an evaluation of the ev2gym environment.
     """
-
-    save_plots = True
     
-    replay_path = "./replay/replay_sim_2025_02_19_791600.pkl"
-    # replay_path = "./replay/replay_sim_2025_02_19_604967.pkl"
+    replay_path = "./replay/replay_sim_2025_02_22_360719.pkl"
+
     replay_path = None
 
     # config_file = "ev2gym/example_config_files/PublicPST.yaml"
@@ -36,8 +34,8 @@ def eval():
                  load_from_replay_path=replay_path,
                  verbose=False,
                 #  seed=seed,
-                #  save_replay=True,
-                 save_plots=save_plots,
+                 save_replay=False,
+                 save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
                  reward_function=V2G_grid_simple_reward,
                  )
@@ -78,7 +76,7 @@ def eval():
     results_df = None
     total_timer = 0
     
-    for i in range(1):
+    for i in range(100):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)*1
@@ -87,26 +85,26 @@ def eval():
                 actions)  # takes action
             
             # print("============================================================================")
-            timer = time.time()
-            loss, v = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
-                                         state=torch.tensor(state, device=device).reshape(1, -1))
-            total_timer += time.time() - timer
+            # timer = time.time()
+            # loss, v = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
+            #                              state=torch.tensor(state, device=device).reshape(1, -1))
+            # total_timer += time.time() - timer
 
-            v_m = env.node_voltage[1:, t]
-            # print(f'\n \n')
-            print(f'V real: {v_m}')
-            print(f'V pred: {v}')
-            print(f'v_loss {np.abs(v - v_m).mean()}')
-            # input()
-            loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
+            # v_m = env.node_voltage[1:, t]
+            # # print(f'\n \n')
+            # print(f'V real: {v_m}')
+            # print(f'V pred: {v}')
+            # print(f'v_loss {np.abs(v - v_m).mean()}')
+            # # input()
+            # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
-            print(f'Loss V: {loss_v}')
-            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
-            print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
+            # print(f'Loss V: {loss_v}')
+            # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
+            # print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
 
             
-            if reward_loss != 0 or reward != 0 or loss != 0:                
-                input("Press Enter to continue...\n------------------------------------------------------------------------")
+            # if reward_loss != 0 or reward != 0 or loss != 0:                
+            #     input("Press Enter to continue...\n------------------------------------------------------------------------")
 
             state = new_state
 

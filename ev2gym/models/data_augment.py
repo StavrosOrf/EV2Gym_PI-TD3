@@ -91,13 +91,30 @@ class DataGenerator:
 
         return data[start_step:start_step+n_steps, :]
 
+def get_pv_load(data, env):
+
+    dataset_starting_date = '2019-01-01 00:00:00'
+    simulation_length = env.simulation_length + 24
+    simulation_date = env.sim_starting_date.strftime('%Y-%m-%d %H:%M:%S')
+
+    # find year of the data
+    year = int(dataset_starting_date.split('-')[0])
+    # replace the year of the simulation date with the year of the data
+    simulation_date = f'{year}-{simulation_date.split("-")[1]}-{simulation_date.split("-")[2]}'
+
+    simulation_index = data[data['date'] == simulation_date].index[0]
+
+    # select the data for the simulation date
+    data = data[simulation_index:simulation_index+simulation_length]
+    
+    return data['electricity'].values.reshape(-1, 1)
 
 if __name__ == "__main__":
 
     # Code for fitting the copula model and saving it to a file so it can be quickly loaded later.
 
-    # augmentor = DataGenerator()
-    # pickle.dump(augmentor, open('augmentor.pkl', 'wb'))
+    augmentor = DataGenerator()
+    pickle.dump(augmentor, open('augmentor.pkl', 'wb'))
 
     augmentor = pickle.load(open('augmentor.pkl', 'rb'))
 

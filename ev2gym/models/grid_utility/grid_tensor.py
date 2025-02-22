@@ -79,7 +79,7 @@ class GridTensor:
             self.bus_info = nodes_frame
         else:
             raise ValueError("Wrong input configuration")
-        
+                
         self.p_values = self.bus_info.iloc[:, 2].values
         self.q_values = self.bus_info.iloc[:, 3].values
         epsilon = 1e-6
