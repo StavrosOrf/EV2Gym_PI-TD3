@@ -159,6 +159,23 @@ class TD3(object):
         if self.total_it % self.policy_freq == 0:
 
             if self.transition_fn is not None:
+                
+                # test transition function
+                pred_state = self.transition_fn(state, next_state, action)
+                if torch.abs(pred_state - next_state).mean() > 0.001:
+                    print(f'error: {torch.abs(pred_state - next_state).mean()}')
+                    # find index of error
+                    for i in range(len(pred_state)):
+                        print(f'index: {i}')
+                        if torch.abs(pred_state[i] - next_state[i]).mean() > 0.001:
+                            for j in range(len(pred_state[i])):
+                                if torch.abs(pred_state[i][j] - next_state[i][j]).mean() > 0.001:
+                                    print(f'Error at index: {i} {j}')
+                                    print(f'Predicted: {pred_state[i][j]}')
+                                    print(f'Actual: {next_state[i][j]}')
+
+                    input("Transition function error")
+                
                 action_vector = self.actor(state)
                 next_state_pred = self.transition_fn(state,
                                                      next_state,
@@ -167,8 +184,12 @@ class TD3(object):
                                            action=action_vector)
                 
                 actor_loss = - (reward_pred + self.discount * \
-                    self.critic.Q1(next_state_pred, self.actor(next_state_pred)).mean())                
+                    self.critic.Q1(next_state_pred, self.actor(next_state_pred))).mean()
 
+                self.loss_dict['physics_loss'] = reward_pred.mean().item()
+                self.loss_dict['actor_loss'] = actor_loss.item()
+                print(f'Physics loss: {reward_pred.mean().item()}')
+                print(f'Actor loss: {actor_loss.item()}')
             elif self.loss_fn is not None:
 
                 action_vector = self.actor(state)
