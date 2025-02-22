@@ -49,6 +49,8 @@ class PowerGrid():
                                   self.network_info['branch_info_file'])
             self.net.Q_file = np.zeros(self.node_num-1)
             self.dense_Ybus = self.net._make_y_bus().toarray()
+            
+                        
 
         elif self.algorithm == "PandaPower":
             # Logic for initializing with PandaPower
@@ -67,7 +69,6 @@ class PowerGrid():
 
         # self.episode_length: int = 24 * 60 / self.data_manager.time_interval
         self.episode_length = config['simulation_length']
-        self.timer_totall = 0
 
         self.reset(date, None)
 
@@ -89,11 +90,17 @@ class PowerGrid():
                                                              start_day=date.weekday(),
                                                              start_step=time_slot,
                                                              )
+            # normalize data from 0 to 1
+        self.load_data = (self.load_data - self.load_data.min()) / \
+            (self.load_data.max() - self.load_data.min())
+            
+        self.load_data = self.load_data * self.net.p_values            
 
         self.load_data = self.load_data.round(1)
         self.active_power = self.load_data[self.current_step, 1:self.node_num].reshape(
             1, -1)
-        self.reactive_power = self.active_power * 0
+        
+        self.reactive_power = self.active_power * self.net.pf
 
         return self.active_power, self.reactive_power
 
@@ -102,12 +109,9 @@ class PowerGrid():
         self.active_power += actions
         # print(f'GRID| active power: {self.active_power}')
 
-        timer = time.time()
         self.solution = self.net.run_pf(active_power=self.active_power,
                                         reactive_power=self.reactive_power
                                         )
-
-        self.timer_totall += time.time() - timer
 
         # loss_fn = VoltageViolationLoss(K=self.net._K_,
         #                                L=self.net._L_,
@@ -135,11 +139,8 @@ class PowerGrid():
 
         active_power = cp.copy(self.load_data[self.current_step, :])
         self.active_power = (active_power)[1:self.node_num].reshape(1, -1)
-        self.reactive_power = self.active_power * 0
+        self.reactive_power = self.active_power * self.net.pf
 
-        # print(f'vm_pu_after_control: {vm_pu_after_control.shape}')
-        # print(f'active_power: {self.active_power.shape}')
-        # input()
         return self.active_power, self.reactive_power, vm_pu_after_control
 
 

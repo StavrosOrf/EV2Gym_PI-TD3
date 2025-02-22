@@ -79,7 +79,16 @@ class GridTensor:
             self.bus_info = nodes_frame
         else:
             raise ValueError("Wrong input configuration")
-
+        
+        self.p_values = self.bus_info.iloc[:, 2].values
+        self.q_values = self.bus_info.iloc[:, 3].values
+        epsilon = 1e-6
+        self.pf = self.q_values / (self.p_values + epsilon)
+        self.pf = self.pf[1:]  # Ignore slack bus
+        # print(f'p_values shape is {self.p_values.shape} {self.p_values}')
+        # print(f'q_values shape is {self.q_values.shape} {self.q_values}')
+        
+        # exit()
         self._make_y_bus()
         self._compute_alphas()
         self.v_0 = None

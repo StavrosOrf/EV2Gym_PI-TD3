@@ -88,24 +88,25 @@ def eval():
             
             # print("============================================================================")
             timer = time.time()
-            loss = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
+            loss, v = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
                                          state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 
-            # v_m = env.node_voltage[1:, t]
-            # # print(f'\n \n')
-            # print(f'V real: {v_m}')
-            # print(f'V pred: {v}')
-            # print(f'v_loss {np.abs(v - v_m).mean()}')
+            v_m = env.node_voltage[1:, t]
+            # print(f'\n \n')
+            print(f'V real: {v_m}')
+            print(f'V pred: {v}')
+            print(f'v_loss {np.abs(v - v_m).mean()}')
+            # input()
+            loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
+
+            print(f'Loss V: {loss_v}')
+            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
+            print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
+
             
-            # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
-
-            # print(f'Loss V: {loss_v}')
-            # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
-            # print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
-
-            # if reward_loss != 0 or reward != 0 or loss != 0:                
-            #     input("Press Enter to continue...\n------------------------------------------------------------------------")
+            if reward_loss != 0 or reward != 0 or loss != 0:                
+                input("Press Enter to continue...\n------------------------------------------------------------------------")
 
             state = new_state
 
@@ -114,8 +115,6 @@ def eval():
                 break
 
             if done:
-                print(f' pf per step: {env.grid.timer_totall / env.simulation_length} seconds')
-                print(f' loss per step: {total_timer / env.simulation_length} seconds')
                 
                 keys_to_print = ['total_ev_served',
                                  'total_energy_charged',

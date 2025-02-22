@@ -84,8 +84,10 @@ def V2G_grid_state_ModelBasedRL(env, *args):
     step = env.current_step
     if step == 0:
         state.append(env.node_active_power[1:, step])
+        state.append(env.node_reactive_power[1:, step])
     else:
         state.append(env.node_active_power[1:, step-1])
+        state.append(env.node_reactive_power[1:, step-1])
     
     # print('============\nstep:', env.current_step, '\n============')
 

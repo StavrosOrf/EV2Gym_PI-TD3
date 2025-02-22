@@ -397,7 +397,59 @@ def ev_city_plot(env):
             counter += 1
 
         plt.tight_layout()
-        fig_name = f'results/{env.sim_name}/grid_power.png'
+        fig_name = f'results/{env.sim_name}/grid_active_power.png'
+        plt.savefig(fig_name, format='png',
+                    dpi=120, bbox_inches='tight')
+        
+        plt.close('all')
+        # Plot the total power of the CPO
+        plt.figure(figsize=(16, 12))
+
+        # plt.style.use('seaborn-darkgrid')
+        # plt.rcParams.update({'font.size': 16})
+        plt.rcParams['font.family'] = ['serif']
+
+        number_of_nodes = env.grid.node_num
+
+        # split into subplots for each node
+        counter = 1
+        dim_x = int(np.ceil(np.sqrt(number_of_nodes)))
+        dim_y = int(np.ceil(number_of_nodes/dim_x))
+
+        for node in range(number_of_nodes):
+
+            plt.subplot(dim_x, dim_y, counter)
+            
+            plt.step(date_range,
+                     env.node_reactive_power[node, :],
+                     label=f'Total Reactive Power',
+                     where='post',
+                     linewidth=1,
+                     )        
+
+            plt.title(f'Node {node}', fontsize=8)
+            # plt.xlabel(f'Time')
+
+            if node % dim_x == 0:
+                plt.ylabel('Q (kWA)')
+
+            plt.xlim([env.sim_starting_date, env.sim_date])
+
+            plt.xticks(ticks=date_range_print,
+                       labels=[
+                           f'{d.hour:2d}:{d.minute:02d}' for d in date_range_print],
+                       fontsize=4)
+
+            if node == 0:
+                plt.legend(fontsize=8)
+
+            plt.grid(True, which='minor', axis='both')
+            plt.grid(True, which='major', axis='both')
+
+            counter += 1
+
+        plt.tight_layout()
+        fig_name = f'results/{env.sim_name}/grid_reactive_power.png'
         plt.savefig(fig_name, format='png',
                     dpi=120, bbox_inches='tight')
         

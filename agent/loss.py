@@ -55,7 +55,7 @@ class VoltageViolationLoss(nn.Module):
         number_of_cs = action.shape[1]
         prices = state[:, 4]
         step_size = 3
-        ev_state_start = 37
+        ev_state_start = 4 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -122,13 +122,13 @@ class VoltageViolationLoss(nn.Module):
         )
 
         active_power_per_bus = state[:, 4:4+self.num_buses-1]
-        reactive_power_per_bus = torch.zeros_like(
-            active_power_per_bus, device=self.device)
+        reactive_power_per_bus = state[:, 4+self.num_buses-1:4+2*(self.num_buses-1)]
 
         if self.verbose:
             print("--------------------------------------------------")
             print(f'EV_power_per_bus: {EV_power_per_bus}')
             print(f'active_power_per_bus: {active_power_per_bus}')
+            print(f'reactive_power_per_bus: {reactive_power_per_bus}')
             # print("--------------------------------------------------")
             # print(f'EV_power_per_bus: {EV_power_per_bus.shape}')
             # print(f'active_power_per_bus: {active_power_per_bus.shape}')
@@ -200,4 +200,4 @@ class VoltageViolationLoss(nn.Module):
                   )
 
         # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
-        return 1000*loss.sum(axis=1)
+        return 1000*loss.sum(axis=1), v0_clamped.real.cpu().detach().numpy()
