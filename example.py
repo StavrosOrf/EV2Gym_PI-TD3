@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import gymnasium as gym
 import pandas as pd
 import torch
-
+import time
 
 def eval():
     """
@@ -25,7 +25,7 @@ def eval():
     
     replay_path = "./replay/replay_sim_2025_02_19_791600.pkl"
     # replay_path = "./replay/replay_sim_2025_02_19_604967.pkl"
-    # replay_path = None
+    replay_path = None
 
     # config_file = "ev2gym/example_config_files/PublicPST.yaml"
     # config_file = "ev2gym/example_config_files/BusinessPST.yaml"
@@ -76,7 +76,8 @@ def eval():
     failed_runs = 0
 
     results_df = None
-
+    total_timer = 0
+    
     for i in range(1):
         state, _ = env.reset()
         for t in range(env.simulation_length):
@@ -86,8 +87,10 @@ def eval():
                 actions)  # takes action
             
             # print("============================================================================")
-            # loss, v = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
-            #                              state=torch.tensor(state, device=device).reshape(1, -1))
+            timer = time.time()
+            loss = loss_fn.forward(action=torch.tensor(actions, device=device).reshape(1, -1),
+                                         state=torch.tensor(state, device=device).reshape(1, -1))
+            total_timer += time.time() - timer
 
             # v_m = env.node_voltage[1:, t]
             # # print(f'\n \n')
@@ -106,12 +109,14 @@ def eval():
 
             state = new_state
 
-            if done and truncated:
-                print(f"Voltage limits exceeded step: {t}")
-                failed_runs += 1
+            if done and truncated:                
+                failed_runs += 1                
                 break
 
             if done:
+                print(f' pf per step: {env.grid.timer_totall / env.simulation_length} seconds')
+                print(f' loss per step: {total_timer / env.simulation_length} seconds')
+                
                 keys_to_print = ['total_ev_served',
                                  'total_energy_charged',
                                  'total_profits',

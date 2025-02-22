@@ -12,6 +12,7 @@ import numpy as np
 import pandapower as pp
 import pandas as pd
 import pickle
+import time
 
 from ev2gym.models.grid_utility.grid_tensor import GridTensor
 from ev2gym.models.grid_utility.grid_utils import create_pandapower_net
@@ -66,172 +67,9 @@ class PowerGrid():
 
         # self.episode_length: int = 24 * 60 / self.data_manager.time_interval
         self.episode_length = config['simulation_length']
+        self.timer_totall = 0
 
         self.reset(date, None)
-
-    # def reset(self, date, load_data) -> np.ndarray:
-    #     """
-    #     Reset the environment to its initial state and return the initial state.
-    #     """
-
-    #     hour = date.hour
-    #     minute = date.minute
-    #     time_slot = hour * 4 + minute // 15
-    #     self.current_step = 0
-
-    #     if load_data is not None:
-    #         self.load_data = load_data
-    #     else:
-    #         self.load_data = self.data_generator.sample_data(n_buses=self.node_num,
-    #                                                          n_steps=self.episode_length + 24,
-    #                                                          start_day=date.weekday(),
-    #                                                          start_step=time_slot,
-    #                                                          )
-
-    #     return *self._build_state(), 0
-
-    def _build_state(self) -> np.ndarray:
-        """
-        Builds the current state of the environment based on the current time and data from PowerDataManager.
-        """
-
-        obs = {'node_data': {'voltage': {},
-                             'active_power': {},
-                             #  'reactive_power': {}
-                             }}
-
-        if self.algorithm == "Laurent":
-
-            active_power = cp.copy(self.load_data[self.current_step, :])
-            self.active_power = (active_power)[1:self.node_num].reshape(1, -1)
-            # reactive_power = np.zeros(self.node_num)
-            self.reactive_power = self.active_power * 0
-
-            self.solution = self.net.run_pf(active_power=self.active_power,
-                                            # reactive_power=self.reactive_power
-                                            )
-
-            # NODES[1-NODES], node_index[0-(NODES-1)]
-            for node_index in range(len(self.net.bus_info.NODES)):
-                if node_index == 0:
-                    obs['node_data']['voltage'][f'node_{node_index}'] = 1.0
-                    obs['node_data']['active_power'][f'node_{node_index}'] = 0.0
-                else:
-                    obs['node_data']['voltage'][f'node_{node_index}'] = abs(
-                        self.solution['v'].T[node_index - 1]).squeeze()
-                    obs['node_data']['active_power'][f'node_{node_index}'] = active_power[node_index - 1]
-
-        else:
-            active_power = cp.copy(self.load_data[self.current_step, :])
-            active_power[0] = 0
-
-            for bus_index in self.net.load.bus.index:
-                # self.net.load.p_mw[bus_index] = (
-                #     active_power[bus_index]) / self.s_base
-                # self.net.load.q_mvar[bus_index] = 0
-                self.net.load.loc[bus_index,
-                                  "p_mw"] = active_power[bus_index] / self.s_base
-                self.net.load.loc[bus_index, "q_mvar"] = 0
-
-            pp.runpp(self.net, algorithm='nr')
-            v_real = self.net.res_bus["vm_pu"].values * \
-                np.cos(np.deg2rad(self.net.res_bus["va_degree"].values))
-            v_img = self.net.res_bus["vm_pu"].values * \
-                np.sin(np.deg2rad(self.net.res_bus["va_degree"].values))
-            v_result = v_real + 1j * v_img
-
-            for node_index in self.net.load.bus.index:
-                bus_idx = self.net.load.at[node_index, 'bus']
-                obs['node_data']['voltage'][f'node_{node_index}'] = self.net.res_bus.vm_pu.at[bus_idx]
-                obs['node_data']['active_power'][f'node_{node_index}'] = active_power[node_index]
-                # obs['node_data']['reactive_power'][f'node_{node_index}'] = self.net.res_load.q_mvar[node_index]
-
-        # return obs
-        active_power = np.array(
-            list(obs['node_data']['active_power'].values()))
-        # renewable_active_power = np.array(list(obs['node_data']['renewable_active_power'].values()))
-        vm = np.array(list(obs['node_data']['voltage'].values()))
-
-        return active_power, vm
-
-    def _runpf(self, action):
-
-        if self.algorithm == "Laurent":
-            v = self.solution["v"]
-            v_totall = np.insert(v, 0, 1)
-            current_each_node = np.matmul(self.dense_Ybus, v_totall)
-            power_imported_from_ex_grid_before = current_each_node[0].real
-
-            # active_power_pu = self.active_power / self.s_base
-            # reactive_power_pu = self.reactive_power / self.s_base
-            # self.S = active_power_pu + 1j * reactive_power_pu
-
-            # v_approx, iter = power_flow_tensor_constant_power(K=self.net._K_,
-            #                                                   L=self.net._L_,
-            #                                                   S=self.S,
-            #                                                   v0=np.array([1+0j], dtype=complex),
-            #                                                   ts=1,
-            #                                                   nb=self.net.nb,
-            #                                                   iterations=100,
-            #                                                   tolerance=1e-6)
-            # print(f'v_approx: {v_approx.shape}')
-            # v_approx = v_approx.real
-
-            # loss = VoltageViolationLoss(K=self.net._K_,
-            #                             L=self.net._L_,
-            #                             s_base=self.net.s_base,
-            #                             num_buses=self.net.nb)
-
-            # v_approx = loss(EV_power_per_bus=action,
-            #               active_power_per_bus=self.active_power,
-            #               reactive_power_per_bus=np.zeros_like(self.active_power))
-
-            self.active_power += action
-            self.solution = self.net.run_pf(active_power=self.active_power,
-                                            # reactive_power=self.reactive_power
-                                            )
-
-            # solution_v = self.solution["v"].real
-            # print(f'True v: {solution_v}')
-            # print(f'Approx: {v_approx}')
-            # print(f'v error: {np.linalg.norm(v_approx - solution_v)}')
-            # input()
-
-            v = self.solution["v"]
-            v_totall = np.insert(v, 0, 1)
-            vm_pu_after_control = cp.deepcopy(abs(v_totall))
-            self.after_control = vm_pu_after_control
-            current_each_node = np.matmul(self.dense_Ybus, v_totall)
-            power_imported_from_ex_grid_after = current_each_node[0].real
-            saved_energy = power_imported_from_ex_grid_before - \
-                power_imported_from_ex_grid_after
-
-        else:
-            power_imported_from_ex_grid_before = cp.deepcopy(
-                self.net.res_ext_grid['p_mw'])
-
-            pp.runpp(self.net, algorithm='nr')
-            vm_pu_after_control = cp.deepcopy(
-                self.net.res_bus.vm_pu).to_numpy(dtype=float)
-
-            self.after_control = vm_pu_after_control
-            power_imported_from_ex_grid_after = self.net.res_ext_grid['p_mw']
-            saved_energy = power_imported_from_ex_grid_before - \
-                power_imported_from_ex_grid_after
-
-        return saved_energy
-
-    # def step(self, actions: np.ndarray) -> tuple:
-    #     """
-    #     Advance the environment by one timestep based on the provided action.
-    #     """
-
-    #     # Update active power of each node based on EVs and run power flow
-    #     saved_energy = self._runpf(actions)
-    #     self.current_step += 1
-    #     active_power, vm = self._build_state()
-
-    #     return active_power, vm, saved_energy
 
     def reset(self, date, load_data) -> np.ndarray:
         """
@@ -254,7 +92,7 @@ class PowerGrid():
 
         self.load_data = self.load_data.round(1)
         self.active_power = self.load_data[self.current_step, 1:self.node_num].reshape(
-            1, -1)        
+            1, -1)
         self.reactive_power = self.active_power * 0
 
         return self.active_power, self.reactive_power
@@ -264,9 +102,12 @@ class PowerGrid():
         self.active_power += actions
         # print(f'GRID| active power: {self.active_power}')
 
+        timer = time.time()
         self.solution = self.net.run_pf(active_power=self.active_power,
-                                        # reactive_power=self.reactive_power
+                                        reactive_power=self.reactive_power
                                         )
+
+        self.timer_totall += time.time() - timer
 
         # loss_fn = VoltageViolationLoss(K=self.net._K_,
         #                                L=self.net._L_,
@@ -279,15 +120,15 @@ class PowerGrid():
         #                   active_power_per_bus=self.active_power - actions,
         #                   reactive_power_per_bus=self.reactive_power,
         #                   )
-        
+
         v = self.solution["v"]
         v_totall = np.insert(v, 0, 1)
         vm_pu_after_control = cp.deepcopy(abs(v_totall))
-        
+
         # v_m = self.solution["v"].real
         # print(f'V real: {v_m}')
         # print(f'V pred: {v_gpu}')
-        # print(f'!!! v_loss {np.abs(v_gpu - v_m).mean()}')        
+        # print(f'!!! v_loss {np.abs(v_gpu - v_m).mean()}')
         # input()
 
         self.current_step += 1
