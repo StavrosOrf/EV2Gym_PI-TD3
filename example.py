@@ -49,10 +49,6 @@ def eval():
 
     max_cs_power = env.charging_stations[0].get_max_power()
     min_cs_power = env.charging_stations[0].get_min_power()
-    
-    # print(f'Max CS power: {max_cs_power}')
-    # print(f'Min CS power: {min_cs_power}')
-    # exit()
 
     ev_battery_capacity = env.EVs_profiles[0].battery_capacity
     ev_min_battery_capacity = env.EVs_profiles[0].min_battery_capacity

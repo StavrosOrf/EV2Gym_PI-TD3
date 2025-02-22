@@ -55,8 +55,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 # GNN-based models evaluations
-
-
 # from DT.evaluation.evaluate_episodes import evaluate_episode_rtg_from_replays
 # from DT.models.decision_transformer import DecisionTransformer
 # from DT.load_model import load_DT_model
@@ -101,12 +99,7 @@ def evaluator():
         ChargeAsFastAsPossible,
         DoNothing,
         RandomAgent,
-        # '150_SB3_tests/NewReward_No_reactive_td3_run_0_27619_V2G_grid_simple_reward_V2G_grid_state_ModelBasedRL',
-        # "ModelBasedRL-ModelBasedRL-757975",
-        
-        'TD3_loss_0x-190015',
-        # 'TD3_loss_0.00001-640434',
-        'TD3_loss_0.01-520824',
+
     ]
 
     # create a AnalysisReplayBuffer object for each algorithm
