@@ -163,6 +163,26 @@ class TD3(object):
 
             if self.transition_fn is not None:
 
+                if True:
+                    # test if loss_fn is working properly
+                    reward_test = self.loss_fn(state=state[0].unsqueeze(0),
+                                               action=action[0].unsqueeze(0))
+                    reward_diff = torch.abs(reward - reward_test)
+                    if reward_diff.mean() > 0.001:
+
+                        print(f'Reward diff: {reward_diff.mean()}')
+                        print(f'Reward: {reward}')
+                        print(f'Reward Test: {reward_test}')
+                        input("Error in reward calculation")
+
+                    next_state_test = self.transition_fn(state,
+                                                         next_state,
+                                                         action)
+                    state_diff = torch.abs(next_state - next_state_test)
+                    if state_diff.mean() > 0.001:
+                        print(f'State diff: {state_diff.mean()}')
+                        input("Error in state transition")
+
                 action_vector = self.actor(state)
                 next_state_pred = self.transition_fn(state,
                                                      next_state,
@@ -172,8 +192,12 @@ class TD3(object):
 
                 # actor_loss = - (reward_pred + self.discount * \
                 #     self.critic.Q1(next_state_pred, self.actor(next_state_pred))).mean()
+
+                with torch.no_grad():
+                    next_action = self.actor(next_state_pred)
+
                 actor_loss = - (reward_pred + self.discount *
-                                self.critic_target.Q1(next_state_pred, self.actor(next_state_pred))).mean()
+                                self.critic.Q1(next_state_pred, next_action)).mean()
 
                 self.loss_dict['physics_loss'] = reward_pred.mean().item()
                 self.loss_dict['actor_loss'] = actor_loss.item()

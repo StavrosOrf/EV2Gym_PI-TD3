@@ -66,24 +66,28 @@ class VoltageViolationLoss(nn.Module):
             ev_state_start + step_size*number_of_cs):step_size]
         connected_bus = state[:, ev_state_start+2:(
             ev_state_start + 2 + step_size*number_of_cs):step_size]
+        ev_connected_binary = current_capacity > 0
 
         max_ev_charge_power = self.max_ev_charge_power * torch.ones(
             (batch_size, number_of_cs), device=self.device)
         max_ev_discharge_power = self.max_ev_discharge_power * torch.ones(
-            (batch_size, number_of_cs), device=self.device)
+            (batch_size, number_of_cs), device=self.device) 
         battery_capacity = self.ev_battery_capacity * torch.ones(
             (batch_size, number_of_cs), device=self.device)
         ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
             (batch_size, number_of_cs), device=self.device)
 
         max_ev_charge_power = torch.min(
-            max_ev_charge_power, (battery_capacity - current_capacity)/timescale)
+            max_ev_charge_power, ev_connected_binary * (battery_capacity - current_capacity)/timescale)
         max_ev_discharge_power = torch.max(
-            max_ev_discharge_power, (ev_min_battery_capacity - current_capacity)/timescale)
+            max_ev_discharge_power, ev_connected_binary * (ev_min_battery_capacity - current_capacity)/timescale)
 
         if self.verbose:
-            # print(f'prices: {prices}')
             print("--------------------------------------------------")
+            print(f'actions: {action}')
+            print(f'ev_connected_binary: {ev_connected_binary}')
+            print(f'max_ev_charge_power: {max_ev_charge_power}')
+            print(f'max_ev_discharge_power: {max_ev_discharge_power}')
             print(f'current_capacity: {current_capacity}')
             print(f'connected_bus: {connected_bus}')
 
@@ -92,8 +96,15 @@ class VoltageViolationLoss(nn.Module):
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)
-        power_usage = torch.min(power_usage, max_ev_charge_power)                
-        # power_usage = torch.max(power_usage, max_ev_discharge_power)
+
+        if self.verbose:
+            print(f'power_usage: {power_usage}')
+
+        power_usage = torch.min(power_usage, max_ev_charge_power)
+        power_usage = torch.max(power_usage, max_ev_discharge_power)
+
+        if self.verbose:
+            print(f'power_usage: {power_usage}')
 
         # go from power usage to EV_power_per_bus
         EV_power_per_bus = torch.zeros(
@@ -116,9 +127,6 @@ class VoltageViolationLoss(nn.Module):
             print(f'EV_power_per_bus: {EV_power_per_bus}')
             print(f'active_power_per_bus: {active_power_per_bus}')
             print(f'reactive_power_per_bus: {reactive_power_per_bus}')
-            # print("--------------------------------------------------")
-            # print(f'EV_power_per_bus: {EV_power_per_bus.shape}')
-            # print(f'active_power_per_bus: {active_power_per_bus.shape}')
 
         active_power_pu = (active_power_per_bus +
                            EV_power_per_bus) / self.s_base
@@ -126,7 +134,7 @@ class VoltageViolationLoss(nn.Module):
         reactive_power_pu = reactive_power_per_bus / self.s_base
 
         S = active_power_pu + 1j * reactive_power_pu
-        # return S.abs().mean()
+
         tol = torch.inf
         iteration = 0
         L = torch.zeros((self.num_buses - 1, batch_size),
@@ -138,29 +146,32 @@ class VoltageViolationLoss(nn.Module):
         v0 = torch.tensor([1+0j]*(self.num_buses - 1),
                           dtype=torch.complex128, device=self.device)
         v0 = torch.repeat_interleave(v0.view(-1, 1), batch_size, dim=1)
+        
+        # L_m = torch.repeat_interleave(self.L, batch_size, dim=1)
+        L_m = self.L.repeat(1,batch_size)
 
         v0 = v0.view(-1, batch_size)
         S = S.view(-1, batch_size)
-        # print(f'S v2:{S}')
-        # if self.verbose:
-        #     print(f'S shape {S.shape}')
-        #     print(f'v0 shape {v0.shape}')
-        #     print(f'self.K shape {self.K.shape}')
-        #     print(f'self.L shape {self.L.shape}')
-        #     print(f'L shape {L.shape}')
-        #     print(f'Z shape {Z.shape}')
-
-        # print(f'K shape: {self.K.shape}')
-        # print(f'L shape: {self.L.shape}')
-        # print(f'S shape: {S.shape}')
-        # print(f'v0 shape: {v0.shape}')
-        # print(f'vk shape: {v_k.shape}')
+        
+        if self.verbose:
+            print(f'L_m: {L_m.shape}')
+            print(f'self.K: {self.K.shape}')
+            print(f'self.L: {self.L.shape}')
+            print(f'Z: {Z.shape}')
+            print(f'L: {L.shape}')
+            print(f'v0: {v0.shape}')
+            print(f'v_k: {v_k.shape}')
+            print(f'S: {S.shape}')
+            
+            # print(f'self.L: {self.L}')
+            # print(f'L_m: {L_m}')
 
         while iteration < self.iterations and tol >= self.tolerance:
 
             L = torch.conj(S * (1 / (v0)))
             Z = self.K @ L
-            v_k = Z + self.L
+            print(f'Z: {Z.shape} | {iteration}')
+            v_k = Z + L_m
             tol = torch.max(torch.abs(torch.abs(v_k) - torch.abs(v0)))
             v0 = v_k
 
@@ -168,10 +179,6 @@ class VoltageViolationLoss(nn.Module):
 
         # Convert v0 to a real tensor (for example using its real part)
         v0_real = torch.abs(v0)
-        # return v0_real.mean()
-
-        # Clamp v0_real to avoid extreme values
-        # v0_clamped = torch.clamp(v0_real, min=1e-3, max=2.0)
         v0_clamped = v0_real.view(batch_size, -1)
 
         # Compute the loss as a real number
@@ -188,154 +195,6 @@ class VoltageViolationLoss(nn.Module):
 
         # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
         return 1000*loss.sum(axis=1)
-
-    def calc_v(self, action, state):
-
-        if self.verbose:
-            print("==================================================")
-            print(f'action: {action.shape}')
-            print(f'state: {state.shape}')
-
-        number_of_cs = action.shape[1]
-        prices = state[:, 4]
-        step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
-        batch_size = state.shape[0]
-
-        # timesscale is a vactor of size number_of_cs with the varaible timescale
-        timescale = torch.ones((batch_size, number_of_cs),
-                               device=self.device) * self.timescale / 60
-
-        current_capacity = state[:, ev_state_start:(
-            ev_state_start + step_size*number_of_cs):step_size]
-        connected_bus = state[:, ev_state_start+2:(
-            ev_state_start + 2 + step_size*number_of_cs):step_size]
-
-        max_ev_charge_power = self.max_ev_charge_power * torch.ones(
-            (batch_size, number_of_cs), device=self.device)
-        max_ev_discharge_power = self.max_ev_discharge_power * torch.ones(
-            (batch_size, number_of_cs), device=self.device)
-        battery_capacity = self.ev_battery_capacity * torch.ones(
-            (batch_size, number_of_cs), device=self.device)
-        ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
-            (batch_size, number_of_cs), device=self.device)
-
-        # print(f'battery_capacity: {battery_capacity.shape}')
-        # print(f'current_capacity: {current_capacity.shape}')
-        # max_ev_charge_power is bound by max battery capacity and min battery capacity
-        max_ev_charge_power = torch.min(
-            max_ev_charge_power, (battery_capacity - current_capacity)/timescale)
-        max_ev_discharge_power = torch.max(
-            max_ev_discharge_power, (ev_min_battery_capacity - current_capacity)/timescale)
-
-        if self.verbose:
-            # print(f'prices: {prices}')
-            print("--------------------------------------------------")
-            print(f'current_capacity: {current_capacity}')
-            print(f'connected_bus: {connected_bus}')
-
-        # make a binary matrix when action is > 0
-        action_binary = torch.where(action >= 0, 1, 0)
-
-        power_usage = action * self.max_cs_power * action_binary -\
-            action * self.min_cs_power * (1 - action_binary)
-
-        power_usage = torch.min(power_usage, max_ev_charge_power)
-        # power_usage = torch.max(power_usage, max_ev_discharge_power)
-
-        # go from power usage to EV_power_per_bus
-        EV_power_per_bus = torch.zeros(
-            (batch_size, self.num_buses-1),
-            device=self.device,
-            dtype=power_usage.dtype)
-
-        EV_power_per_bus = EV_power_per_bus.scatter_add(
-            dim=1,
-            index=connected_bus.long(),
-            src=power_usage
-        )
-
-        active_power_per_bus = state[:, 4:4+self.num_buses-1]
-        reactive_power_per_bus = state[:, 4 +
-                                       self.num_buses-1:4+2*(self.num_buses-1)]
-
-        if self.verbose:
-            print("--------------------------------------------------")
-            print(f'EV_power_per_bus: {EV_power_per_bus}')
-            print(f'active_power_per_bus: {active_power_per_bus}')
-            print(f'reactive_power_per_bus: {reactive_power_per_bus}')
-            # print("--------------------------------------------------")
-            # print(f'EV_power_per_bus: {EV_power_per_bus.shape}')
-            # print(f'active_power_per_bus: {active_power_per_bus.shape}')
-
-        active_power_pu = (active_power_per_bus +
-                           EV_power_per_bus) / self.s_base
-
-        reactive_power_pu = reactive_power_per_bus / self.s_base
-
-        S = active_power_pu + 1j * reactive_power_pu
-        # return S.abs().mean()
-        tol = torch.inf
-        iteration = 0
-        L = torch.zeros((self.num_buses - 1, batch_size),
-                        dtype=torch.complex128, device=self.device)
-        Z = torch.zeros((self.num_buses - 1, batch_size),
-                        dtype=torch.complex128, device=self.device)
-        v_k = torch.zeros((self.num_buses - 1, batch_size),
-                          dtype=torch.complex128, device=self.device)
-        v0 = torch.tensor([1+0j]*(self.num_buses - 1),
-                          dtype=torch.complex128, device=self.device)
-        v0 = torch.repeat_interleave(v0.view(-1, 1), batch_size, dim=1)
-
-        v0 = v0.view(-1, batch_size)
-        S = S.view(-1, batch_size)
-        # print(f'S v2:{S}')
-        # if self.verbose:
-        #     print(f'S shape {S.shape}')
-        #     print(f'v0 shape {v0.shape}')
-        #     print(f'self.K shape {self.K.shape}')
-        #     print(f'self.L shape {self.L.shape}')
-        #     print(f'L shape {L.shape}')
-        #     print(f'Z shape {Z.shape}')
-
-        # print(f'K shape: {self.K.shape}')
-        # print(f'L shape: {self.L.shape}')
-        # print(f'S shape: {S.shape}')
-        # print(f'v0 shape: {v0.shape}')
-        # print(f'vk shape: {v_k.shape}')
-
-        while iteration < self.iterations and tol >= self.tolerance:
-
-            L = torch.conj(S * (1 / (v0)))
-            Z = self.K @ L
-            v_k = Z + self.L
-            tol = torch.max(torch.abs(torch.abs(v_k) - torch.abs(v0)))
-            v0 = v_k
-
-            iteration += 1
-
-        # Convert v0 to a real tensor (for example using its real part)
-        v0_real = torch.abs(v0)
-        # return v0_real.mean()
-
-        # Clamp v0_real to avoid extreme values
-        # v0_clamped = torch.clamp(v0_real, min=1e-3, max=2.0)
-        v0_clamped = v0_real.view(batch_size, -1)
-
-        # Compute the loss as a real number
-        # For example, penalty on deviation from 1.0
-        loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
-                         0.05 - torch.abs(1 - v0_clamped))
-
-        if self.verbose:
-            print(f'voltage shape {v0_clamped.real.shape}')
-            print(f'Voltage: {v0_clamped.real}')
-            print(f'Loss: {loss}')
-            print(f'Loss: {loss.shape}'
-                  )
-
-        # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
-        return 1000*loss.sum(axis=1), v0_clamped.real.cpu().detach().numpy()
 
 
 class V2G_Grid_StateTransition(nn.Module):
@@ -395,11 +254,12 @@ class V2G_Grid_StateTransition(nn.Module):
             (batch_size, number_of_cs), device=self.device)
         ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
             (batch_size, number_of_cs), device=self.device)
+        ev_connected_binary = current_capacity > 0
 
         max_ev_charge_power = torch.min(
-            max_ev_charge_power, (battery_capacity - current_capacity)/timescale)
+            max_ev_charge_power, ev_connected_binary * (battery_capacity - current_capacity)/timescale)
         max_ev_discharge_power = torch.max(
-            max_ev_discharge_power, (ev_min_battery_capacity - current_capacity)/timescale)
+            max_ev_discharge_power, ev_connected_binary * (ev_min_battery_capacity - current_capacity)/timescale)
 
         if self.verbose:
             print(f'prices: {prices}')
