@@ -195,7 +195,7 @@ if __name__ == "__main__":
     parser.add_argument('--noisy_communication', type=float, default=0)
 
     # Physics loss #############################################
-    parser.add_argument('--ph_coeff', type=float, default=1)
+    parser.add_argument('--ph_coeff', type=float, default=10e-5)
 
     scale = 1
     args = parser.parse_args()
@@ -307,7 +307,9 @@ if __name__ == "__main__":
                                              num_buses=env.get_wrapper_attr(
                                                  'grid').net.nb,
                                              )
-
+    
+    transition_fn = None
+    
     # Set seeds
     # env.seed(args.seed)
     env.action_space.seed(args.seed)
