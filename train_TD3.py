@@ -428,6 +428,7 @@ if __name__ == "__main__":
         kwargs['ph_coeff'] = args.ph_coeff
         
         kwargs['transition_fn'] = transition_fn
+        # kwargs['transition_fn'] = None
 
         # kwargs['loss_fn'] = None
         # Save kwargs to local path

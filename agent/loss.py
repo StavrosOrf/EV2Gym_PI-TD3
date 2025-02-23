@@ -88,7 +88,7 @@ class VoltageViolationLoss(nn.Module):
             print(f'connected_bus: {connected_bus}')
 
         # make a binary matrix when action is > 0
-        action_binary = torch.where(action != 0, 1, 0)
+        action_binary = torch.where(action >= 0, 1, 0)
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)
@@ -235,7 +235,7 @@ class VoltageViolationLoss(nn.Module):
             print(f'connected_bus: {connected_bus}')
 
         # make a binary matrix when action is > 0
-        action_binary = torch.where(action != 0, 1, 0)
+        action_binary = torch.where(action >= 0, 1, 0)
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)
