@@ -106,8 +106,8 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    # parser.add_argument("--config", default="v2g_grid_150.yaml")
-    parser.add_argument("--config", default="v2g_grid_3.yaml")
+    parser.add_argument("--config", default="v2g_grid_150.yaml")
+    # parser.add_argument("--config", default="v2g_grid_3.yaml")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
     parser.add_argument("--load_model", default="")
@@ -116,7 +116,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         parser.add_argument("--start_timesteps", default=10,
                             type=int)
         parser.add_argument('--eval_freq', default=300, type=int)
-        parser.add_argument("--batch_size", default=2, type=int)  # 256
+        parser.add_argument("--batch_size", default=256, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
@@ -299,7 +299,7 @@ if __name__ == "__main__":
                                    num_buses=env.get_wrapper_attr(
                                        'grid').net.nb,
                                    device=device,
-                                   verbose=True,
+                                   verbose=False,
                                    )
 
     transition_fn = V2G_Grid_StateTransition(verbose=False,
@@ -435,7 +435,9 @@ if __name__ == "__main__":
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
-
+        
+        os.system(f'cp TD3/TD3.py {save_path}')
+        
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 

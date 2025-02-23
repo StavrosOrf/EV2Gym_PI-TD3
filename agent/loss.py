@@ -71,7 +71,7 @@ class VoltageViolationLoss(nn.Module):
         max_ev_charge_power = self.max_ev_charge_power * torch.ones(
             (batch_size, number_of_cs), device=self.device)
         max_ev_discharge_power = self.max_ev_discharge_power * torch.ones(
-            (batch_size, number_of_cs), device=self.device) 
+            (batch_size, number_of_cs), device=self.device)
         battery_capacity = self.ev_battery_capacity * torch.ones(
             (batch_size, number_of_cs), device=self.device)
         ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
@@ -137,43 +137,43 @@ class VoltageViolationLoss(nn.Module):
 
         tol = torch.inf
         iteration = 0
-        L = torch.zeros((self.num_buses - 1, batch_size),
-                        dtype=torch.complex128, device=self.device)
-        Z = torch.zeros((self.num_buses - 1, batch_size),
-                        dtype=torch.complex128, device=self.device)
+
         v_k = torch.zeros((self.num_buses - 1, batch_size),
                           dtype=torch.complex128, device=self.device)
         v0 = torch.tensor([1+0j]*(self.num_buses - 1),
                           dtype=torch.complex128, device=self.device)
         v0 = torch.repeat_interleave(v0.view(-1, 1), batch_size, dim=1)
-        
-        # L_m = torch.repeat_interleave(self.L, batch_size, dim=1)
-        L_m = self.L.repeat(1,batch_size)
 
-        v0 = v0.view(-1, batch_size)
-        S = S.view(-1, batch_size)
+
+        v0 = v0.view(batch_size, -1)
+        S = S.view(batch_size, -1)
         
+        W = self.L.view(-1)
+
         if self.verbose:
-            print(f'L_m: {L_m.shape}')
+            print(f'W: {W.shape}')
             print(f'self.K: {self.K.shape}')
             print(f'self.L: {self.L.shape}')
-            print(f'Z: {Z.shape}')
-            print(f'L: {L.shape}')
+            # print(f'Z: {Z.shape}')
+            # print(f'L: {L.shape}')
             print(f'v0: {v0.shape}')
             print(f'v_k: {v_k.shape}')
             print(f'S: {S.shape}')
-            
+
             # print(f'self.L: {self.L}')
             # print(f'L_m: {L_m}')
 
         while iteration < self.iterations and tol >= self.tolerance:
 
-            L = torch.conj(S * (1 / (v0)))
-            Z = self.K @ L
-            print(f'Z: {Z.shape} | {iteration}')
-            v_k = Z + L_m
+            L = torch.conj(S / v0)
+            # print(f'L: {L.shape} | {iteration}')
+            Z = torch.matmul(self.K, L.T)
+            Z = Z.T
+            # print(f'Z: {Z.shape} | {iteration}')
+            v_k = Z + W
             tol = torch.max(torch.abs(torch.abs(v_k) - torch.abs(v0)))
             v0 = v_k
+            # print(f'v0: {v0.shape} | {iteration}')
 
             iteration += 1
 

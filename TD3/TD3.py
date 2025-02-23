@@ -152,8 +152,8 @@ class TD3(object):
         # Optimize the critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(
-            self.critic.parameters(), max_norm=self.max_norm)
+        # torch.nn.utils.clip_grad_norm_(
+        #     self.critic.parameters(), max_norm=self.max_norm)
         self.critic_optimizer.step()
 
         self.loss_dict['critic_loss'] = critic_loss.item()
@@ -163,11 +163,11 @@ class TD3(object):
 
             if self.transition_fn is not None:
 
-                if True:
+                if False:
                     # test if loss_fn is working properly
-                    reward_test = self.loss_fn(state=state[0].unsqueeze(0),
-                                               action=action[0].unsqueeze(0))
-                    reward_diff = torch.abs(reward - reward_test)
+                    reward_test = self.loss_fn(state=state,
+                                               action=action)                    
+                    reward_diff = torch.abs(reward.view(-1) - reward_test.view(-1))
                     if reward_diff.mean() > 0.001:
 
                         print(f'Reward diff: {reward_diff.mean()}')
@@ -190,14 +190,11 @@ class TD3(object):
                 reward_pred = self.loss_fn(state=state,
                                            action=action_vector)
 
-                # actor_loss = - (reward_pred + self.discount * \
-                #     self.critic.Q1(next_state_pred, self.actor(next_state_pred))).mean()
-
-                with torch.no_grad():
-                    next_action = self.actor(next_state_pred)
+                # with torch.no_grad():
+                next_action = self.actor(next_state_pred)
 
                 actor_loss = - (reward_pred + self.discount *
-                                self.critic.Q1(next_state_pred, next_action)).mean()
+                                self.critic_target.Q1(next_state_pred, next_action)).mean()
 
                 self.loss_dict['physics_loss'] = reward_pred.mean().item()
                 self.loss_dict['actor_loss'] = actor_loss.item()
@@ -222,8 +219,8 @@ class TD3(object):
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
 
-            torch.nn.utils.clip_grad_norm_(
-                self.actor.parameters(), max_norm=self.max_norm)
+            # torch.nn.utils.clip_grad_norm_(
+            #     self.actor.parameters(), max_norm=self.max_norm)
 
             self.actor_optimizer.step()
 
