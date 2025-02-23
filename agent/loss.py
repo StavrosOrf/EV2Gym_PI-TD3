@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-# torch.set_printoptions(precision=10)
+torch.set_printoptions(precision=10)
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -88,23 +88,12 @@ class VoltageViolationLoss(nn.Module):
             print(f'connected_bus: {connected_bus}')
 
         # make a binary matrix when action is > 0
-        action_binary = torch.where(action > 0, 1, 0)
+        action_binary = torch.where(action != 0, 1, 0)
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)
-
-        if torch.isnan(power_usage).any():
-            print("-------------------!!!-------------------------------")
-            pass
-
-        if self.verbose:
-            print("--------------------------------------------------")
-            print(f'power_usage: {power_usage}')
-
-        power_usage = torch.min(power_usage, max_ev_charge_power)
-        if self.verbose:
-            print("--------------------------------------------------")
-            print(f'power_usage: {power_usage}')
+        power_usage = torch.min(power_usage, max_ev_charge_power)                
+        # power_usage = torch.max(power_usage, max_ev_discharge_power)
 
         # go from power usage to EV_power_per_bus
         EV_power_per_bus = torch.zeros(
@@ -246,23 +235,13 @@ class VoltageViolationLoss(nn.Module):
             print(f'connected_bus: {connected_bus}')
 
         # make a binary matrix when action is > 0
-        action_binary = torch.where(action > 0, 1, 0)
+        action_binary = torch.where(action != 0, 1, 0)
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)
 
-        if torch.isnan(power_usage).any():
-            print("-------------------!!!-------------------------------")
-            pass
-
-        if self.verbose:
-            print("--------------------------------------------------")
-            print(f'power_usage: {power_usage}')
-
         power_usage = torch.min(power_usage, max_ev_charge_power)
-        if self.verbose:
-            print("--------------------------------------------------")
-            print(f'power_usage: {power_usage}')
+        # power_usage = torch.max(power_usage, max_ev_discharge_power)
 
         # go from power usage to EV_power_per_bus
         EV_power_per_bus = torch.zeros(
@@ -428,8 +407,9 @@ class V2G_Grid_StateTransition(nn.Module):
             print(f'max battery_capacity: {battery_capacity}')
             print(f'min_battery_capacity: {ev_min_battery_capacity}')
             print(f'time_left: {ev_time_left}')
+            print(f'action: {action}')
 
-        action_binary = torch.where(action > 0, 1, 0)
+        action_binary = torch.where(action != 0, 1, 0)
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)

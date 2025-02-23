@@ -61,14 +61,15 @@ def get_statistics(env) -> Dict:
         e_max = ev.max_energy_AFAP
         energy_user_satisfaction[i] = (e_actual / e_max) * 100
         total_steps_min_emergency_battery_capacity_violation += ev.min_emergency_battery_capacity_metric
-        
+
     saved_grid_energy = env.saved_grid_energy.sum()
-    
+
     # find amount of voltage outside 0.95-1.05 p.u.
     if env.simulate_grid:
-        v_m = np.reshape(env.node_voltage, (-1))        
-        voltage_violation = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
-        
+        v_m = np.reshape(env.node_voltage, (-1))
+        voltage_violation = np.minimum(
+            np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
+
     stats = {'total_ev_served': total_ev_served,
              'total_profits': total_profits,
              'total_energy_charged': total_energy_charged,
@@ -81,17 +82,16 @@ def get_statistics(env) -> Dict:
              'std_energy_user_satisfaction': np.std(energy_user_satisfaction),
              'min_energy_user_satisfaction': np.min(energy_user_satisfaction),
              'total_steps_min_emergency_battery_capacity_violation': total_steps_min_emergency_battery_capacity_violation,
-             'total_transformer_overload': total_transformer_overload,             
+             'total_transformer_overload': total_transformer_overload,
              'battery_degradation': battery_degradation,
              'battery_degradation_calendar': battery_degradation_calendar,
              'battery_degradation_cycling': battery_degradation_cycling,
              'total_reward': env.total_reward,
              }
-    
+
     if env.simulate_grid:
         stats['saved_grid_energy'] = saved_grid_energy,
         stats['voltage_violation'] = voltage_violation,
-                         
 
     if env.eval_mode != "optimal" and env.replay is not None:
         if env.replay.optimal_stats is not None:
@@ -292,6 +292,7 @@ def spawn_single_EV(env,
                                           (np.random.rand()+0.00001)/5, 3),  # [0.7-0.9]
                   transition_soc_multiplier=transition_soc_multiplier,
                   battery_capacity=battery_capacity,
+                  min_battery_capacity = env.config["ev"]["min_battery_capacity"],
                   desired_capacity=env.config["ev"]['desired_capacity'] *
                   battery_capacity,
                   time_of_arrival=step+1,
@@ -313,6 +314,7 @@ def spawn_single_EV(env,
                   max_dc_charge_power=env.config["ev"]['max_dc_charge_power'],
                   max_discharge_power=env.config["ev"]['max_discharge_power'],
                   min_discharge_power=env.config["ev"]['min_discharge_power'],
+                  min_battery_capacity = env.config["ev"]["min_battery_capacity"],
                   time_of_arrival=step+1,
                   time_of_departure=int(
                       time_of_stay + step + 3),
@@ -422,6 +424,7 @@ def spawn_single_EV_GF(env,
                   battery_capacity=battery_capacity,
                   desired_capacity=env.config["ev"]['desired_capacity'] *
                   battery_capacity,
+                  min_battery_capacity=env.config["ev"]["min_battery_capacity"],
                   time_of_arrival=step+1,
                   time_of_departure=int(
                       time_of_stay + step + 3),
@@ -440,6 +443,7 @@ def spawn_single_EV_GF(env,
                   max_dc_charge_power=env.config["ev"]['max_dc_charge_power'],
                   max_discharge_power=env.config["ev"]['max_discharge_power'],
                   min_discharge_power=env.config["ev"]['min_discharge_power'],
+                  min_battery_capacity=env.config["ev"]["min_battery_capacity"],
                   time_of_arrival=step+1,
                   time_of_departure=int(
                       time_of_stay + step + 3),
@@ -768,71 +772,72 @@ def calculate_charge_power_potential(env) -> float:
 
     return power_potential
 
+
 def init_statistic_variables(env):
-        '''
-        Initializes the variables used for keeping simulation statistics
-        '''
-        env.current_step = 0
-        env.total_evs_spawned = 0
-        env.total_reward = 0
+    '''
+    Initializes the variables used for keeping simulation statistics
+    '''
+    env.current_step = 0
+    env.total_evs_spawned = 0
+    env.total_reward = 0
 
-        env.current_ev_departed = 0
-        env.current_ev_arrived = 0
-        env.current_evs_parked = 0
+    env.current_ev_departed = 0
+    env.current_ev_arrived = 0
+    env.current_evs_parked = 0
 
-        env.current_power_usage = np.zeros(env.simulation_length)
-        env.saved_grid_energy = np.zeros(env.simulation_length)
-        env.charge_power_potential = np.zeros(env.simulation_length)
+    env.current_power_usage = np.zeros(env.simulation_length)
+    env.saved_grid_energy = np.zeros(env.simulation_length)
+    env.charge_power_potential = np.zeros(env.simulation_length)
 
-        if env.simulate_grid:
-            env.node_active_power = np.zeros(
-                [env.grid.node_num, env.simulation_length])
-            env.node_reactive_power = np.zeros(
-                [env.grid.node_num, env.simulation_length])
-            env.node_voltage = np.zeros(
-                [env.grid.node_num, env.simulation_length])
-            env.node_ev_power = np.zeros(
-                [env.grid.node_num, env.simulation_length])
+    if env.simulate_grid:
+        env.node_active_power = np.zeros(
+            [env.grid.node_num, env.simulation_length])
+        env.node_reactive_power = np.zeros(
+            [env.grid.node_num, env.simulation_length])
+        env.node_voltage = np.zeros(
+            [env.grid.node_num, env.simulation_length])
+        env.node_ev_power = np.zeros(
+            [env.grid.node_num, env.simulation_length])
 
-        env.cs_power = np.zeros([env.cs, env.simulation_length])
-        env.cs_current = np.zeros([env.cs, env.simulation_length])
+    env.cs_power = np.zeros([env.cs, env.simulation_length])
+    env.cs_current = np.zeros([env.cs, env.simulation_length])
 
-        env.tr_overload = np.zeros(
-            [env.number_of_transformers, env.simulation_length])
+    env.tr_overload = np.zeros(
+        [env.number_of_transformers, env.simulation_length])
 
-        env.tr_inflexible_loads = np.zeros(
-            [env.number_of_transformers, env.simulation_length])
+    env.tr_inflexible_loads = np.zeros(
+        [env.number_of_transformers, env.simulation_length])
 
-        env.tr_solar_power = np.zeros(
-            [env.number_of_transformers, env.simulation_length])
+    env.tr_solar_power = np.zeros(
+        [env.number_of_transformers, env.simulation_length])
 
-        # env.port_power = np.zeros([env.number_of_ports,
-        #                             env.cs,
-        #                             env.simulation_length],
-        #                            dtype=np.float16)
+    # env.port_power = np.zeros([env.number_of_ports,
+    #                             env.cs,
+    #                             env.simulation_length],
+    #                            dtype=np.float16)
 
-        if not env.lightweight_plots:
-            env.port_current = np.zeros([env.number_of_ports,
+    if not env.lightweight_plots:
+        env.port_current = np.zeros([env.number_of_ports,
+                                     env.cs,
+                                     env.simulation_length],
+                                    dtype=np.float16,
+                                    )
+        env.port_current_signal = np.zeros([env.number_of_ports,
+                                            env.cs,
+                                            env.simulation_length],
+                                           dtype=np.float16,
+                                           )
+
+        env.port_energy_level = np.zeros([env.number_of_ports,
                                           env.cs,
                                           env.simulation_length],
-                                         dtype=np.float16,
-                                         )
-            env.port_current_signal = np.zeros([env.number_of_ports,
-                                                 env.cs,
-                                                 env.simulation_length],
-                                                dtype=np.float16,
-                                                )
+                                         dtype=np.float16)
+        # env.port_charging_cycles = np.zeros([env.number_of_ports,
+        #                                       env.cs,
+        #                                       env.simulation_length],
+        #                                      dtype=np.float16)
+        env.port_arrival = dict({f'{j}.{i}': []
+                                 for i in range(env.number_of_ports)
+                                 for j in range(env.cs)})
 
-            env.port_energy_level = np.zeros([env.number_of_ports,
-                                               env.cs,
-                                               env.simulation_length],
-                                              dtype=np.float16)
-            # env.port_charging_cycles = np.zeros([env.number_of_ports,
-            #                                       env.cs,
-            #                                       env.simulation_length],
-            #                                      dtype=np.float16)
-            env.port_arrival = dict({f'{j}.{i}': []
-                                      for i in range(env.number_of_ports)
-                                      for j in range(env.cs)})
-
-        env.done = False
+    env.done = False

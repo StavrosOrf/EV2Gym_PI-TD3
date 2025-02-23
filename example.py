@@ -3,7 +3,7 @@ This script is used to evaluate the performance of the ev2gym environment.
 """
 from ev2gym.models.ev2gym_env import EV2Gym
 
-from ev2gym.baselines.heuristics import RoundRobin, ChargeAsLateAsPossible, ChargeAsFastAsPossible
+from ev2gym.baselines.heuristics import RoundRobin, RandomAgent, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
@@ -27,7 +27,7 @@ def eval():
     replay_path = None
 
     config_file = "./config_files/v2g_grid_150.yaml"
-    # config_file = "./config_files/v2g_grid_3.yaml"
+    config_file = "./config_files/v2g_grid_3.yaml"
     seed = 0
 
     env = EV2Gym(config_file=config_file,
@@ -44,7 +44,8 @@ def eval():
     print(env.observation_space)
     new_replay_path = f"replay/replay_{env.sim_name}.pkl"
 
-    agent = ChargeAsFastAsPossible()
+    # agent = ChargeAsFastAsPossible()
+    agent = RandomAgent()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
 
     max_cs_power = env.charging_stations[0].get_max_power()
@@ -80,7 +81,7 @@ def eval():
     for i in range(100):
         state, _ = env.reset()
         for t in range(env.simulation_length):
-            actions = agent.get_action(env)*1
+            actions = agent.get_action(env)
 
             new_state, reward, done, truncated, stats = env.step(
                 actions)  # takes action
@@ -100,29 +101,32 @@ def eval():
             # print(f'diff: {np.abs(predicted_state - new_state).mean()}')
             if np.abs(predicted_state - new_state).mean() > 0.001:
                 # make noise beep
-                input()
+                print(f'diff: {np.abs(predicted_state - new_state).mean()}')
+                input('Error in state transition')
                 
 
             # print("============================================================================")
-            # timer = time.time()
-            # loss, v = loss_fn.calc_v(action=torch.tensor(actions, device=device).reshape(1, -1),
-            #                              state=torch.tensor(state, device=device).reshape(1, -1))
-            # total_timer += time.time() - timer
+            timer = time.time()
+            loss, v = loss_fn.calc_v(action=torch.tensor(actions, device=device).reshape(1, -1),
+                                         state=torch.tensor(state, device=device).reshape(1, -1))
+            total_timer += time.time() - timer
 
-            # v_m = env.node_voltage[1:, t]
-            # # print(f'\n \n')
-            # print(f'V real: {v_m}')
-            # print(f'V pred: {v}')
-            # print(f'v_loss {np.abs(v - v_m).mean()}')
-            # # input()
-            # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
+            v_m = env.node_voltage[1:, t]
+            # print(f'\n \n')
+            print(f'V real: {v_m}')
+            print(f'V pred: {v}')
+            print(f'v_loss {np.abs(v - v_m).mean()}')
+            if np.abs(v - v_m).mean() > 0.001:
+                print(f'Error in voltage calculation')
+                
+            loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
-            # print(f'Loss V: {loss_v}')
-            # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
-            # print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
+            print(f'Loss V: {loss_v}')
+            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
+            print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
 
-            # if reward_loss != 0 or reward != 0 or loss != 0:
-            #     input("Press Enter to continue...\n------------------------------------------------------------------------")
+            if reward_loss > 0.001:
+                print(f'Error in reward calculation')                
 
             state = new_state
 

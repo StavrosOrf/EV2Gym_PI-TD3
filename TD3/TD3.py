@@ -188,8 +188,8 @@ class TD3(object):
 
                 self.loss_dict['physics_loss'] = reward_pred.mean().item()
                 self.loss_dict['actor_loss'] = actor_loss.item()
-                print(f'Physics loss: {reward_pred.mean().item()}')
-                print(f'Actor loss: {actor_loss.item()}')
+                # print(f'Physics loss: {reward_pred.mean().item()}')
+                # print(f'Actor loss: {actor_loss.item()}')
             elif self.loss_fn is not None:
 
                 action_vector = self.actor(state)

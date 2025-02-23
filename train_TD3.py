@@ -106,8 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid_3.yaml")
-    # parser.add_argument("--config", default="v2g_grid_150.yaml")
+    parser.add_argument("--config", default="v2g_grid_150.yaml")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
     parser.add_argument("--load_model", default="")
@@ -116,7 +115,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
