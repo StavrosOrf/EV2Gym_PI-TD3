@@ -103,6 +103,7 @@ class TD3(object):
         self.policy_noise = policy_noise
         self.noise_clip = noise_clip
         self.policy_freq = policy_freq
+        self.max_norm = 0.5
 
         self.ph_coeff = ph_coeff
         self.loss_fn = loss_fn
@@ -151,6 +152,8 @@ class TD3(object):
         # Optimize the critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            self.critic.parameters(), max_norm=self.max_norm)
         self.critic_optimizer.step()
 
         self.loss_dict['critic_loss'] = critic_loss.item()
@@ -159,23 +162,24 @@ class TD3(object):
         if self.total_it % self.policy_freq == 0:
 
             if self.transition_fn is not None:
-                
+
                 action_vector = self.actor(state)
                 next_state_pred = self.transition_fn(state,
                                                      next_state,
                                                      action_vector)
                 reward_pred = self.loss_fn(state=state,
                                            action=action_vector)
-                
+
                 # actor_loss = - (reward_pred + self.discount * \
                 #     self.critic.Q1(next_state_pred, self.actor(next_state_pred))).mean()
-                actor_loss = - (reward_pred + self.discount * \
-                    self.critic_target.Q1(next_state_pred, self.actor(next_state_pred))).mean()
+                actor_loss = - (reward_pred + self.discount *
+                                self.critic_target.Q1(next_state_pred, self.actor(next_state_pred))).mean()
 
                 self.loss_dict['physics_loss'] = reward_pred.mean().item()
                 self.loss_dict['actor_loss'] = actor_loss.item()
                 # print(f'Physics loss: {reward_pred.mean().item()}')
                 # print(f'Actor loss: {actor_loss.item()}')
+
             elif self.loss_fn is not None:
 
                 action_vector = self.actor(state)
@@ -193,6 +197,10 @@ class TD3(object):
             # Optimize the actor
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
+
+            torch.nn.utils.clip_grad_norm_(
+                self.actor.parameters(), max_norm=self.max_norm)
+
             self.actor_optimizer.step()
 
             # Update the frozen target models

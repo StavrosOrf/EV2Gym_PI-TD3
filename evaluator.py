@@ -69,7 +69,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 10
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -99,7 +99,9 @@ def evaluator():
         ChargeAsFastAsPossible,
         DoNothing,
         RandomAgent,
-
+        'TD3newForm_Targetcritic-343724',
+        'TD3x0-938306',
+        'TD3x10e-5-997459',
     ]
 
     # create a AnalysisReplayBuffer object for each algorithm
