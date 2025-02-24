@@ -36,11 +36,11 @@ class PowerGrid():
                  pv_profile=None
                  ) -> None:
 
-        config = env_config
+        self.config = env_config
         self.env = env
 
-        self.algorithm = config['pf_solver']
-        self.network_info = config['network_info']
+        self.algorithm = self.config['pf_solver']
+        self.network_info = self.config['network_info']
         self.s_base = self.network_info['s_base']
 
         network_bus_info = pd.read_csv(self.network_info['bus_info_file'])
@@ -61,7 +61,7 @@ class PowerGrid():
             raise ValueError(
                 "Invalid algorithm choice. Please choose 'Laurent' or 'PandaPower'.")
 
-        assert config['timescale'] == 15, "Only 15 minutes timescale is supported with the simulate_grid=True !!!"
+        assert self.config['timescale'] == 15, "Only 15 minutes timescale is supported with the simulate_grid=True !!!"
 
         data_generator = pkg_resources.resource_filename(
             'ev2gym', 'data/augmentor.pkl')
@@ -70,7 +70,7 @@ class PowerGrid():
             self.data_generator = CustomUnpickler(f).load()
 
         # self.episode_length: int = 24 * 60 / self.data_manager.time_interval
-        self.episode_length = config['simulation_length']
+        self.episode_length = self.config['simulation_length']
 
         self.pv_profile = pv_profile
 
@@ -104,7 +104,7 @@ class PowerGrid():
 
             self.pv_data = get_pv_load(self.pv_profile,
                                        self.env)
-            self.pv_data = self.pv_data * self.net.p_values * 0.4
+            self.pv_data = self.pv_data * self.net.p_values * self.network_info['pv_scale']/100
             self.pv_data = self.pv_data.round(1)
 
         self.active_power = self.load_data[self.current_step,
@@ -118,35 +118,15 @@ class PowerGrid():
         return self.active_power, self.reactive_power
 
     def step(self, actions: np.ndarray) -> tuple:
-        # print(f'GRID| actions: {actions}')
         self.active_power += actions
-        # print(f'GRID| active power: {self.active_power}')
 
         self.solution = self.net.run_pf(active_power=self.active_power,
                                         reactive_power=self.reactive_power
                                         )
 
-        # loss_fn = VoltageViolationLoss(K=self.net._K_,
-        #                                L=self.net._L_,
-        #                                s_base=self.net.s_base,
-        #                                num_buses=self.net.nb,
-        #                                verbose=False,)
-        # import torch
-        # device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        # loss, v_gpu = loss_fn(EV_power_per_bus=actions,
-        #                   active_power_per_bus=self.active_power - actions,
-        #                   reactive_power_per_bus=self.reactive_power,
-        #                   )
-
         v = self.solution["v"]
         v_totall = np.insert(v, 0, 1)
         vm_pu_after_control = cp.deepcopy(abs(v_totall))
-
-        # v_m = self.solution["v"].real
-        # print(f'V real: {v_m}')
-        # print(f'V pred: {v_gpu}')
-        # print(f'!!! v_loss {np.abs(v_gpu - v_m).mean()}')
-        # input()
 
         self.current_step += 1
 

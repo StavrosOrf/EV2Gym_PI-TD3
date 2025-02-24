@@ -9,6 +9,8 @@ from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 
+from ev2gym.baselines.gurobi_models.v2g_grid import V2GProfitMax_Grid_OracleGB
+
 import numpy as np
 import matplotlib.pyplot as plt
 import gymnasium as gym
@@ -22,8 +24,8 @@ def eval():
     Runs an evaluation of the ev2gym environment.
     """
 
-    replay_path = "./replay/replay_sim_2025_02_22_360719.pkl"
-
+    replay_path = "./replay/replay_sim_2025_02_24_434484.pkl"
+    
     replay_path = None
 
     config_file = "./config_files/v2g_grid_150.yaml"
@@ -34,7 +36,7 @@ def eval():
                  load_from_replay_path=replay_path,
                  verbose=False,
                  #  seed=seed,
-                 save_replay=False,
+                 save_replay=True,
                  save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
                  reward_function=V2G_grid_simple_reward,
@@ -78,7 +80,7 @@ def eval():
     results_df = None
     total_timer = 0
 
-    for i in range(100):
+    for i in range(1):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)
@@ -103,30 +105,35 @@ def eval():
                 # make noise beep
                 print(f'diff: {np.abs(predicted_state - new_state).mean()}')
                 input('Error in state transition')
-                
 
             # print("============================================================================")
             timer = time.time()
-            loss, v = loss_fn.calc_v(action=torch.tensor(actions, device=device).reshape(1, -1),
-                                         state=torch.tensor(state, device=device).reshape(1, -1))
+            loss = loss_fn(action=torch.tensor(actions, device=device).reshape(1, -1),
+                           state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 
+            v = loss_fn.voltage_real_operations(state=torch.tensor(state, device=device).reshape(1, -1),
+                                                  action=torch.tensor(
+                                                      actions, device=device).reshape(1, -1),
+                                                  )
             v_m = env.node_voltage[1:, t]
-            # print(f'\n \n')
-            print(f'V real: {v_m}')
-            print(f'V pred: {v}')
-            print(f'v_loss {np.abs(v - v_m).mean()}')
+            v = v.cpu().detach().numpy().reshape(-1)
+            # # print(f'\n \n')
+            # print(f'V real: {v_m}')
+            # print(f'V pred: {v}')
+            # print(f'v_loss {np.abs(v - v_m).mean()}')
             if np.abs(v - v_m).mean() > 0.001:
                 print(f'Error in voltage calculation')
-                
-            loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
-            print(f'Loss V: {loss_v}')
+            # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
+
+            # print(f'Loss V: {loss_v}')
             reward_loss = np.abs(reward - loss.cpu().detach().numpy())
-            print(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss} | Loss V sum: {1000*loss_v.sum()}')
 
             if reward_loss > 0.001:
-                print(f'Error in reward calculation')                
+                print(
+                    f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
+                print(f'Error in reward calculation')
 
             state = new_state
 
@@ -161,6 +168,11 @@ def eval():
                 f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
 
     print(results_df.describe())
+    
+    
+    solver = V2GProfitMax_Grid_OracleGB(replay_path=replay_path)
+
+    
     return
     # Solve optimally
     # Power tracker optimizer

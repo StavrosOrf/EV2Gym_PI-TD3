@@ -308,7 +308,7 @@ if __name__ == "__main__":
                                                  'grid').net.nb,
                                              )
     
-    transition_fn = None
+    # transition_fn = None
     
     # Set seeds
     # env.seed(args.seed)
