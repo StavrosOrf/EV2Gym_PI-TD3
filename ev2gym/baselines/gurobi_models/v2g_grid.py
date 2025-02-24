@@ -3,6 +3,7 @@ from gurobipy import GRB
 import numpy as np
 import pickle
 
+
 class V2GProfitMax_Grid_OracleGB():
     '''
     This file contains the EV_City_Math_Model class, which is used to solve the ev_city V2G problem optimally.
@@ -47,7 +48,7 @@ class V2GProfitMax_Grid_OracleGB():
 
         ev_max_energy = replay.ev_max_energy
         ev_des_energy = replay.ev_des_energy
-        
+
         ev_max_ch_power = replay.ev_max_ch_power  # * self.dt
         ev_max_dis_power = replay.ev_max_dis_power  # * self.dt
         ev_max_energy_at_departure = replay.max_energy_at_departure
@@ -56,17 +57,26 @@ class V2GProfitMax_Grid_OracleGB():
         energy_at_arrival = replay.energy_at_arrival
         ev_arrival = replay.ev_arrival
         t_dep = replay.t_dep
-        
-        # grid related 
-        active_power = replay.active_power[1:,:]
-        reactive_power = replay.reactive_power[1:,:]
+
+        # grid related
+        active_power = replay.active_power[1:, :]
+        reactive_power = replay.reactive_power[1:, :]
         K = replay.K
-        L = replay.L
+        L_const = replay.L
         s_base = replay.s_base
         self.n_b = self.n_transformers
-        
-        Vmin = 0.95
-        Vmax = 1.05
+
+        S_r = active_power.T
+        S_i = reactive_power.T / s_base
+        K_r = np.real(K)
+        K_i = np.imag(K)
+        W_r = np.real(L_const)  # constant offset, shape (n,)
+        W_i = np.imag(L_const)
+
+        V_min = 0.95
+        V_max = 1.05
+        penalty_low = 1.0
+        penalty_high = 1.0
 
         print(f'Number of buses: {self.n_b}')
         print(f'Number of charging stations: {self.n_cs}')
@@ -74,7 +84,7 @@ class V2GProfitMax_Grid_OracleGB():
         print(f'active_power: {active_power.shape}')
         print(f'reactive_power: {reactive_power.shape}')
         print(f'K: {K.shape}')
-        print(f'L: {L.shape}')
+        print(f'L: {L_const.shape}')
         print(f'cs transformes: {cs_transformer}')
         # create model
         print('Creating Gurobi model...')
@@ -83,9 +93,9 @@ class V2GProfitMax_Grid_OracleGB():
             self.m.setParam('OutputFlag', 1)
         else:
             self.m.setParam('OutputFlag', 0)
-            
+
         if MIPGap is not None:
-            self.m.setParam('MIPGap', MIPGap)            
+            self.m.setParam('MIPGap', MIPGap)
         if timelimit is not None:
             self.m.setParam('TimeLimit', timelimit)
 
@@ -95,7 +105,6 @@ class V2GProfitMax_Grid_OracleGB():
                                 self.sim_length,
                                 vtype=GRB.CONTINUOUS,
                                 name='energy')
-                
 
         current_ev_dis = self.m.addVars(self.number_of_ports_per_cs,
                                         self.n_cs,
@@ -168,7 +177,12 @@ class V2GProfitMax_Grid_OracleGB():
                                       self.sim_length,
                                       vtype=GRB.CONTINUOUS,
                                       name='power_tr_dis')
-        
+
+        total_power_per_bus = self.m.addVars(self.n_transformers,
+                                             self.sim_length,
+                                             vtype=GRB.CONTINUOUS,
+                                             name='power_tr_ch')
+
         user_satisfaction = self.m.addVars(self.number_of_ports_per_cs,
                                            self.n_cs,
                                            self.sim_length,
@@ -177,9 +191,8 @@ class V2GProfitMax_Grid_OracleGB():
 
         costs = self.m.addVar(vtype=GRB.CONTINUOUS,
                               name='total_soc')
-        
-        self.m.update() 
-        
+
+        self.m.update()
 
         for t in range(self.sim_length):
             for i in range(self.n_transformers):
@@ -198,7 +211,9 @@ class V2GProfitMax_Grid_OracleGB():
                                                                    for m in range(self.n_cs)
                                                                    if cs_transformer[m] == i),
                                  name=f'power_tr_dis.{i}.{t}')
-
+                
+                self.m.addConstr(total_power_per_bus[i, t] == (power_tr_ch[i, t] - power_tr_dis[i, t] + active_power[i, t])/s_base,
+                                 name=f'total_power_per_bus.{i}.{t}')
 
         costs = gp.quicksum(act_current_ev_ch[p, i, t] * voltages[i] * cs_ch_efficiency[i, t] * dt * charge_prices[i, t] +
                             act_current_ev_dis[p, i, t] * voltages[i] *
@@ -344,103 +359,137 @@ class V2GProfitMax_Grid_OracleGB():
                     if t_dep[p, i, t] == 1:
                         # self.m.addLConstr(energy[p, i, t] >= ev_max_energy_at_departure[p, i, t]-5,
                         #                   name=f'ev_departure_energy.{p}.{i}.{t}')
-                        
-                        self.m.addConstr(user_satisfaction[p, i, t] == \
-                            (ev_des_energy[p, i, t] - energy[p, i, t])**2,
-                            name=f'ev_user_satisfaction.{p}.{i}.{t}')
-        
-        
+
+                        self.m.addConstr(user_satisfaction[p, i, t] ==
+                                         (ev_des_energy[p, i, t] -
+                                          energy[p, i, t])**2,
+                                         name=f'ev_user_satisfaction.{p}.{i}.{t}')
+
         print('Adding grid constraints...')
-        
-        # For clarity, we define:
-        B = range(self.n_b)        # set of buses
-        T = range(self.sim_length)   # set of time steps
-        CS = range(self.n_cs)        # set of charging stations
 
-        # Precompute constant terms for each bus b and time t based on the Q injections.
-        # For each bus b, for time t:
-        #   const_R[b,t] = W[b].real + sum_{j in B} K[b,j].imag * Q_param[j,t]
-        #   const_I[b,t] = W[b].imag - sum_{j in B} K[b,j].real * Q_param[j,t]
-        const_R = {}
-        const_I = {}
-        for b in B:
-            const_R[b] = {}
-            const_I[b] = {}
-            for t in T:
-                const_R[b][t] = 1 + sum(K[b, j].imag * reactive_power[j, t] for j in B)
-                const_I[b][t] = 0 - sum(K[b, j].real * reactive_power[j, t] for j in B)
+        # Create indices: iterations 0...num_iter, timesteps t, buses j.
+        num_iter = 3
+        iters = range(num_iter + 1)
+        timesteps = range(self.sim_length)
+        buses = range(self.n_b)
 
-        # Create voltage-related variables for each bus b and time t.
-        # t_v[b,t] represents the voltage magnitude.
-        # s_low[b,t] and s_high[b,t] are slack variables for under- and over-voltage violations.
-        t_v = self.m.addVars(self.n_b, self.sim_length, lb=0.0, name="t_v")
-        s_low = self.m.addVars(self.n_b, self.sim_length, lb=0.0, name="s_low")
-        s_high = self.m.addVars(self.n_b, self.sim_length, lb=0.0, name="s_high")
+        # Voltage variables for each iteration, timestep, and bus.
+        v_r = self.m.addVars(iters, timesteps, buses, name="v_r")
+        v_i = self.m.addVars(iters, timesteps, buses, name="v_i")
 
-        # Build expressions for the real and imaginary parts of voltage at each bus b and time t.
-        # First, we need the net active injection at each bus b at time t.
-        # For each bus b and time t, sum over all CS connected to b:
-        P_inj_expr = {}  # dictionary keyed by (b, t)
-        for b in B:
-            for t in T:
-                expr = gp.LinExpr(0.0)
-                # Sum over all charging stations cs that are mapped to bus b.
-                for cs in CS:
-                    if cs_transformer[cs] == b:
-                        # Retrieve the decision variables defined for CS: 
-                        #   "power_cs_ch[cs,t]" and "power_cs_dis[cs,t]"
-                        Pch = self.m.getVarByName(f"power_cs_ch[{cs},{t}]")
-                        Pdis = self.m.getVarByName(f"power_cs_dis[{cs},{t}]")
-                        # Net active injection from this CS is (Pch - Pdis)
-                        expr.addTerms(1.0, Pch)
-                        expr.addTerms(-1.0, Pdis)
-                P_inj_expr[(b, t)] = expr
+        # Auxiliary variables for L (load update) and Z (matrix product) for iterations 1..num_iter.
+        L_r_vars = self.m.addVars(
+            range(1, num_iter+1), timesteps, buses, lb=-GRB.INFINITY, name="L_r")
+        L_i_vars = self.m.addVars(
+            range(1, num_iter+1), timesteps, buses, lb=-GRB.INFINITY, name="L_i")
+        Z_r = self.m.addVars(range(1, num_iter+1), timesteps,
+                             buses, lb=-GRB.INFINITY, name="Z_r")
+        Z_i = self.m.addVars(range(1, num_iter+1), timesteps,
+                             buses, lb=-GRB.INFINITY, name="Z_i")
 
-        print('Adding grid constraints 2...')
-        # Now, for each bus b and time t, build the linear expressions for the real and imaginary parts:
-        R_expr = {}  # Expression for the real component of voltage at bus b, time t.
-        I_expr = {}  # Expression for the imaginary component.
-        for b in B:
-            for t in T:
-                expr_R = gp.LinExpr(const_R[b][t])
-                expr_I = gp.LinExpr(const_I[b][t])
-                # Sum over buses j for the contribution from net active injections.
-                for j in B:
-                    # Retrieve the net injection at bus j at time t.
-                    # (P_inj_expr[(j,t)] was built above.)
-                    # expr_R.addTerms(K[b, j].real, P_inj_expr[(j, t)])
-                    # expr_I.addTerms(K[b, j].imag, P_inj_expr[(j, t)])
-                    expr_R += K[b, j].real * P_inj_expr[(j, t)]
-                    expr_I += K[b, j].imag * P_inj_expr[(j, t)]
-                    
-                R_expr[(b, t)] = expr_R
-                I_expr[(b, t)] = expr_I
-                
-                # Add a quadratic (SOC) constraint to link the computed voltage components to the magnitude.
-                # (R_expr)^2 + (I_expr)^2 <= t_v[b,t]^2.
-                self.m.addQConstr(expr_R * expr_R + expr_I * expr_I <= t_v[b, t] * t_v[b, t],
-                                name=f"volt_soc_{b}_{t}")
-                                
-                # Enforce voltage limits with slack variables:
-                # t_v[b,t] + s_low[b,t] >= Vmin, and t_v[b,t] - s_high[b,t] <= Vmax.
-                self.m.addConstr(t_v[b, t] + s_low[b, t] >= Vmin, name=f"volt_min_{b}_{t}")
-                self.m.addConstr(t_v[b, t] - s_high[b, t] <= Vmax, name=f"volt_max_{b}_{t}")
+        # Final voltage magnitudes.
+        m_vars = self.m.addVars(timesteps, buses, lb=0.0, name="m")
 
-        # Incorporate the voltage slack penalty into the overall objective.
-        # Assume "costs" (or a similar profit measure) is already defined in your model.
-        # We add a term that penalizes the total voltage violation:
-        voltage_slack = gp.quicksum(s_low[b, t] + s_high[b, t] for b in B for t in T)
-                                
+        # ----- SLACK VARIABLES FOR VOLTAGE LIMITS -----
+        slack_low = self.m.addVars(timesteps, buses, lb=0.0, name="slack_low")
+        slack_high = self.m.addVars(
+            timesteps, buses, lb=0.0, name="slack_high")
 
-        self.m.setObjective(costs + 100 * - 10 * user_satisfaction.sum() + voltage_slack,
+        # ----- Auxiliary variable for squared voltage magnitude -----
+        # d[it, t, j] represents v_r[it-1,t,j]^2 + v_i[it-1,t,j]^2 for it>=1.
+        d = self.m.addVars(range(1, num_iter+1), timesteps,
+                           buses, lb=0.0, name="d")
+
+        # ----- INITIAL CONDITIONS (iteration 0) -----
+        for t in timesteps:
+            for j in buses:
+                self.m.addConstr(v_r[0, t, j] == 1.0,
+                                 name=f"init_vr_t{t}_j{j}")
+                self.m.addConstr(v_i[0, t, j] == 0.0,
+                                 name=f"init_vi_t{t}_j{j}")
+
+        # ----- Unroll the iterative update for iterations 1 to num_iter -----
+        for it in range(1, num_iter+1):
+            for t in timesteps:
+                for j in buses:
+                    # Define auxiliary variable d = v_r[it-1]^2 + v_i[it-1]^2.
+                    self.m.addQConstr(d[it, t, j] == v_r[it-1, t, j]*v_r[it-1, t, j] + v_i[it-1, t, j]*v_i[it-1, t, j],
+                                      name=f"d_def_it{it}_t{t}_j{j}")
+                    # Enforce the load update using d:
+                    self.m.addQConstr(d[it, t, j] * L_r_vars[it, t, j] ==
+                                      total_power_per_bus[j,t]*v_r[it-1, t, j] +
+                                      S_i[t, j]*v_i[it-1, t, j],
+                                      name=f"load_update_real_it{it}_t{t}_j{j}")
+                    self.m.addQConstr(d[it, t, j] * L_i_vars[it, t, j] ==
+                                      -(S_i[t, j]*v_r[it-1, t, j] -
+                                        total_power_per_bus[j,t]*v_i[it-1, t, j]),
+                                      name=f"load_update_imag_it{it}_t{t}_j{j}")
+            # Compute the matrix multiplication Z = K @ L for each timestep and bus.
+            for t in timesteps:
+                for j in buses:
+                    Zr_expr = gp.LinExpr()
+                    Zi_expr = gp.LinExpr()
+                    for m in buses:
+                        Zr_expr += K_r[j, m] * L_r_vars[it, t,
+                                                        m] - K_i[j, m] * L_i_vars[it, t, m]
+                        Zi_expr += K_r[j, m] * L_i_vars[it, t,
+                                                        m] + K_i[j, m] * L_r_vars[it, t, m]
+                    self.m.addConstr(Z_r[it, t, j] == Zr_expr,
+                                     name=f"Zr_it{it}_t{t}_j{j}")
+                    self.m.addConstr(Z_i[it, t, j] == Zi_expr,
+                                     name=f"Zi_it{it}_t{t}_j{j}")
+                    # Update voltage: v[it] = Z + W.
+                    self.m.addConstr(v_r[it, t, j] == Z_r[it, t, j] + W_r[j],
+                                     name=f"v_r_update_it{it}_t{t}_j{j}")
+                    self.m.addConstr(v_i[it, t, j] == Z_i[it, t, j] + W_i[j],
+                                     name=f"v_i_update_it{it}_t{t}_j{j}")
+
+        # ----- Final Voltage Magnitude Constraints -----
+        for t in timesteps:
+            for j in buses:
+                self.m.addQConstr(m_vars[t, j]*m_vars[t, j] ==
+                                  v_r[num_iter, t, j]*v_r[num_iter, t, j] +
+                                  v_i[num_iter, t, j]*v_i[num_iter, t, j],
+                                  name=f"mag_def_t{t}_j{j}")
+
+        # ----- Voltage Limit Constraints with Slack -----
+        for t in timesteps:
+            for j in buses:
+                self.m.addConstr(
+                    m_vars[t, j] + slack_low[t, j] >= V_min, name=f"volt_low_t{t}_j{j}")
+                self.m.addConstr(
+                    m_vars[t, j] - slack_high[t, j] <= V_max, name=f"volt_high_t{t}_j{j}")
+
+        # ----- Set Objective: Minimize Penalty on Voltage Limit Violations -----
+        # The objective is to minimize the total weighted slack across all timesteps and buses.
+        voltage_slack = gp.QuadExpr()
+        for t in timesteps:
+            for j in buses:
+                voltage_slack.add(
+                    penalty_low * slack_low[t, j] + penalty_high * slack_high[t, j])
+
+        # self.m.setObjective(costs + 100 * - 10 * user_satisfaction.sum() + voltage_slack,
+        #                     GRB.MAXIMIZE)
+
+        self.m.setObjective(voltage_slack + costs,
                             GRB.MAXIMIZE)
 
         # print constraints
-        # self.m.write("model.lp")
+        self.m.write("model.lp")
         print(f'Optimizing...')
         self.m.params.NonConvex = 2
 
+        # self.m.feasRelax(0, False)
         self.m.optimize()
+
+        if self.m.status == GRB.INFEASIBLE:
+            self.m.computeIIS()
+            self.m.write("model.ilp")
+        else:
+            print("Model is feasible; no IIS to compute.")
+
+        # self.m.computeIIS()
+        # self.m.write("model.ilp")
 
         self.act_current_ev_ch = act_current_ev_ch
         self.act_current_ev_dis = act_current_ev_dis
@@ -484,8 +533,7 @@ class V2GProfitMax_Grid_OracleGB():
 
 
 if __name__ == '__main__':
-    
-    
+
     # # ---------------------------
     # # Data (example placeholders)
     # # ---------------------------
@@ -601,5 +649,5 @@ if __name__ == '__main__':
     #         print(f"Bus {i}: {t_opt[i]:.4f} (s_low: {slack_low[i]:.4f}, s_high: {slack_high[i]:.4f})")
     # else:
     #     print("No optimal solution found.")
-    
+
     pass

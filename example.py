@@ -169,8 +169,9 @@ def eval():
 
     print(results_df.describe())
     
+    new_replay_path = f"replay/replay_{env.sim_name}.pkl"
     
-    solver = V2GProfitMax_Grid_OracleGB(replay_path=replay_path)
+    solver = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
 
     
     return
