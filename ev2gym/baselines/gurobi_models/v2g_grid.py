@@ -86,7 +86,7 @@ class V2GProfitMax_Grid_OracleGB():
         print(f'K: {K.shape}')
         print(f'L: {L_const.shape}')
         print(f'cs transformes: {cs_transformer}')
-        # create model
+        print(f'sbase: {s_base}')
         print('Creating Gurobi model...')
         self.m = gp.Model("ev_city")
         if verbose:
@@ -130,11 +130,15 @@ class V2GProfitMax_Grid_OracleGB():
 
         current_cs_ch = self.m.addVars(self.n_cs,
                                        self.sim_length,
+                                       ub=32,
+                                       lb=0,
                                        vtype=GRB.CONTINUOUS,
                                        name='current_cs_ch')
 
         current_cs_dis = self.m.addVars(self.n_cs,
                                         self.sim_length,
+                                        # ub=32,
+                                        # lb=0,
                                         vtype=GRB.CONTINUOUS,
                                         name='current_cs_dis')
 
@@ -149,39 +153,48 @@ class V2GProfitMax_Grid_OracleGB():
                                    vtype=GRB.BINARY,
                                    name='omega_dis')
 
-        current_tr_ch = self.m.addVars(self.n_transformers,
-                                       self.sim_length,
-                                       vtype=GRB.CONTINUOUS,
-                                       name='current_tr_ch')
-        current_tr_dis = self.m.addVars(self.n_transformers,
-                                        self.sim_length,
-                                        vtype=GRB.CONTINUOUS,
-                                        name='current_tr_dis')
+        # current_tr_ch = self.m.addVars(self.n_transformers,
+        #                                self.sim_length,
+        #                                vtype=GRB.CONTINUOUS,
+        #                                name='current_tr_ch')
+        # current_tr_dis = self.m.addVars(self.n_transformers,
+        #                                 self.sim_length,
+        #                                 vtype=GRB.CONTINUOUS,
+        #                                 name='current_tr_dis')
 
         power_cs_ch = self.m.addVars(self.n_cs,
                                      self.sim_length,
+                                     ub=22,
+                                     lb=0,
+                                     
                                      vtype=GRB.CONTINUOUS,
                                      name='power_cs_ch')
 
         power_cs_dis = self.m.addVars(self.n_cs,
                                       self.sim_length,
+                                      ub=22,
+                                      lb=0,
                                       vtype=GRB.CONTINUOUS,
                                       name='power_cs_dis')
 
         power_tr_ch = self.m.addVars(self.n_transformers,
                                      self.sim_length,
+                                     lb=0,
                                      vtype=GRB.CONTINUOUS,
                                      name='power_tr_ch')
 
         power_tr_dis = self.m.addVars(self.n_transformers,
                                       self.sim_length,
+                                      lb=0,
                                       vtype=GRB.CONTINUOUS,
                                       name='power_tr_dis')
 
         total_power_per_bus = self.m.addVars(self.n_transformers,
                                              self.sim_length,
+                                             lb=-100,
+                                             ub=100,
                                              vtype=GRB.CONTINUOUS,
-                                             name='power_tr_ch')
+                                             name='total_power_per_bus')
 
         user_satisfaction = self.m.addVars(self.number_of_ports_per_cs,
                                            self.n_cs,
@@ -196,24 +209,22 @@ class V2GProfitMax_Grid_OracleGB():
 
         for t in range(self.sim_length):
             for i in range(self.n_transformers):
-                self.m.addConstr(current_tr_ch[i, t] == gp.quicksum(current_cs_ch[m, t]
-                                                                    for m in range(self.n_cs)
-                                                                    if cs_transformer[m] == i))
-                self.m.addConstr(current_tr_dis[i, t] == gp.quicksum(current_cs_dis[m, t]
-                                                                     for m in range(self.n_cs)
-                                                                     if cs_transformer[m] == i))
+                # self.m.addConstr(current_tr_ch[i, t] == gp.quicksum(current_cs_ch[m, t]
+                #                                                     for m in range(self.n_cs)
+                #                                                     if cs_transformer[m] == i))
+                # self.m.addConstr(current_tr_dis[i, t] == gp.quicksum(current_cs_dis[m, t]
+                #                                                      for m in range(self.n_cs)
+                #                                                      if cs_transformer[m] == i))
 
                 self.m.addConstr(power_tr_ch[i, t] == gp.quicksum(power_cs_ch[m, t]
                                                                   for m in range(self.n_cs)
                                                                   if cs_transformer[m] == i),
                                  name=f'power_tr_ch.{i}.{t}')
+
                 self.m.addConstr(power_tr_dis[i, t] == gp.quicksum(power_cs_dis[m, t]
                                                                    for m in range(self.n_cs)
                                                                    if cs_transformer[m] == i),
                                  name=f'power_tr_dis.{i}.{t}')
-                
-                self.m.addConstr(total_power_per_bus[i, t] == (power_tr_ch[i, t] - power_tr_dis[i, t] + active_power[i, t])/s_base,
-                                 name=f'total_power_per_bus.{i}.{t}')
 
         costs = gp.quicksum(act_current_ev_ch[p, i, t] * voltages[i] * cs_ch_efficiency[i, t] * dt * charge_prices[i, t] +
                             act_current_ev_dis[p, i, t] * voltages[i] *
@@ -230,13 +241,10 @@ class V2GProfitMax_Grid_OracleGB():
                           for i in range(self.n_cs)
                           for t in range(self.sim_length))
 
-        # transformer current output constraint (circuit breaker)
-        self.m.addConstrs((current_tr_ch[i, t] - current_tr_dis[i, t] <= tra_max_amps[i, t]
+        self.m.addConstrs((total_power_per_bus[i, t] == (power_tr_ch[i, t]/s_base - power_tr_dis[i, t]/s_base + active_power[i, t]/s_base)
                            for i in range(self.n_transformers)
-                           for t in range(self.sim_length)), name='tr_current_limit_max')
-        self.m.addConstrs((current_tr_ch[i, t] - current_tr_dis[i, t] >= tra_min_amps[i, t]
-                           for i in range(self.n_transformers)
-                           for t in range(self.sim_length)), name='tr_current_limit_min')
+                           for t in range(self.sim_length)),
+                          name='power_per_bus_const')
 
         # charging station total current output (sum of ports) constraint
         self.m.addConstrs((current_cs_ch[i, t] == act_current_ev_ch.sum('*', i, t)
@@ -377,30 +385,41 @@ class V2GProfitMax_Grid_OracleGB():
         v_r = self.m.addVars(iters, timesteps, buses, name="v_r")
         v_i = self.m.addVars(iters, timesteps, buses, name="v_i")
 
-        # Auxiliary variables for L (load update) and Z (matrix product) for iterations 1..num_iter.
+        # # Auxiliary variables for L (load update) and Z (matrix product) for iterations 1..num_iter.
         L_r_vars = self.m.addVars(
-            range(1, num_iter+1), timesteps, buses, lb=-GRB.INFINITY, name="L_r")
+            range(1, num_iter+1), timesteps, buses,
+            lb=-GRB.INFINITY,
+            name="L_r")
         L_i_vars = self.m.addVars(
-            range(1, num_iter+1), timesteps, buses, lb=-GRB.INFINITY, name="L_i")
+            range(1, num_iter+1),
+            timesteps, buses,
+            lb=-GRB.INFINITY,
+            name="L_i")
         Z_r = self.m.addVars(range(1, num_iter+1), timesteps,
-                             buses, lb=-GRB.INFINITY, name="Z_r")
+                             buses,
+                             lb=-GRB.INFINITY,
+                             name="Z_r")
         Z_i = self.m.addVars(range(1, num_iter+1), timesteps,
-                             buses, lb=-GRB.INFINITY, name="Z_i")
+                             buses,
+                             lb=-GRB.INFINITY,
+                             name="Z_i")
 
-        # Final voltage magnitudes.
+        # # Final voltage magnitudes.
         m_vars = self.m.addVars(timesteps, buses, lb=0.0, name="m")
 
-        # ----- SLACK VARIABLES FOR VOLTAGE LIMITS -----
+        # # ----- SLACK VARIABLES FOR VOLTAGE LIMITS -----
         slack_low = self.m.addVars(timesteps, buses, lb=0.0, name="slack_low")
         slack_high = self.m.addVars(
             timesteps, buses, lb=0.0, name="slack_high")
 
-        # ----- Auxiliary variable for squared voltage magnitude -----
+        # # ----- Auxiliary variable for squared voltage magnitude -----
         # d[it, t, j] represents v_r[it-1,t,j]^2 + v_i[it-1,t,j]^2 for it>=1.
-        d = self.m.addVars(range(1, num_iter+1), timesteps,
-                           buses, lb=0.0, name="d")
+        d = self.m.addVars(range(1, num_iter+1),
+                           timesteps,
+                           buses,
+                           lb=0.0, name="d")
 
-        # ----- INITIAL CONDITIONS (iteration 0) -----
+        # # ----- INITIAL CONDITIONS (iteration 0) -----
         for t in timesteps:
             for j in buses:
                 self.m.addConstr(v_r[0, t, j] == 1.0,
@@ -408,7 +427,7 @@ class V2GProfitMax_Grid_OracleGB():
                 self.m.addConstr(v_i[0, t, j] == 0.0,
                                  name=f"init_vi_t{t}_j{j}")
 
-        # ----- Unroll the iterative update for iterations 1 to num_iter -----
+        # # ----- Unroll the iterative update for iterations 1 to num_iter -----
         for it in range(1, num_iter+1):
             for t in timesteps:
                 for j in buses:
@@ -417,13 +436,14 @@ class V2GProfitMax_Grid_OracleGB():
                                       name=f"d_def_it{it}_t{t}_j{j}")
                     # Enforce the load update using d:
                     self.m.addQConstr(d[it, t, j] * L_r_vars[it, t, j] ==
-                                      total_power_per_bus[j,t]*v_r[it-1, t, j] +
+                                      total_power_per_bus[j, t]*v_r[it-1, t, j] +
                                       S_i[t, j]*v_i[it-1, t, j],
                                       name=f"load_update_real_it{it}_t{t}_j{j}")
                     self.m.addQConstr(d[it, t, j] * L_i_vars[it, t, j] ==
                                       -(S_i[t, j]*v_r[it-1, t, j] -
-                                        total_power_per_bus[j,t]*v_i[it-1, t, j]),
+                                        total_power_per_bus[j, t]*v_i[it-1, t, j]),
                                       name=f"load_update_imag_it{it}_t{t}_j{j}")
+
             # Compute the matrix multiplication Z = K @ L for each timestep and bus.
             for t in timesteps:
                 for j in buses:
@@ -438,6 +458,7 @@ class V2GProfitMax_Grid_OracleGB():
                                      name=f"Zr_it{it}_t{t}_j{j}")
                     self.m.addConstr(Z_i[it, t, j] == Zi_expr,
                                      name=f"Zi_it{it}_t{t}_j{j}")
+
                     # Update voltage: v[it] = Z + W.
                     self.m.addConstr(v_r[it, t, j] == Z_r[it, t, j] + W_r[j],
                                      name=f"v_r_update_it{it}_t{t}_j{j}")
@@ -471,13 +492,20 @@ class V2GProfitMax_Grid_OracleGB():
         # self.m.setObjective(costs + 100 * - 10 * user_satisfaction.sum() + voltage_slack,
         #                     GRB.MAXIMIZE)
 
-        self.m.setObjective(voltage_slack + costs,
-                            GRB.MAXIMIZE)
+        self.m.setObjective(1000*voltage_slack,# +10 * - 10 * user_satisfaction.sum(),
+                            GRB.MINIMIZE)
+        # self.m.setObjective(gp.quicksum(total_power_per_bus[i, t]
+        #                                 for i in range(
+        #     self.n_transformers)
+        #     for t in range(self.sim_length)), GRB.MAXIMIZE)
 
         # print constraints
         self.m.write("model.lp")
         print(f'Optimizing...')
         self.m.params.NonConvex = 2
+
+        # disable presolve
+        self.m.params.Presolve = 0
 
         # self.m.feasRelax(0, False)
         self.m.optimize()
@@ -487,6 +515,8 @@ class V2GProfitMax_Grid_OracleGB():
             self.m.write("model.ilp")
         else:
             print("Model is feasible; no IIS to compute.")
+
+        print(f'model status: {self.m.status}')
 
         # self.m.computeIIS()
         # self.m.write("model.ilp")

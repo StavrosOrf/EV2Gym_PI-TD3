@@ -142,3 +142,55 @@ class ReplayBuffer(object):
             torch.FloatTensor(self.action[ind]).to(self.device),
         )
 
+class Trajectory_ReplayBuffer(object):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 max_episode_length,
+                 max_size=int(1e5)):
+        
+        self.max_size = max_size
+        self.ptr = 0
+        self.size = 0
+        self.max_length = max_episode_length
+
+        self.state = torch.zeros((max_size, max_episode_length, state_dim))
+        self.action = torch.zeros((max_size, max_episode_length, action_dim))
+
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
+
+    def add(self, state, action):
+        self.state[self.ptr, :, :] = state
+        self.action[self.ptr, :, :] = action
+
+        self.ptr = (self.ptr + 1) % self.max_size
+        self.size = min(self.size + 1, self.max_size)
+
+    # Example of the sample method in utils.py
+    def sample(self, batch_size, sequence_length):
+        ind = np.random.randint(0, self.size, size=batch_size)
+        start = np.random.randint(
+            0, self.max_length - sequence_length, size=batch_size)
+        end = start + sequence_length
+
+        # Ensure ind, start, and end are integers
+        ind = ind.astype(int)
+        start = start.astype(int)
+        end = end.astype(int)
+
+        # Sample states and actions
+        states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
+        actions = torch.FloatTensor(self.action[ind, :, :]).to(self.device)
+        next_states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
+
+        states = [states[i, start[i]:end[i], :] for i in range(batch_size)]
+        next_states = [next_states[i, start[i]:end[i], :]
+                       for i in range(batch_size)]
+        actions = [actions[i, start[i]:end[i], :] for i in range(batch_size)]
+
+        states = torch.stack(states)
+        next_states = torch.stack(next_states)
+        actions = torch.stack(actions)
+
+        return states, actions, next_states

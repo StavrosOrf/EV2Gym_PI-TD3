@@ -25,7 +25,7 @@ def eval():
     """
 
     replay_path = "./replay/replay_sim_2025_02_24_434484.pkl"
-    
+
     replay_path = None
 
     config_file = "./config_files/v2g_grid_150.yaml"
@@ -113,9 +113,9 @@ def eval():
             total_timer += time.time() - timer
 
             v = loss_fn.voltage_real_operations(state=torch.tensor(state, device=device).reshape(1, -1),
-                                                  action=torch.tensor(
-                                                      actions, device=device).reshape(1, -1),
-                                                  )
+                                                action=torch.tensor(
+                actions, device=device).reshape(1, -1),
+            )
             v_m = env.node_voltage[1:, t]
             v = v.cpu().detach().numpy().reshape(-1)
             # # print(f'\n \n')
@@ -168,24 +168,26 @@ def eval():
                 f' Succesful runs: {succesful_runs} Failed runs: {failed_runs}')
 
     print(results_df.describe())
-    
-    new_replay_path = f"replay/replay_{env.sim_name}.pkl"
-    
-    solver = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
 
-    
-    return
-    # Solve optimally
-    # Power tracker optimizer
-    agent = PowerTrackingErrorrMin(replay_path=new_replay_path)
+    new_replay_path = f"replay/replay_{env.sim_name}.pkl"
+    return new_replay_path
+
+
+def evaluate_optimal(new_replay_path):
+
+    agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
+
     # # Profit maximization optimizer
     # agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
     # # Simulate in the gym environment and get the rewards
+    config_file = "./config_files/v2g_grid_3.yaml"
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=new_replay_path,
                  verbose=False,
                  save_plots=True,
+                 state_function=V2G_grid_state_ModelBasedRL,
+                 reward_function=V2G_grid_simple_reward,
                  )
     state, _ = env.reset()
     rewards_opt = []
@@ -209,4 +211,8 @@ def eval():
 
 if __name__ == "__main__":
     # while True:
-    eval()
+        new_replay_path = eval()
+        # new_replay_path = f'./replay/replay_sim_2025_02_24_968597.pkl'
+        # new_replay_path = f'./replay/replay_sim_2025_02_24_430760.pkl'
+        # new_replay_path = "./replay/replay_sim_2025_02_24_865151.pkl"
+        evaluate_optimal(new_replay_path)

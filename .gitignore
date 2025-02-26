@@ -171,3 +171,4 @@ logs/
 eval_logs/
 saved_models/
 eval_models/
+model.ilp
