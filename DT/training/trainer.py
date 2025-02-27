@@ -7,12 +7,13 @@ import time
 
 class Trainer:
 
-    def __init__(self, model, optimizer, batch_size, get_batch, loss_fn, scheduler=None, eval_fns=None):
+    def __init__(self, model, optimizer, batch_size, get_batch, loss_fn, transition_fn=None, scheduler=None, eval_fns=None):
         self.model = model
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.get_batch = get_batch
         self.loss_fn = loss_fn
+        self.transition_fn = transition_fn
         self.scheduler = scheduler
         self.eval_fns = [] if eval_fns is None else eval_fns
         self.diagnostics = dict()

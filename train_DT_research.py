@@ -16,6 +16,7 @@ from DT.models.decision_transformer import DecisionTransformer
 from DT.models.mlp_bc import MLPBCModel
 from DT.training.act_trainer import ActTrainer
 from DT.training.seq_trainer import SequenceTrainer
+from DT.training.traj_trainer import TrajectoryTrainer
 
 from ev2gym.models.ev2gym_env import EV2Gym
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
@@ -161,6 +162,14 @@ def experiment(vars):
     print('=' * 50)
 
     K = vars['K']
+
+    if vars['trajectory_trainer']:
+        DT_K = K//2
+        assert K % 2 == 0, 'K must be even for trajectory trainer'
+
+    else:
+        DT_K = K
+
     batch_size = vars['batch_size']
     num_eval_episodes = vars['num_eval_episodes']
     pct_traj = vars.get('pct_traj', 1.)
@@ -295,7 +304,7 @@ def experiment(vars):
         model = DecisionTransformer(
             state_dim=state_dim,
             act_dim=act_dim,
-            max_length=K,
+            max_length=DT_K,
             max_ep_len=max_ep_len,
             hidden_size=vars['embed_dim'],
             n_layer=vars['n_layer'],
@@ -371,15 +380,54 @@ def experiment(vars):
             return torch.mean((a_hat - a)**2)
 
     if model_type == 'dt':
-        trainer = SequenceTrainer(
-            model=model,
-            optimizer=optimizer,
-            batch_size=batch_size,
-            get_batch=get_batch,
-            scheduler=scheduler,
-            loss_fn=loss_fn,
-            eval_fns=[eval_episodes(tar) for tar in env_targets],
-        )
+
+        if vars['trajectory_trainer']:
+
+            gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
+                              kwargs={'config_file': config_path,
+                                      'generate_rnd_game': True,
+                                      'reward_function': reward_function,
+                                      'state_function': state_function,
+                                      })
+            env = gym.make('evs-v1')
+
+            physics_loss_fn = VoltageViolationLoss(K=env.get_wrapper_attr('grid').net._K_,
+                                                   L=env.get_wrapper_attr(
+                'grid').net._L_,
+                s_base=env.get_wrapper_attr(
+                'grid').net.s_base,
+                num_buses=env.get_wrapper_attr(
+                'grid').net.nb,
+                device=device,
+                verbose=False,
+            )
+
+            transition_fn = V2G_Grid_StateTransition(verbose=False,
+                                                     device=device,
+                                                     num_buses=env.get_wrapper_attr(
+                                                         'grid').net.nb,
+                                                     )
+
+            trainer = TrajectoryTrainer(
+                model=model,
+                optimizer=optimizer,
+                batch_size=batch_size,
+                get_batch=get_batch,
+                scheduler=scheduler,
+                loss_fn=physics_loss_fn,
+                eval_fns=[eval_episodes(tar) for tar in env_targets],
+                transition_fn=transition_fn,                
+            )
+        else:
+            trainer = SequenceTrainer(
+                model=model,
+                optimizer=optimizer,
+                batch_size=batch_size,
+                get_batch=get_batch,
+                scheduler=scheduler,
+                loss_fn=loss_fn,
+                eval_fns=[eval_episodes(tar) for tar in env_targets],
+            )
     elif model_type == 'bc':
         # raise ValueError
         trainer = ActTrainer(
@@ -412,7 +460,9 @@ def experiment(vars):
 
     for iter in range(vars['max_iters']):
         outputs = trainer.train_iteration(
-            num_steps=num_steps_per_iter, iter_num=iter+1, print_logs=True)
+            num_steps=num_steps_per_iter,
+            iter_num=iter+1,
+            print_logs=True)
 
         if outputs['test/total_reward'] > best_reward:
             best_reward = outputs['test/total_reward']
@@ -444,9 +494,9 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='random_1000')
     # normal for standard setting, delayed for sparse
     parser.add_argument('--mode', type=str, default='normal')
-    parser.add_argument('--K', type=int, default=3)
+    parser.add_argument('--K', type=int, default=4)
     parser.add_argument('--pct_traj', type=float, default=1.)
-    parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--batch_size', type=int, default=3)
     # dt for decision transformer, bc for behavior cloning
     parser.add_argument('--model_type', type=str,
                         default='dt')  # dt, gnn_dt, gnn_in_out_dt, bc, gnn_act_emb
@@ -482,7 +532,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_act_gcn_layers', type=int, default=3)
 
     # GNN DT
-    parser.add_argument('--physics_loss_weight', type=float, default=0.1)
+    parser.add_argument('--physics_loss_weight', type=float, default=0)
+    parser.add_argument('--trajectory_trainer', type=bool, default=True)
 
     args = parser.parse_args()
 
