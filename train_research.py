@@ -62,6 +62,8 @@ def eval_policy(policy,
                 ):
 
     eval_episodes = len(eval_config['eval_replays'])
+    
+    policy.actor.eval()
 
     avg_reward = 0.
     stats_list = []
@@ -165,8 +167,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_head', type=int, default=1)
     
     parser.add_argument('--activation_function', type=str, default='relu')
-    parser.add_argument('--dropout', type=float, default=0.1)
-    parser.add_argument('--lr', type=float, default=3e-4)
+
 
     # SAC parameters #############################################
     parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
@@ -200,6 +201,8 @@ if __name__ == "__main__":
     parser.add_argument('--ph_coeff', type=float, default=10e-5)
     
     parser.add_argument('--K', type=int, default=6)
+    parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--lr', type=float, default=3e-4)
 
     scale = 1
     args = parser.parse_args()
@@ -462,6 +465,8 @@ if __name__ == "__main__":
         kwargs['ph_coeff'] = args.ph_coeff        
         kwargs['transition_fn'] = transition_fn
         kwargs['sequence_length'] = args.K
+        kwargs['lr'] = args.lr
+        kwargs['dropout'] = args.dropout
 
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
@@ -649,10 +654,13 @@ if __name__ == "__main__":
                     replay_buffer, args.batch_size)
 
                 if args.log_to_wandb:
+                    
+                    # log all loss_dict keys, but add train/ in front of their name
+                    for key in loss_dict.keys():
+                        wandb.log({f'train/{key}': loss_dict[key]},
+                                  step=t)
                     wandb.log({
-                        # 'train/critic_loss': loss_dict['critic_loss'],
-                        #        'train/actor_loss': loss_dict['actor_loss'],
-                               'train/physics_loss': loss_dict['physics_loss'],
+                            #    'train/physics_loss': loss_dict['physics_loss'],
                                'train/time': time.time() - start_time, },
                               step=t)
 
