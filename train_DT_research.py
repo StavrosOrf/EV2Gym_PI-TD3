@@ -21,6 +21,7 @@ from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 
+
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)
     discount_cumsum[-1] = x[-1]
@@ -30,7 +31,7 @@ def discount_cumsum(x, gamma):
 
 
 def experiment(vars):
-    
+
     # device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     device = torch.device(vars['device'])
     print(f"Device: {device}")
@@ -79,52 +80,11 @@ def experiment(vars):
         f'Observation space: {env.observation_space.shape[0]}, action space: {env.action_space.shape[0]}')
 
     # load dataset
-    if dataset == 'random_100':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_random_25_100.pkl.gz'
-    elif dataset == 'random_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_random_25_1000.pkl.gz'
-    elif dataset == 'random_10000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_random_25_10000.pkl.gz'
-        
-    elif dataset == 'optimal_100':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_optimal_25_100.pkl.gz'
-    elif dataset == 'optimal_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_optimal_25_1000.pkl.gz'
-    elif dataset == 'optimal_10000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_optimal_25_10000.pkl.gz'
-        
-    elif dataset == 'bau_100':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_bau_25_100.pkl.gz'
-    elif dataset == 'bau_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_bau_25_1000.pkl.gz'
-    elif dataset == 'bau_10000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_bau_25_10000.pkl.gz'
-        
-    elif dataset == 'bau_25_1000':    
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_mixed_bau_25_25_1000.pkl.gz'
-    elif dataset == 'bau_50_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_mixed_bau_50_25_1000.pkl.gz'
-    elif dataset == 'bau_75_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_mixed_bau_75_25_1000.pkl.gz'
-        
-    elif dataset == 'optimal_25_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_mixed_opt_25_25_1000.pkl.gz'
-    elif dataset == 'optimal_50_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_mixed_opt_50_25_1000.pkl.gz'
-    elif dataset == 'optimal_75_1000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_25_mixed_opt_75_25_1000.pkl.gz'
-    
-    elif dataset == 'optimal_250_3000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_250_optimal_250_3000.pkl.gz'
-    elif dataset == 'random_250_3000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_250_random_250_3000.pkl.gz'
-    elif dataset == 'bau_250_3000':
-        dataset_path = 'trajectories/PST_V2G_ProfixMax_250_bau_250_3000.pkl.gz'
-    
+    if dataset == 'random_1000':
+        dataset_path = 'trajectories/v2g_grid_150_random_150_1000.pkl.gz'
     else:
         raise NotImplementedError("Dataset not found")
 
-    
     max_ep_len = steps
     g_name = vars['group_name']
 
@@ -146,7 +106,7 @@ def experiment(vars):
     else:
         with open(dataset_path, 'rb') as f:
             trajectories = pickle.load(f)
-    
+
     # save all path information into separate lists
     mode = vars.get('mode', 'normal')
     states, traj_lens, returns = [], [], []
@@ -166,13 +126,16 @@ def experiment(vars):
     eval_replays = os.listdir(eval_replay_path)
     eval_envs = []
     print(f'Loading evaluation replays from {eval_replay_path}')
-    for replay in eval_replays:
+    for i, replay in enumerate(eval_replays):
         eval_env = EV2Gym(config_file=config_path,
                           load_from_replay_path=eval_replay_path + replay,
                           state_function=state_function,
                           reward_function=reward_function,
                           )
         eval_envs.append(eval_env)
+        
+        if i ==vars['num_eval_episodes']:
+            break
 
     print(f'Loaded {len(eval_envs)} evaluation replays')
 
@@ -343,85 +306,6 @@ def experiment(vars):
             resid_pdrop=vars['dropout'],
             attn_pdrop=vars['dropout'],
         )
-    elif model_type == 'gnn_dt':
-        model = GNN_DecisionTransformer(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            max_length=K,
-            max_ep_len=max_ep_len,
-            hidden_size=vars['embed_dim'],
-            n_layer=vars['n_layer'],
-            n_head=vars['n_head'],
-            n_inner=4*vars['embed_dim'],
-            activation_function=vars['activation_function'],
-            n_positions=1024,
-            resid_pdrop=vars['dropout'],
-            action_masking=vars['action_masking'],
-            attn_pdrop=vars['dropout'],
-            action_tanh=True,
-            fx_node_sizes={'ev': 5, 'cs': 4, 'tr': 2, 'env': 6},
-            feature_dim=vars['feature_dim'],
-            GNN_hidden_dim=vars['GNN_hidden_dim'],
-            num_gcn_layers=vars['num_gcn_layers'],
-            config=config,
-            device=device,
-        )
-    elif model_type == 'gnn_in_out_dt':
-        model = GNN_IN_OUT_DecisionTransformer(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            max_length=K,
-            max_ep_len=max_ep_len,
-            hidden_size=vars['embed_dim'],
-            n_layer=vars['n_layer'],
-            n_head=vars['n_head'],
-            n_inner=4*vars['embed_dim'],
-            activation_function=vars['activation_function'],
-            n_positions=1024,
-            resid_pdrop=vars['dropout'],
-            attn_pdrop=vars['dropout'],
-            action_tanh=True,
-            action_masking=vars['action_masking'],
-            fx_node_sizes={'ev': 5, 'cs': 4, 'tr': 2, 'env': 6},
-            feature_dim=vars['feature_dim'],
-            GNN_hidden_dim=vars['GNN_hidden_dim'],
-            num_gcn_layers=vars['num_gcn_layers'],
-            config=config,
-            device=device,
-        )
-    elif model_type == 'gnn_act_emb':
-        model = GNN_act_emb_DecisionTransformer(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            max_length=K,
-            max_ep_len=max_ep_len,
-            hidden_size=vars['embed_dim'],
-            n_layer=vars['n_layer'],
-            n_head=vars['n_head'],
-            n_inner=4*vars['embed_dim'],
-            activation_function=vars['activation_function'],
-            n_positions=1024,
-            resid_pdrop=vars['dropout'],
-            attn_pdrop=vars['dropout'],
-            action_tanh=True,
-            action_masking=vars['action_masking'],
-            fx_node_sizes={'ev': 5, 'cs': 4, 'tr': 2, 'env': 6},
-            feature_dim=vars['feature_dim'],
-            GNN_hidden_dim=vars['GNN_hidden_dim'],
-            num_gcn_layers=vars['num_gcn_layers'],
-            act_GNN_hidden_dim=vars['act_GNN_hidden_dim'],
-            num_act_gcn_layers=vars['num_act_gcn_layers'],
-            config=config,
-            device=device,
-        )
-    elif model_type == 'bc':
-        model = MLPBCModel(
-            state_dim=state_dim,
-            act_dim=act_dim,
-            max_length=K,
-            hidden_size=vars['embed_dim'],
-            n_layer=vars['n_layer'],
-        )
     else:
         raise NotImplementedError
 
@@ -440,16 +324,10 @@ def experiment(vars):
         lambda max_iters: min((max_iters+1)/warmup_steps, 1)
     )
 
-    if vars['action_masking']:
-        def loss_fn(s_hat, a_hat, r_hat, s, a, r, a_masks): return torch.mean(
-            ((a_hat - a)**2) * a_masks
-        )
+    def loss_fn(s_hat, a_hat, r_hat, s, a, r, _): return torch.mean(
+        (a_hat - a)**2)
 
-    else:
-        def loss_fn(s_hat, a_hat, r_hat, s, a, r, _): return torch.mean(
-            (a_hat - a)**2),
-
-    if model_type == 'dt' or model_type == 'gnn_dt' or model_type == 'gnn_in_out_dt' or model_type == 'gnn_act_emb':
+    if model_type == 'dt':
         trainer = SequenceTrainer(
             model=model,
             optimizer=optimizer,
@@ -477,7 +355,7 @@ def experiment(vars):
             name=exp_prefix,
             group=group_name,
             entity='stavrosorf',
-            project='DT4EVs',
+            project='EVs4Grid',
             save_code=True,
             config=vars
         )
@@ -516,11 +394,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='PST_V2G_ProfixMax')
     parser.add_argument('--name', type=str, default='')
-    parser.add_argument('--group_name', type=str, default='tests_')
+    parser.add_argument('--group_name', type=str, default='')
     parser.add_argument('--seed', type=int, default=42)
 
     # medium, medium-replay, medium-expert, expert
-    parser.add_argument('--dataset', type=str, default='random_100')
+    parser.add_argument('--dataset', type=str, default='random_1000')
     # normal for standard setting, delayed for sparse
     parser.add_argument('--mode', type=str, default='normal')
     parser.add_argument('--K', type=int, default=3)
@@ -528,7 +406,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=2)
     # dt for decision transformer, bc for behavior cloning
     parser.add_argument('--model_type', type=str,
-                        default='gnn_act_emb')  # dt, gnn_dt, gnn_in_out_dt, bc, gnn_act_emb
+                        default='dt')  # dt, gnn_dt, gnn_in_out_dt, bc, gnn_act_emb
     parser.add_argument('--embed_dim', type=int, default=128)
     parser.add_argument('--n_layer', type=int, default=3)
     parser.add_argument('--n_head', type=int, default=1)
@@ -542,16 +420,16 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
     parser.add_argument('--config_file', type=str,
-                        default="PST_V2G_ProfixMax_25.yaml")
+                        default="v2g_grid_150.yaml")
 
-    parser.add_argument('--num_eval_episodes', type=int, default=30)
+    parser.add_argument('--num_eval_episodes', type=int, default=2)
     parser.add_argument('--eval_replay_path', type=str,
-                        default="./eval_replays/PST_V2G_ProfixMax_25_optimal_25_50/")
+                        default="./replay/v2g_grid_150_100evals/")
 
     # New parameters
     parser.add_argument('--action_masking',
                         type=bool,
-                        default=True)
+                        default=False)
 
     # GNN_DT parameters
     parser.add_argument('--feature_dim', type=int, default=8)

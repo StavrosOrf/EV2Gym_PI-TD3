@@ -26,15 +26,17 @@ class SequenceTrainer(Trainer):
                                             act_dim)[attention_mask.reshape(-1) > 0]
         action_target = action_target.reshape(-1,
                                               act_dim)[attention_mask.reshape(-1) > 0]
-        action_mask = action_mask.reshape(-1,
-                                          act_dim
-                                          )[attention_mask.reshape(-1) > 0]
+
+        # action_mask = action_mask.reshape(-1,
+        #                                   act_dim
+        #                                   )[attention_mask.reshape(-1) > 0]
 
         loss = self.loss_fn(
             None, action_preds, None,
             None, action_target, None,
-            action_mask
+            None
         )
+        print(f'Loss: {loss}')
 
         self.optimizer.zero_grad()
         loss.backward()

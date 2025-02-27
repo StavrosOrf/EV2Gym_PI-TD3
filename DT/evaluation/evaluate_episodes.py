@@ -5,9 +5,8 @@ import os
 import tqdm
 
 from ev2gym.models.ev2gym_env import EV2Gym
-from utils import PST_V2G_ProfitMax_reward, PST_V2G_ProfitMaxGNN_state, PST_V2G_ProfitMax_state
-
-from ev2gym.rl_agent.reward import SquaredTrackingErrorReward, ProfitMax_TrPenalty_UserIncentives, profit_maximization, SimpleReward
+from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
+from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
 
 
 def evaluate_episode(

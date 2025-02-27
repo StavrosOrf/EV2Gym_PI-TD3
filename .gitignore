@@ -159,7 +159,6 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
-rl_adn/.DS_Store
 .DS_Store
 *.lp
 
@@ -172,3 +171,4 @@ eval_logs/
 saved_models/
 eval_models/
 model.ilp
+trajectories/
