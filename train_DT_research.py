@@ -93,6 +93,7 @@ def experiment(vars):
     group_name = f'{g_name}DT_{number_of_charging_stations}cs'
 
     save_path = f'./saved_models/{exp_prefix}/'
+    print(f'Saving to {save_path}')
     # create folder
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -150,6 +151,10 @@ def experiment(vars):
     # save state mean and std
     np.save(f'{save_path}/state_mean.npy', state_mean)
     np.save(f'{save_path}/state_std.npy', state_std)
+    
+    # save files ./DT/training/traj_trainer.py, copy file
+    
+    os.system(f'cp ./DT/training/traj_trainer.py {save_path}/traj_trainer.py')    
 
     num_timesteps = sum(traj_lens)
 
