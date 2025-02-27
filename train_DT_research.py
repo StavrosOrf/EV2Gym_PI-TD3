@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import wandb
+import gymnasium as gym
 
 import argparse
 import pickle
@@ -133,8 +134,8 @@ def experiment(vars):
                           reward_function=reward_function,
                           )
         eval_envs.append(eval_env)
-        
-        if i ==vars['num_eval_episodes']:
+
+        if i == vars['num_eval_episodes']:
             break
 
     print(f'Loaded {len(eval_envs)} evaluation replays')
@@ -324,8 +325,50 @@ def experiment(vars):
         lambda max_iters: min((max_iters+1)/warmup_steps, 1)
     )
 
-    def loss_fn(s_hat, a_hat, r_hat, s, a, r, _): return torch.mean(
-        (a_hat - a)**2)
+    if vars['physics_loss_weight'] > 0:
+
+        gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
+                          kwargs={'config_file': config_path,
+                                  'generate_rnd_game': True,
+                                  'reward_function': reward_function,
+                                  'state_function': state_function,
+                                  })
+
+        env = gym.make('evs-v1')
+
+        physics_loss_fn = VoltageViolationLoss(K=env.get_wrapper_attr('grid').net._K_,
+                                               L=env.get_wrapper_attr(
+                                                   'grid').net._L_,
+                                               s_base=env.get_wrapper_attr(
+            'grid').net.s_base,
+            num_buses=env.get_wrapper_attr(
+            'grid').net.nb,
+            device=device,
+            verbose=False,
+        )
+
+        def loss_fn(s_hat, a_hat, r_hat, s, a, r):
+
+            action_loss = torch.mean((a_hat - a)**2)
+            physics_loss = -physics_loss_fn(action=a_hat,
+                                            state=s).mean()
+
+            # print(f'a_hat: {a_hat.shape}')
+            # print(f's: {s.shape}')
+
+            # print(f'Physics loss: {physics_loss.shape}')
+            # print(f'Action loss: {action_loss.shape}')
+
+            # print(f'Physics loss: {physics_loss}')
+            # print(f'Action loss: {action_loss}')
+
+            # input()
+
+            return action_loss + vars['physics_loss_weight'] * physics_loss
+
+    else:
+        def loss_fn(s_hat, a_hat, r_hat, s, a, r):
+            return torch.mean((a_hat - a)**2)
 
     if model_type == 'dt':
         trainer = SequenceTrainer(
@@ -437,6 +480,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_gcn_layers', type=int, default=3)
     parser.add_argument('--act_GNN_hidden_dim', type=int, default=32)
     parser.add_argument('--num_act_gcn_layers', type=int, default=3)
+
+    # GNN DT
+    parser.add_argument('--physics_loss_weight', type=float, default=0.1)
 
     args = parser.parse_args()
 
