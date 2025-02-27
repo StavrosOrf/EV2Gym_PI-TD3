@@ -40,6 +40,19 @@ class TrajectoryTrainer(Trainer):
                 print(f'attention_mask_new: {attention_mask_new.shape}')
                 print(f'timesteps_new: {timesteps_new.shape}')
 
+            # if i != K//2 - 1:
+                
+            #     with torch.no_grad():
+            #         _, action_preds, _ = self.model.forward(
+            #             states_new,
+            #             actions_new,
+            #             None,
+            #             rtg_new,
+            #             timesteps_new,
+            #             attention_mask=attention_mask_new,
+            #             action_mask=None
+            #         )
+            # else:
             _, action_preds, _ = self.model.forward(
                 states_new,
                 actions_new,
@@ -64,13 +77,14 @@ class TrajectoryTrainer(Trainer):
             #     break
                 
             
-            # Every_step
+            ## Every_step
             if i == 0:
                 loss = -self.loss_fn(action=action_preds[:, -1, :],
                                     state=states_new[:, -1, :]).float().mean()
             else:
-                loss -= self.loss_fn(action=action_preds[:, -1, :],
-                                    state=states_new[:, -1, :]).float().mean()
+                loss -= self.loss_fn(action=action_preds[:, -i, :],
+                                    state=states_new[:, -i, :]).float().mean()
+                
                 if i == K//2 - 1:
                     break
                 
@@ -96,6 +110,8 @@ class TrajectoryTrainer(Trainer):
                 print(f'--rtg_new: {rtg_new.shape}')
                 # print(f'--rtg_new: {rtg_new}')                                
 
+            zero_rtg = torch.zeros_like(rtg_new[:, -1, :])            
+            
             rtg_new = torch.cat([rtg_new[:, 1:, :].reshape(-1, K//2 - 1, 1),
                                  (rtg_new[:, -1, :] + reward.unsqueeze(1)).unsqueeze(1)
                                  ],
@@ -111,8 +127,6 @@ class TrajectoryTrainer(Trainer):
             # print(f'--timesteps_new: {timesteps_new}')
             # print(f'--rtg_new: {rtg_new}')
             # input('Press Enter to continue...')
-
-
 
         self.optimizer.zero_grad()
         loss.backward()
