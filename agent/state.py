@@ -55,8 +55,6 @@ def V2G_grid_state(env, *args):
 
     return state
 
-import numpy as np
-
 
 def V2G_grid_state_ModelBasedRL(env, *args):
     '''
@@ -73,13 +71,13 @@ def V2G_grid_state_ModelBasedRL(env, *args):
 
     # state.append(env.current_power_usage[env.current_step-1])
 
-    charge_prices = abs(env.charge_prices[0, env.current_step:
-                                          env.current_step+step_ahead])
+    charge_prices = env.charge_prices[0, env.current_step:
+                                       env.current_step+step_ahead]
 
     if len(charge_prices) < step_ahead:
         charge_prices = np.append(
-            charge_prices, np.zeros(step_ahead-len(charge_prices)))    
-        
+            charge_prices, np.zeros(step_ahead-len(charge_prices)))
+
     state.append(charge_prices)
     step = env.current_step
     if step == 0:
@@ -88,13 +86,13 @@ def V2G_grid_state_ModelBasedRL(env, *args):
     else:
         state.append(env.node_active_power[1:, step-1])
         state.append(env.node_reactive_power[1:, step-1])
-    
+
     # print('============\nstep:', env.current_step, '\n============')
 
     # For every transformer
-    # for tr in env.transformers:              
+    # for tr in env.transformers:
         # For every charging station connected to the transformer
-    for cs in env.charging_stations:                              
+    for cs in env.charging_stations:
         for EV in cs.evs_connected:
             # If there is an EV connected
             if EV is not None:

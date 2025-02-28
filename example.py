@@ -30,7 +30,7 @@ def eval():
     replay_path = None
 
     config_file = "./config_files/v2g_grid_150.yaml"
-    config_file = "./config_files/v2g_grid_3.yaml"
+    # config_file = "./config_files/v2g_grid_3.yaml"
     seed = 0
 
     env = EV2Gym(config_file=config_file,
@@ -67,7 +67,7 @@ def eval():
                          ev_battery_capacity=ev_battery_capacity,
                          ev_min_battery_capacity=ev_min_battery_capacity,
                          device=device,
-                         verbose=True,
+                         verbose=False,
                          )
 
     state_transition = V2G_Grid_StateTransition(verbose=False,
@@ -81,7 +81,7 @@ def eval():
     results_df = None
     total_timer = 0
 
-    for i in range(1):
+    for i in range(10):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)

@@ -12,8 +12,10 @@ import pickle
 import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
+from agent.loss_full import V2GridLoss
+
 from agent.utils import Trajectory_ReplayBuffer
 
 from ev2gym.models.ev2gym_env import EV2Gym
@@ -120,7 +122,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -229,7 +231,7 @@ if __name__ == "__main__":
         os.makedirs("./results")
 
     group_name = "150_SB3_tests"
-    reward_function = V2G_grid_simple_reward
+    reward_function = V2G_grid_full_reward
     state_function = V2G_grid_state_ModelBasedRL
 
     config = yaml.load(open(config_file, 'r'),
@@ -299,7 +301,7 @@ if __name__ == "__main__":
     else:
         load_path = None
 
-    loss_fn = VoltageViolationLoss(K=env.get_wrapper_attr('grid').net._K_,
+    loss_fn = V2GridLoss(K=env.get_wrapper_attr('grid').net._K_,
                                    L=env.get_wrapper_attr('grid').net._L_,
                                    s_base=env.get_wrapper_attr(
                                        'grid').net.s_base,
@@ -315,7 +317,6 @@ if __name__ == "__main__":
                                                  'grid').net.nb,
                                              )
     
-    # transition_fn = None
     
     # Set seeds
     # env.seed(args.seed)
@@ -439,8 +440,8 @@ if __name__ == "__main__":
         
         kwargs['transition_fn'] = transition_fn
         
-        kwargs['loss_fn'] = None
-        kwargs['transition_fn'] = None
+        # kwargs['loss_fn'] = None
+        # kwargs['transition_fn'] = None
 
         # kwargs['loss_fn'] = None
         # Save kwargs to local path

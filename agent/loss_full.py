@@ -88,8 +88,8 @@ class V2GridLoss(nn.Module):
             print("--------------------------------------------------")
             print(f'actions: {action}')
             print(f'ev_connected_binary: {ev_connected_binary}')
-            print(f'max_ev_charge_power: {max_ev_charge_power}')
-            print(f'max_ev_discharge_power: {max_ev_discharge_power}')
+            # print(f'max_ev_charge_power: {max_ev_charge_power}')
+            # print(f'max_ev_discharge_power: {max_ev_discharge_power}')
             print(f'current_capacity: {current_capacity}')
             print(f'time_left: {ev_time_left}')
             print(f'connected_bus: {connected_bus}')
@@ -107,26 +107,35 @@ class V2GridLoss(nn.Module):
 
         power_usage = torch.min(power_usage, max_ev_charge_power)
         power_usage = torch.max(power_usage, max_ev_discharge_power)
+
+        print(f'power_usage: {power_usage.shape}')
+        print(f'prices: {prices.shape}')
+        print(f'timescale: {timescale.shape}')
         
-        costs = -torch.sum(prices * power_usage * timescale, dim=1)
-        
+        costs = prices * power_usage * timescale  
+
         time_left_binary = torch.where(ev_time_left == 1, 1, 0)
-        # user_sat_at_departure = ((current_capacity + power_usage * timescale) /
-        #                          (self.ev_battery_capacity))
-        
-        new_capacity = torch.round((current_capacity + power_usage * timescale),
-                                   decimals=2)
+
+        new_capacity = (current_capacity + power_usage * timescale)
+        new_capacity = torch.true_divide(
+            torch.ceil(new_capacity * 10**2), 10**2)
+
         user_sat_at_departure = (new_capacity - self.ev_battery_capacity)**2
-        
-        user_sat_at_departure = -10 * time_left_binary * user_sat_at_departure        
+
+        user_sat_at_departure = -10 * time_left_binary * user_sat_at_departure
         user_sat_at_departure = user_sat_at_departure.sum(axis=1)
 
         if self.verbose:
             print(f'New capacity: {new_capacity}')
             print(f'power_usage: {power_usage}')
+            print(f'energy_usage: {power_usage * timescale}')
+            
             print(f'costs: {costs}')
+            print(f'costs: {costs.sum(axis=1)}')
             print(f'user_sat_at_departure: {user_sat_at_departure}')
 
+        costs = costs.sum(axis=1)
+        
         # go from power usage to EV_power_per_bus
         EV_power_per_bus = torch.zeros(
             (batch_size, self.num_buses-1),
@@ -145,9 +154,9 @@ class V2GridLoss(nn.Module):
 
         # if self.verbose:
         #     print("--------------------------------------------------")
-            # print(f'EV_power_per_bus: {EV_power_per_bus}')
-            # print(f'active_power_per_bus: {active_power_per_bus}')
-            # print(f'reactive_power_per_bus: {reactive_power_per_bus}')
+        # print(f'EV_power_per_bus: {EV_power_per_bus}')
+        # print(f'active_power_per_bus: {active_power_per_bus}')
+        # print(f'reactive_power_per_bus: {reactive_power_per_bus}')
 
         active_power_pu = (active_power_per_bus +
                            EV_power_per_bus) / self.s_base
@@ -181,7 +190,7 @@ class V2GridLoss(nn.Module):
         #     print(f'S: {S.shape}')
 
         #     # print(f'self.L: {self.L}')
-            # print(f'L_m: {L_m}')
+        # print(f'L_m: {L_m}')
 
         while iteration < self.iterations and tol >= self.tolerance:
 
@@ -200,12 +209,13 @@ class V2GridLoss(nn.Module):
 
         # Compute the loss as a real number
         # For example, penalty on deviation from 1.0
-        loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
-                         0.05 - torch.abs(1 - v0_clamped))
+        voltage_loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
+                         0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
         
-        loss = 1000*loss.sum(axis=1) + costs + user_sat_at_departure
+        loss = 1000*voltage_loss + costs + user_sat_at_departure
 
         if self.verbose:
+            print(f'Voltage Loss: {100*voltage_loss}')
             print(f'voltage shape {v0_clamped.real.shape}')
             # print(f'Voltage: {v0_clamped.real}')
             print(f'Loss: {loss}')

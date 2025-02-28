@@ -163,7 +163,7 @@ class TD3(object):
 
             if self.transition_fn is not None:
 
-                if False:
+                if True:
                     # test if loss_fn is working properly
                     reward_test = self.loss_fn(state=state,
                                                action=action)                    

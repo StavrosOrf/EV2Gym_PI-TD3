@@ -5,14 +5,19 @@ def V2G_grid_full_reward(env, total_costs, user_satisfaction_list, *args):
 
     reward = total_costs
     
-    print(f'!!! Costs: {total_costs}')
+    verbose = False
+    
+    if verbose:
+        print(f'!!! Costs: {total_costs}')
     
     user_costs = 0
     for ev in env.departing_evs:
-        print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity}')
+        if verbose:
+            print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity}')
         user_costs += -10 * (ev.current_capacity - ev.desired_capacity)**2
     
-    print(f'!!! User Satisfaction Penalty: {user_costs}')
+    if verbose:
+        print(f'!!! User Satisfaction Penalty: {user_costs}')
 
     current_step = env.current_step - 1
     v_m = env.node_voltage[:, current_step]

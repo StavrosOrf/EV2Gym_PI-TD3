@@ -350,7 +350,7 @@ class EV2Gym(gym.Env):
         # Reset current power of all transformers
         for tr in self.transformers:
             tr.reset(step=self.current_step)
-
+                
         # Call step for each charging station and spawn EVs where necessary
         for i, cs in enumerate(self.charging_stations):
             n_ports = cs.n_ports
