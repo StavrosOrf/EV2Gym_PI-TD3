@@ -14,8 +14,9 @@ from ev2gym.rl_agent.state import V2G_profit_max, PublicPST, V2G_profit_max_load
 from ev2gym.baselines.heuristics import RandomAgent, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
+from agent.loss_full import V2GridLoss
 
 from ev2gym.baselines.mpc.eMPC_v2 import eMPC_V2G_v2
 
@@ -32,7 +33,7 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Environment {args.env} not supported")
 
-    reward_function = V2G_grid_simple_reward
+    reward_function = V2G_grid_full_reward
     state_function = V2G_grid_state_ModelBasedRL
     
     problem = args.config_file.split("/")[-1].split(".")[0]

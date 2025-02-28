@@ -20,8 +20,9 @@ from DT.training.traj_trainer import TrajectoryTrainer
 
 from ev2gym.models.ev2gym_env import EV2Gym
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
+from agent.loss_full import V2GridLoss
 
 
 def discount_cumsum(x, gamma):
@@ -68,7 +69,7 @@ def experiment(vars):
     number_of_charging_stations = config["number_of_charging_stations"]
     steps = config["simulation_length"]
 
-    reward_function = V2G_grid_simple_reward
+    reward_function = V2G_grid_full_reward
     state_function = V2G_grid_state_ModelBasedRL
 
     env = EV2Gym(config_file=config_path,
@@ -151,10 +152,10 @@ def experiment(vars):
     # save state mean and std
     np.save(f'{save_path}/state_mean.npy', state_mean)
     np.save(f'{save_path}/state_std.npy', state_std)
-    
+
     # save files ./DT/training/traj_trainer.py, copy file
-    
-    os.system(f'cp ./DT/training/traj_trainer.py {save_path}/traj_trainer.py')    
+
+    os.system(f'cp ./DT/training/traj_trainer.py {save_path}/traj_trainer.py')
 
     num_timesteps = sum(traj_lens)
 
@@ -350,10 +351,10 @@ def experiment(vars):
 
         env = gym.make('evs-v1')
 
-        physics_loss_fn = VoltageViolationLoss(K=env.get_wrapper_attr('grid').net._K_,
-                                               L=env.get_wrapper_attr(
-                                                   'grid').net._L_,
-                                               s_base=env.get_wrapper_attr(
+        physics_loss_fn = V2GridLoss(K=env.get_wrapper_attr('grid').net._K_,
+                                     L=env.get_wrapper_attr(
+            'grid').net._L_,
+            s_base=env.get_wrapper_attr(
             'grid').net.s_base,
             num_buses=env.get_wrapper_attr(
             'grid').net.nb,
@@ -396,8 +397,8 @@ def experiment(vars):
                                       })
             env = gym.make('evs-v1')
 
-            physics_loss_fn = VoltageViolationLoss(K=env.get_wrapper_attr('grid').net._K_,
-                                                   L=env.get_wrapper_attr(
+            physics_loss_fn = V2GridLoss(K=env.get_wrapper_attr('grid').net._K_,
+                                         L=env.get_wrapper_attr(
                 'grid').net._L_,
                 s_base=env.get_wrapper_attr(
                 'grid').net.s_base,
@@ -421,7 +422,7 @@ def experiment(vars):
                 scheduler=scheduler,
                 loss_fn=physics_loss_fn,
                 eval_fns=[eval_episodes(tar) for tar in env_targets],
-                transition_fn=transition_fn,                
+                transition_fn=transition_fn,
             )
         else:
             trainer = SequenceTrainer(
