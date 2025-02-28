@@ -6,7 +6,9 @@ import tqdm
 
 from ev2gym.models.ev2gym_env import EV2Gym
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
+from agent.loss_full import V2GridLoss
 
 
 def evaluate_episode(

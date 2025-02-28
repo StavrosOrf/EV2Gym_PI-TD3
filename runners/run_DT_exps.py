@@ -18,7 +18,7 @@ counter = 0
 for model_type in ["dt"]:
     for lr in [1e-5]:
         for physics_loss_weight in [0]:        
-            for K in [12]:
+            for K in [12, 24]:
                 for batch_size in [128]:
                     for dataset in ["random_1000"]:
                         for embed_dim in [128]:  # 128, 512
