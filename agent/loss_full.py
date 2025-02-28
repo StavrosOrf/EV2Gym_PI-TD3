@@ -53,7 +53,9 @@ class V2GridLoss(nn.Module):
             print(f'state: {state.shape}')
 
         number_of_cs = action.shape[1]
-        prices = state[:, 3]
+        prices = state[:, 3] 
+        prices = torch.repeat_interleave(prices.view(-1, 1), number_of_cs, dim=1)
+        
         step_size = 3
         ev_state_start = 4 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
@@ -107,10 +109,6 @@ class V2GridLoss(nn.Module):
 
         power_usage = torch.min(power_usage, max_ev_charge_power)
         power_usage = torch.max(power_usage, max_ev_discharge_power)
-
-        print(f'power_usage: {power_usage.shape}')
-        print(f'prices: {prices.shape}')
-        print(f'timescale: {timescale.shape}')
         
         costs = prices * power_usage * timescale  
 
@@ -223,4 +221,4 @@ class V2GridLoss(nn.Module):
                   )
 
         # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
-        return loss, v0_clamped.real.cpu().detach().numpy()
+        return loss #, v0_clamped.real.cpu().detach().numpy()

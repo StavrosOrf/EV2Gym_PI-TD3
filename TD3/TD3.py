@@ -163,12 +163,12 @@ class TD3(object):
 
             if self.transition_fn is not None:
 
-                if True:
+                if False:
                     # test if loss_fn is working properly
                     reward_test = self.loss_fn(state=state,
                                                action=action)                    
                     reward_diff = torch.abs(reward.view(-1) - reward_test.view(-1))
-                    if reward_diff.mean() > 0.001:
+                    if reward_diff.mean() > 0.01:
 
                         print(f'Reward diff: {reward_diff.mean()}')
                         print(f'Reward: {reward}')

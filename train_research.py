@@ -118,11 +118,11 @@ if __name__ == "__main__":
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
     parser.add_argument("--load_model", default="")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument('--group_name', type=str, default='')
+    parser.add_argument('--group_name', type=str, default='Full_problem_')
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -332,14 +332,7 @@ if __name__ == "__main__":
     simulation_length = config["simulation_length"]
 
 
-    if "SAC" in args.policy:
-        group_name = f'{args.group_name}GNN_SAC_{number_of_charging_stations}cs_{n_transformers}tr'
-    elif "TD3" in args.policy:
-        group_name = f'{args.group_name}GNN_TD3_{number_of_charging_stations}cs_{n_transformers}tr'
-    elif "Traj" in args.policy:
-        group_name = f'{args.group_name}Traj_{number_of_charging_stations}cs_{n_transformers}tr'
-    else:
-        raise ValueError("Policy not recognized.")
+    group_name = f'{args.group_name}_{number_of_charging_stations}cs_{n_transformers}tr'
 
     if args.load_model == "":
         exp_prefix = f'{args.name}-{random.randint(int(1e5), int(1e6) - 1)}'
