@@ -10,17 +10,12 @@ from ev2gym.rl_agent.reward import profit_maximization, ProfitMax_TrPenalty_User
 from ev2gym.rl_agent.reward import SquaredTrackingErrorReward, SimpleReward
 from ev2gym.baselines.gurobi_models.profit_max import V2GProfitMaxOracleGB
 from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
-# from GF.noise_wrappers import FailedActionCommunication, DelayedObservation
-# from GF.action_wrapper import BinaryAction, Rescale_RepairLayer
-# from GNN.state import PublicPST_GNN, V2G_ProfitMax_with_Loads_GNN
-# from SAC.old_actionSAC import SAC_ActionGNN as SAC_ActionGNN_old
-# from SAC.actionSAC import SAC_ActionGNN
-# from SAC.sac import SAC
+
 from TD3.TD3 import TD3
-# from Model_RL.model_based_RL import ModelBasedRL, ModelBasedRL_LSTM
-# from TD3.old_TD3_ActionGNN import TD3_ActionGNN as TD3_ActionGNN_old
-# from TD3.TD3_ActionGNN import TD3_ActionGNN
-# from TD3.TD3_GNN import TD3_GNN
+
+from DT.load_model import load_DT_model
+from DT.evaluation.evaluate_episodes import evaluate_episode_rtg_from_replays
+
 from sb3_contrib import TQC, TRPO, ARS, RecurrentPPO
 from stable_baselines3 import PPO, A2C, DDPG, SAC
 from stable_baselines3 import TD3 as TD3_SB3
@@ -59,22 +54,23 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # from DT.models.decision_transformer import DecisionTransformer
 # from DT.load_model import load_DT_model
 
-#set seeds
+# set seeds
 seed = 9
 np.random.seed(seed)
 torch.manual_seed(seed)
 random.seed(seed)
 
+
 def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 30
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
     # values in [0-1] probability of communication failure
-    # p_fail_list = [0.05, 0.1, 0.25, 0.5]    
+    # p_fail_list = [0.05, 0.1, 0.25, 0.5]
     p_fail_list = [0]  # values in [0-1] probability of communication failure
 
     # p_delay_list = [0, 0.1, 0.2, 0.3]
@@ -92,18 +88,16 @@ def evaluator():
     # state_function_GNN = V2G_ProfitMax_with_Loads_GNN
     reward_function = V2G_grid_simple_reward
 
-
     # Algorithms to compare:
     # Use algorithm name or the saved RL model path as string
     algorithms = [
+        'DT_whole_last_iteration.dt_ph_coeff=0_run_42_K=12_batch=128_dataset=random_1000_embed_dim=128_n_layer=3_n_head=437070_939246',
         ChargeAsFastAsPossible,
         DoNothing,
         # RandomAgent,
-        # 'TD3newForm_Targetcritic-343724',
-        # 'TD3x0-938306',
-        # 'TD3x10e-5-997459',
+        "TD3_enhanced_test-547922",
         'TD3_FixedLoss_newForm_noRegularizer_noActorGrad_TargetCritic-253974',
-        'TD3_FixedLoss_newForm_noRegularizer_full-701315',
+
     ]
 
     # create a AnalysisReplayBuffer object for each algorithm
@@ -233,7 +227,6 @@ def evaluator():
                                  reward_function=reward_function,
                                  )
 
-
                     # initialize the timer
                     timer = time.time()
                     state, _ = env.reset()
@@ -265,14 +258,14 @@ def evaluator():
                             algorithm_name = algorithm.__name__
 
                         elif any(algo in algorithm for algo in ['td3', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
-                        
+
                             gym.envs.register(id='evs-v0', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
-                                                kwargs={'config_file': config_file,
-                                                        'generate_rnd_game': True,
-                                                        'state_function': state_function_Normal,
-                                                        'reward_function': reward_function,
-                                                        'load_from_replay_path': replay_path,
-                                                        })
+                                              kwargs={'config_file': config_file,
+                                                      'generate_rnd_game': True,
+                                                      'state_function': state_function_Normal,
+                                                      'reward_function': reward_function,
+                                                      'load_from_replay_path': replay_path,
+                                                      })
                             env = gym.make('evs-v0')
 
                             load_path = f'./saved_models/{algorithm}/best_model.zip'
@@ -301,9 +294,9 @@ def evaluator():
                                 exit()
 
                             model = sb3_algo.load(load_path,
-                                                    env,
-                                                    device=device
-                                                    )
+                                                  env,
+                                                  device=device
+                                                  )
                             # set replay buffer to None
 
                             if 'tqc' in algorithm or 'ddpg' in algorithm:
@@ -317,8 +310,8 @@ def evaluator():
                             state = env.reset()
 
                         elif "SAC" in algorithm:
-                            #remove _SL from the algorithm name
-                            
+                            # remove _SL from the algorithm name
+
                             algorithm_path = algorithm.split('_noSL')[0]
                             load_model_path = f'./eval_models/{algorithm_path}/'
                             # Load kwargs.yaml as a dictionary
@@ -331,14 +324,14 @@ def evaluator():
 
                             if "ActionGNN" in algorithm:
                                 algorithm_name = "SAC_ActionGNN"
-                                if 'actor_num_gcn_layers' in kwargs:
-                                    model = SAC_ActionGNN(action_space=env.action_space,
-                                                            fx_node_sizes=fx_node_sizes,
-                                                            args=kwargs,)
-                                else:
-                                    model = SAC_ActionGNN_old(action_space=env.action_space,
-                                                                fx_node_sizes=fx_node_sizes,
-                                                                args=kwargs,)
+                                # if 'actor_num_gcn_layers' in kwargs:
+                                #     model = SAC_ActionGNN(action_space=env.action_space,
+                                #                           fx_node_sizes=fx_node_sizes,
+                                #                           args=kwargs,)
+                                # else:
+                                #     model = SAC_ActionGNN_old(action_space=env.action_space,
+                                #                               fx_node_sizes=fx_node_sizes,
+                                #                               args=kwargs,)
 
                                 if "extraLayers" in algorithm:
                                     state_dict = torch.load(f'{load_model_path}model.best')[
@@ -365,7 +358,7 @@ def evaluator():
                                         new_state_dict)
                                 else:
                                     model.load(ckpt_path=f'{load_model_path}model.best',
-                                                evaluate=True)
+                                               evaluate=True)
 
                             elif "GNN" in algorithm:
                                 model = SAC(num_inputs=-1,
@@ -376,7 +369,7 @@ def evaluator():
 
                                 algorithm_name = "SAC_GNN"
                                 model.load(ckpt_path=f'{load_model_path}model.best',
-                                            evaluate=True)
+                                           evaluate=True)
                             else:
                                 state_dim = env.observation_space.shape[0]
                                 model = SAC(num_inputs=state_dim,
@@ -385,14 +378,14 @@ def evaluator():
 
                                 algorithm_name = "SAC"
                                 model.load(ckpt_path=f'{load_model_path}model.best',
-                                            evaluate=True)
+                                           evaluate=True)
 
                             if k == 0:
                                 actor_model = model.policy
                                 model_parameters = filter(
                                     lambda p: p.requires_grad, actor_model.parameters())
                                 params = sum([np.prod(p.size())
-                                                for p in model_parameters])
+                                              for p in model_parameters])
                                 print(
                                     f'Actor model has {params} trainable parameters')
 
@@ -404,204 +397,211 @@ def evaluator():
                             #     kwargs = yaml.load(
                             #         file, Loader=yaml.FullLoader)
                             with open(f'{load_model_path}kwargs.yaml') as file:
-                                kwargs = yaml.load(file, Loader=yaml.UnsafeLoader)
-                            if "ActionGNN" in algorithm:
-                                algorithm_name = "TD3_ActionGNN"
-                                print("Loading TD3_ActionGNN")
-                                if 'actor_num_gcn_layers' in kwargs:
-                                    model = TD3_ActionGNN(**kwargs)
-                                else:
-                                    model = TD3_ActionGNN_old(**kwargs)
+                                kwargs = yaml.load(
+                                    file, Loader=yaml.UnsafeLoader)
+                            # if "ActionGNN" in algorithm:
+                            #     algorithm_name = "TD3_ActionGNN"
+                            #     print("Loading TD3_ActionGNN")
+                            #     if 'actor_num_gcn_layers' in kwargs:
+                            #         model = TD3_ActionGNN(**kwargs)
+                            #     else:
+                            #         model = TD3_ActionGNN_old(**kwargs)
 
-                                model.load(
-                                    filename=f'{load_model_path}model.best')
+                            #     model.load(
+                            #         filename=f'{load_model_path}model.best')
 
-                            elif "GNN" in algorithm:
-                                model = TD3_GNN(**kwargs)
-                                algorithm_name = "TD3_GNN"
-                                model.load(
-                                    filename=f'{load_model_path}model.best')
+                            # elif "GNN" in algorithm:
+                            #     model = TD3_GNN(**kwargs)
+                            #     algorithm_name = "TD3_GNN"
+                            #     model.load(
+                            #         filename=f'{load_model_path}model.best')
 
-                            else:
-                                print("Loading TD3 model")
-                                model = TD3(**kwargs)
-                                algorithm_name = "TD3"
-                                model.load(
-                                    filename=f'{load_model_path}model.best')
+                            # else:
+                            print("Loading TD3 model")
+                            model = TD3(**kwargs)
+                            algorithm_name = "TD3"
+                            model.load(
+                                filename=f'{load_model_path}model.best')
 
                             if k == 0:
                                 actor_model = model.actor
                                 model_parameters = filter(
                                     lambda p: p.requires_grad, actor_model.parameters())
                                 params = sum([np.prod(p.size())
-                                                for p in model_parameters])
+                                              for p in model_parameters])
                                 print(
                                     f'Actor model has {params} trainable parameters')
 
-                        elif "LSTM-ModelBasedRL" in algorithm:
-                            model = ModelBasedRL_LSTM(state_dim=env.observation_space.shape[0],
-                                                        mlp_hidden_dim=32,
-                                                        hidden_state_dim=32,
-                                                        action_dim=env.action_space.shape[0],
-                                                        sequence_length=3)
-
-                            model.load(
-                                f'./eval_models/{algorithm}/model.best')
-                            model.actor.eval()
-                            algorithm_name = "LSTM-ModelBasedRL"
-
                         elif "ModelBasedRL" in algorithm:
                             model = ModelBasedRL(state_dim=env.observation_space.shape[0],
-                                                    mlp_hidden_dim=128,
-                                                    action_dim=env.action_space.shape[0],)
+                                                 mlp_hidden_dim=128,
+                                                 action_dim=env.action_space.shape[0],)
                             model.load(
                                 f'./saved_models/{algorithm}/model.best')
                             model.actor.eval()
                             algorithm_name = "ModelBasedRL"
 
+                        
+
+                        elif "DT" in algorithm:
+                            model_path = algorithm
+
+                            model, state_mean, state_std = load_DT_model(model_path=model_path,
+                                                                         max_ep_len=simulation_length,
+                                                                         env=env,
+                                                                         #   config=config,
+                                                                         device=device)
+
+                            algorithm_name = "DT"
+                            model.eval()
+                            
+                            if k == 0:
+                                actor_model = model
+                                model_parameters = filter(
+                                    lambda p: p.requires_grad, actor_model.parameters())
+                                params = sum([np.prod(p.size())
+                                              for p in model_parameters])
+                                print(
+                                    f'Actor model has {params} trainable parameters')
+                            
                         else:
                             raise ValueError(
                                 f'Unknown algorithm {algorithm}')
-
-                        # elif algorithm == DecisionTransformer:
-                        #     model_path = "K=12,embed_dim=128,n_layer=3,max_iters=2000,num_steps_per_iter=20000,batch_size=128,n_head=4,num_eval_episodes=30,scale=1-RR_10_000-231028"
-                        #     model, state_mean, state_std = load_DT_model(model_path=model_path,
-                        #                                                  max_ep_len=simulation_length,
-                        #                                                  env=env,
-                        #                                                  device=device)
-
-                        #     algorithm_name = algorithm.__name__
-                        #     model.eval()
-
                     else:
                         model = algorithm(env=env,
-                                            replay_path=replay_path,
-                                            verbose=False)
+                                          replay_path=replay_path,
+                                          verbose=False)
                         algorithm_name = algorithm.__name__
-                    # except Exception as error:
-                    #     print(error)
-                    #     print(
-                    #         f'!!!!!!!!!! Error in {algorithm} with replay {replay_path}')
-                    #     continue
-
+                   
+                    
                     rewards = []
 
-                    for i in range(simulation_length):
-                        # print(f' Step {i+1}/{simulation_length} -- {algorithm}')
-                        ################# Evaluation ##############################
+                    DT_FLAG = False
+                    if type(algorithm) == str:
+                        if "DT" in algorithm:
+                            DT_FLAG = True
 
-                        # elif algorithm == DecisionTransformer:
-                        #     result_tuple = evaluate_episode_rtg_from_replays(env=env,
-                        #                                                      model=model,
-                        #                                                      max_ep_len=simulation_length,
-                        #                                                      device='cuda',
-                        #                                                      target_return=0,
-                        #                                                      mode='normal',
-                        #                                                      state_mean=state_mean,
-                        #                                                      state_std=state_std,)
-                        #     stats, reward = result_tuple
-                        #     done = True
+                    if DT_FLAG:
+                        if "DT" in algorithm_name or "gnn_act_emb" in algorithm_name:
+                            
+                            result_tuple = evaluate_episode_rtg_from_replays(env=env,
+                                                                            model=model,
+                                                                            max_ep_len=simulation_length,
+                                                                            device='cuda',
+                                                                            target_return=0,
+                                                                            mode='normal',
+                                                                            )
 
-                        if type(algorithm) == str:
-                            if any(algo in algorithm for algo in ['td3', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
-                                action, _ = model.predict(
-                                    state, deterministic=True)
-                                obs, reward, done, stats = env.step(action)
+                        stats, rewards = result_tuple[0], [result_tuple[1]]
+                        done = True
 
-                                if i == simulation_length - 2:
-                                    saved_env = deepcopy(
-                                        env.get_attr('env')[0])
+                    else:
 
-                                stats = stats[0]
-                            elif "SAC" in algorithm or "TD3" in algorithm or \
-                                    "ModelBasedRL" in algorithm or "LSTM-ModelBasedRL" in algorithm:
-                                action = model.select_action(state,
-                                                             return_mapped_action=True)
+                        for i in range(simulation_length):
+                            # print(f' Step {i+1}/{simulation_length} -- {algorithm}')
+                            ################# Evaluation ##############################
 
+                            # elif algorithm == DecisionTransformer:
+                            #     result_tuple = evaluate_episode_rtg_from_replays(env=env,
+                            #                                                      model=model,
+                            #                                                      max_ep_len=simulation_length,
+                            #                                                      device='cuda',
+                            #                                                      target_return=0,
+                            #                                                      mode='normal',
+                            #                                                      state_mean=state_mean,
+                            #                                                      state_std=state_std,)
+                            #     stats, reward = result_tuple
+                            #     done = True
+
+                            if type(algorithm) == str:
+                                if any(algo in algorithm for algo in ['td3', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
+                                    action, _ = model.predict(
+                                        state, deterministic=True)
+                                    obs, reward, done, stats = env.step(action)
+
+                                    if i == simulation_length - 2:
+                                        saved_env = deepcopy(
+                                            env.get_attr('env')[0])
+
+                                    stats = stats[0]
+                                elif "SAC" in algorithm or "TD3" in algorithm or \
+                                        "ModelBasedRL" in algorithm or "LSTM-ModelBasedRL" in algorithm:
+                                    action = model.select_action(state,
+                                                                return_mapped_action=True)
+
+                                    simple_state = state_function_Normal(env=env)
+                                    # gnn_state = state_function_GNN(env=env)
+
+                                    # ev_indexes = gnn_state['action_mapper']
+
+                                    state, reward, done, _, stats = env.step(
+                                        action)
+
+                                else:
+                                    raise ValueError(
+                                        f'Unknown algorithm {algorithm}')
+
+                            else:
                                 simple_state = state_function_Normal(env=env)
                                 # gnn_state = state_function_GNN(env=env)
-
                                 # ev_indexes = gnn_state['action_mapper']
 
-                                state, reward, done, _, stats = env.step(
+                                action = model.get_action(env=env)
+                                new_state, reward, done, _, stats = env.step(
                                     action)
 
-                            else:
-                                raise ValueError(
-                                    f'Unknown algorithm {algorithm}')
 
+
+                            rewards.append(reward)
+
+                    if done:
+
+                        results_i = pd.DataFrame({'run': k,
+                                                    'Algorithm': algorithm_name,
+                                                    'algorithm_version': algorithm,
+                                                    'control_horizon': h,
+                                                    'p_fail': p_fail,
+                                                    'p_delay': p_delay,
+                                                    'discharge_price_factor': config['discharge_price_factor'],
+                                                    'total_ev_served': stats['total_ev_served'],
+                                                    'total_profits': stats['total_profits'],
+                                                    'total_energy_charged': stats['total_energy_charged'],
+                                                    'total_energy_discharged': stats['total_energy_discharged'],
+                                                    'average_user_satisfaction': stats['average_user_satisfaction'],
+                                                    'power_tracker_violation': stats['power_tracker_violation'],
+                                                    'tracking_error': stats['tracking_error'],
+                                                    'energy_tracking_error': stats['energy_tracking_error'],
+                                                    'energy_user_satisfaction': stats['energy_user_satisfaction'],
+                                                    'min_energy_user_satisfaction': stats['min_energy_user_satisfaction'],
+                                                    'std_energy_user_satisfaction': stats['std_energy_user_satisfaction'],
+                                                    'total_transformer_overload': stats['total_transformer_overload'],
+                                                    'battery_degradation': stats['battery_degradation'],
+                                                    'battery_degradation_calendar': stats['battery_degradation_calendar'],
+                                                    'battery_degradation_cycling': stats['battery_degradation_cycling'],
+                                                    'voltage_violation': stats['voltage_violation'],
+                                                    'total_reward': sum(rewards),
+                                                    'time': time.time() - timer,
+                                                    }, index=[counter])
+
+                        # change name of key to algorithm_name
+                        if SAVE_REPLAY_BUFFER:
+                            if k == n_test_cycles - 1:
+                                replay_buffers[algorithm_name] = replay_buffers.pop(
+                                    algorithm)
+
+                        if counter == 1:
+                            results = results_i
                         else:
-                            simple_state = state_function_Normal(env=env)
-                            # gnn_state = state_function_GNN(env=env)
-                            # ev_indexes = gnn_state['action_mapper']
+                            results = pd.concat([results, results_i])
 
-                            action = model.get_action(env=env)
-                            new_state, reward, done, _, stats = env.step(
-                                action)
+                        # if algorithm in [PPO, A2C, DDPG, SAC, TD3, TQC, TRPO, ARS, RecurrentPPO]:
+                        #     env = saved_env
 
-                            # if SAVE_REPLAY_BUFFER:
-                            #     next_simple_state = state_function_Normal(
-                            #         env=env)
-                            #     # next_gnn_state = state_function_GNN(env=env)
-                            #     replay_buffers[algorithm].add(state=simple_state,
-                            #                                   action=action,
-                            #                                   ev_action=action[ev_indexes],
-                            #                                   next_state=next_simple_state,
-                            #                                   reward=reward,
-                            #                                   done=done,
-                            #                                   gnn_state=gnn_state,
-                            #                                   gnn_next_state=next_gnn_state)
-                        ############################################################
+                        if k == 0:
+                            plot_results_dict[str(
+                                algorithm)] = deepcopy(env)
 
-                        rewards.append(reward)
-
-                        if done:
-
-                            results_i = pd.DataFrame({'run': k,
-                                                      'Algorithm': algorithm_name,
-                                                      'algorithm_version': algorithm,
-                                                      'control_horizon': h,
-                                                      'p_fail': p_fail,
-                                                      'p_delay': p_delay,
-                                                      'discharge_price_factor': config['discharge_price_factor'],
-                                                      'total_ev_served': stats['total_ev_served'],
-                                                      'total_profits': stats['total_profits'],
-                                                      'total_energy_charged': stats['total_energy_charged'],
-                                                      'total_energy_discharged': stats['total_energy_discharged'],
-                                                      'average_user_satisfaction': stats['average_user_satisfaction'],
-                                                      'power_tracker_violation': stats['power_tracker_violation'],
-                                                      'tracking_error': stats['tracking_error'],
-                                                      'energy_tracking_error': stats['energy_tracking_error'],
-                                                      'energy_user_satisfaction': stats['energy_user_satisfaction'],
-                                                      'min_energy_user_satisfaction': stats['min_energy_user_satisfaction'],
-                                                      'std_energy_user_satisfaction': stats['std_energy_user_satisfaction'],
-                                                      'total_transformer_overload': stats['total_transformer_overload'],
-                                                      'battery_degradation': stats['battery_degradation'],
-                                                      'battery_degradation_calendar': stats['battery_degradation_calendar'],
-                                                      'battery_degradation_cycling': stats['battery_degradation_cycling'],
-                                                      'voltage_violation': stats['voltage_violation'],
-                                                      'total_reward': sum(rewards),
-                                                      'time': time.time() - timer,
-                                                      }, index=[counter])
-
-                            # change name of key to algorithm_name
-                            if SAVE_REPLAY_BUFFER:
-                                if k == n_test_cycles - 1:
-                                    replay_buffers[algorithm_name] = replay_buffers.pop(
-                                        algorithm)
-
-                            if counter == 1:
-                                results = results_i
-                            else:
-                                results = pd.concat([results, results_i])
-
-                            # if algorithm in [PPO, A2C, DDPG, SAC, TD3, TQC, TRPO, ARS, RecurrentPPO]:
-                            #     env = saved_env
-
-                            if k == 0:
-                                plot_results_dict[str(algorithm)] = deepcopy(env)
-
-                            break
+                        
 
     # save the replay buffers to a pickle file
     if SAVE_REPLAY_BUFFER:
@@ -612,15 +612,11 @@ def evaluator():
     # with open(save_path + 'plot_results_dict.pkl', 'wb') as f:
     #     pickle.dump(plot_results_dict, f)
 
-    
-    
-    
-
         # replace some algorithm_version to other names:
     # change from PowerTrackingErrorrMin -> PowerTrackingError
 
     # print unique algorithm versions
-    
+
     results['algorithm_version'] = results['algorithm_version'].astype(str).replace(
         "<class 'ev2gym.baselines.heuristics.ChargeAsFastAsPossible'>", 'ChargeAsFastAsPossible')
     results['algorithm_version'] = results['algorithm_version'].astype(str).replace(
@@ -638,7 +634,7 @@ def evaluator():
         'Oracle'
     )
     print(results['algorithm_version'].unique())
-    
+
     # save the results to a csv file
     results.to_csv(save_path + 'data.csv')
 
@@ -647,12 +643,13 @@ def evaluator():
 
     results = results.drop(columns=drop_columns)
 
-    results_grouped = results.groupby('algorithm_version',).agg(['mean', 'std'])
+    results_grouped = results.groupby(
+        'algorithm_version',).agg(['mean', 'std'])
 
-    #sort results by tracking error
+    # sort results by tracking error
     results_grouped = results_grouped.sort_values(
         by=('voltage_violation', 'mean'), ascending=False)
-    
+
     print(results_grouped[['voltage_violation',
                            'average_user_satisfaction',
                            'total_energy_charged',
@@ -660,7 +657,6 @@ def evaluator():
                            'total_reward',
                            ]])
 
-    
     with gzip.open(save_path + 'plot_results_dict.pkl.gz', 'wb') as f:
         pickle.dump(plot_results_dict, f)
 
@@ -670,29 +666,27 @@ def evaluator():
         if hasattr(algorithm, 'algo_name'):
             algorithm_names.append(algorithm.algo_name)
         elif type(algorithm) == str:
-            if "GNN" in algorithm:                
+            if "GNN" in algorithm:
                 # algorithm_names.append('RL')
                 algorithm_names.append(algorithm.split(
                     '_')[0] + '_' + algorithm.split('_')[1])
-                
+
             else:
                 # algorithm_names.append(algorithm.split('_')[0])
                 algorithm_names.append(algorithm)
         else:
             algorithm_names.append(algorithm.__name__)
 
-    
     # save algorithm names to a txt file
     with open(save_path + 'algorithm_names.txt', 'w') as f:
         for item in algorithm_names:
             f.write("%s\n" % item)
-            
+
     print(f'Plottting results at {save_path}')
-    
+
     plot_grid_metrics(results_path=save_path + 'plot_results_dict.pkl.gz',
-                        save_path=save_path,
-                        algorithm_names=algorithm_names)
-    
+                      save_path=save_path,
+                      algorithm_names=algorithm_names)
 
     # plot_total_power(results_path=save_path + 'plot_results_dict.pkl',
     #                  save_path=save_path,

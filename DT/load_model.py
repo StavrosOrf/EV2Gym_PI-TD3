@@ -62,7 +62,7 @@ def load_DT_model(model_path, max_ep_len, env,  device):
 
     state_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
-    load_path = f"saved_models/{model_path}"
+    load_path = f"eval_models/{model_path}"
     state_mean = np.load(f'{load_path}/state_mean.npy')
     state_std = np.load(f'{load_path}/state_std.npy')
 
@@ -70,7 +70,7 @@ def load_DT_model(model_path, max_ep_len, env,  device):
 
     state_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
-    model_path = f"saved_models/{model_path}"
+    model_path = f"eval_models/{model_path}"
     vars_path = f"{model_path}/vars.yaml"
 
     vars = yaml.load(open(vars_path), Loader=yaml.FullLoader)

@@ -56,7 +56,6 @@ network_info:
   # bus_info_file: './ev2gym/data/network_data/node_123/Nodes_123.csv'
   # branch_info_file: './ev2gym/data/network_data/node_123/Lines_123.csv'
 
-
 pf_solver: 'Laurent' # 'Laurent' or 'PandaPower'
 
 ##############################################################################

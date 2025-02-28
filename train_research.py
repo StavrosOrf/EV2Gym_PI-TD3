@@ -106,7 +106,7 @@ if __name__ == "__main__":
     run_timer = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", default="Traj") #TD3, Traj
+    parser.add_argument("--policy", default="TD3") #TD3, Traj
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
@@ -438,7 +438,9 @@ if __name__ == "__main__":
         kwargs['ph_coeff'] = args.ph_coeff
         
         kwargs['transition_fn'] = transition_fn
-        # kwargs['transition_fn'] = None
+        
+        kwargs['loss_fn'] = None
+        kwargs['transition_fn'] = None
 
         # kwargs['loss_fn'] = None
         # Save kwargs to local path
