@@ -6,8 +6,9 @@ from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.baselines.heuristics import RoundRobin, RandomAgent, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
+from agent.loss_full import V2GridLoss
 
 from ev2gym.baselines.gurobi_models.v2g_grid import V2GProfitMax_Grid_OracleGB
 
@@ -39,7 +40,7 @@ def eval():
                  save_replay=True,
                  save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=V2G_grid_simple_reward,
+                 reward_function=V2G_grid_full_reward,
                  )
 
     print(env.action_space)
@@ -57,17 +58,17 @@ def eval():
     ev_min_battery_capacity = env.EVs_profiles[0].min_battery_capacity
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    loss_fn = VoltageViolationLoss(K=env.grid.net._K_,
-                                   L=env.grid.net._L_,
-                                   s_base=env.grid.net.s_base,
-                                   num_buses=env.grid.net.nb,
-                                   max_cs_power=max_cs_power,
-                                   min_cs_power=min_cs_power,
-                                   ev_battery_capacity=ev_battery_capacity,
-                                   ev_min_battery_capacity=ev_min_battery_capacity,
-                                   device=device,
-                                   verbose=False,
-                                   )
+    loss_fn = V2GridLoss(K=env.grid.net._K_,
+                         L=env.grid.net._L_,
+                         s_base=env.grid.net.s_base,
+                         num_buses=env.grid.net.nb,
+                         max_cs_power=max_cs_power,
+                         min_cs_power=min_cs_power,
+                         ev_battery_capacity=ev_battery_capacity,
+                         ev_min_battery_capacity=ev_min_battery_capacity,
+                         device=device,
+                         verbose=True,
+                         )
 
     state_transition = V2G_Grid_StateTransition(verbose=False,
                                                 device=device,
@@ -108,22 +109,22 @@ def eval():
 
             # print("============================================================================")
             timer = time.time()
-            loss = loss_fn(action=torch.tensor(actions, device=device).reshape(1, -1),
+            loss, v = loss_fn(action=torch.tensor(actions, device=device).reshape(1, -1),
                            state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 
-            v = loss_fn.voltage_real_operations(state=torch.tensor(state, device=device).reshape(1, -1),
-                                                action=torch.tensor(
-                actions, device=device).reshape(1, -1),
-            )
+            # v = loss_fn.voltage_real_operations(state=torch.tensor(state, device=device).reshape(1, -1),
+            #                                     action=torch.tensor(
+            #     actions, device=device).reshape(1, -1),
+            # )
             v_m = env.node_voltage[1:, t]
-            v = v.cpu().detach().numpy().reshape(-1)
+            # v = v.cpu().detach().numpy().reshape(-1)
             # # print(f'\n \n')
             # print(f'V real: {v_m}')
             # print(f'V pred: {v}')
             # print(f'v_loss {np.abs(v - v_m).mean()}')
             if np.abs(v - v_m).mean() > 0.001:
-                print(f'Error in voltage calculation')
+                input(f'Error in voltage calculation')
 
             # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
@@ -133,7 +134,7 @@ def eval():
             if reward_loss > 0.001:
                 print(
                     f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
-                print(f'Error in reward calculation')
+                input(f'Error in reward calculation')
 
             state = new_state
 
@@ -187,7 +188,7 @@ def evaluate_optimal(new_replay_path):
                  verbose=False,
                  save_plots=True,
                  state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=V2G_grid_simple_reward,
+                 reward_function=V2G_grid_full_reward,
                  )
     state, _ = env.reset()
     rewards_opt = []
@@ -211,8 +212,8 @@ def evaluate_optimal(new_replay_path):
 
 if __name__ == "__main__":
     # while True:
-        new_replay_path = eval()
-        # new_replay_path = f'./replay/replay_sim_2025_02_24_968597.pkl'
-        # new_replay_path = f'./replay/replay_sim_2025_02_24_430760.pkl'
-        # new_replay_path = "./replay/replay_sim_2025_02_24_865151.pkl"
-        evaluate_optimal(new_replay_path)
+    new_replay_path = eval()
+    # new_replay_path = f'./replay/replay_sim_2025_02_24_968597.pkl'
+    # new_replay_path = f'./replay/replay_sim_2025_02_24_430760.pkl'
+    # new_replay_path = "./replay/replay_sim_2025_02_24_865151.pkl"
+    # evaluate_optimal(new_replay_path)
