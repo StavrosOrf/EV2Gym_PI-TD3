@@ -214,9 +214,7 @@ def evaluate_optimal(new_replay_path):
 
 if __name__ == "__main__":
     # while True:
-    # new_replay_path = eval()
-    # new_replay_path = f'./replay/replay_sim_2025_02_24_968597.pkl'
-    # new_replay_path = f'./replay/replay_sim_2025_02_24_430760.pkl'
-    # new_replay_path = "./replay/replay_sim_2025_02_24_865151.pkl"
-    new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_528065.pkl'
-    evaluate_optimal(new_replay_path)
+    new_replay_path = eval()
+    
+    # new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_528065.pkl'
+    # evaluate_optimal(new_replay_path)

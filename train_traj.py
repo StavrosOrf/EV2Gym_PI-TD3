@@ -124,7 +124,7 @@ if __name__ == "__main__":
         parser.add_argument("--eval_episodes", default=1, type=int)
         parser.add_argument("--start_timesteps", default=300,
                             type=int)
-        parser.add_argument('--eval_freq', default=300, type=int)
+        parser.add_argument('--eval_freq', default=10, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')
@@ -214,8 +214,8 @@ if __name__ == "__main__":
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
 
-    replay_path = 'replay/v2g_grid_150_1evals/replay_sim_2025_03_03_378219.pkl'
-    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_528065.pkl'
+    # replay_path = 'replay/v2g_grid_150_1evals/replay_sim_2025_03_03_378219.pkl'
+    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_454410.pkl'
     # replay_path = None
     gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,
@@ -246,6 +246,8 @@ if __name__ == "__main__":
                      generate_rnd_game=True,
                      save_replay=True,
                      replay_save_path=f"{evaluation_name}/",
+                     state_function=state_function,
+                     reward_function=reward_function,
                      )
 
         replay_path = f"{evaluation_name}/replay_{env.sim_name}.pkl"
@@ -359,36 +361,8 @@ if __name__ == "__main__":
         "tau": args.tau,
         "mlp_hidden_dim": args.mlp_hidden_dim,
     }
-
-    if args.policy == "TD3":
-        state_dim = env.observation_space.shape[0]
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
-        kwargs['load_path'] = load_path
-
-        kwargs['loss_fn'] = loss_fn
-        kwargs['ph_coeff'] = args.ph_coeff
-        
-        kwargs['transition_fn'] = transition_fn
-        
-        # kwargs['loss_fn'] = None
-        # kwargs['transition_fn'] = None
-
-        # kwargs['loss_fn'] = None
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-        
-        os.system(f'cp TD3/TD3.py {save_path}')
-        
-        policy = TD3(**kwargs)
-        replay_buffer = ReplayBuffer(state_dim, action_dim)
-
-    elif args.policy == "Traj":
+    
+    if args.policy == "Traj":
         
         state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale

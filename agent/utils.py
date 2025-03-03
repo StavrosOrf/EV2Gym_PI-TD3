@@ -211,9 +211,7 @@ class Trajectory_ReplayBuffer(object):
 
         # Sample states and actions
         states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
-
-        # states = [states[i, start[i]:, :]
-        #           for i in range(batch_size)]
+        actions = torch.FloatTensor(self.action[ind, :, :]).to(self.device)
         
         states_new = torch.zeros_like(states, device=self.device)
         dones = torch.zeros((states.shape[0], self.max_length), device=self.device)
@@ -223,6 +221,7 @@ class Trajectory_ReplayBuffer(object):
             # print(f'states[i, start[i]:, :].shape {states[i, start[i]:, :].shape}')
             
             states_new[i, :self.max_length-start[i], :] = states[i, start[i]:, :]            
+            actions[i, self.max_length-start[i]:, :] = 0
             dones[i, self.max_length-start[i]-1:] = 1    
             
         # print(f'start: {start}')
@@ -230,4 +229,4 @@ class Trajectory_ReplayBuffer(object):
         # print(f'states: {states.shape}')
         # print(f'dones: {dones.shape}')
         # input(f'states: {states.shape}')
-        return states, dones
+        return states, dones, actions

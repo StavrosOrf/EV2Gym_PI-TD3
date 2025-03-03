@@ -262,16 +262,16 @@ class V2GridLoss(nn.Module):
         
         costs = prices * power_usage * timescale  
 
-        # time_left_binary = torch.where(ev_time_left == 1, 1, 0)
+        time_left_binary = torch.where(ev_time_left == 1, 1, 0)
 
-        # new_capacity = (current_capacity + power_usage * timescale)
-        # new_capacity = torch.true_divide(
-        #     torch.ceil(new_capacity * 10**2), 10**2)
+        new_capacity = (current_capacity + power_usage * timescale)
+        new_capacity = torch.true_divide(
+            torch.ceil(new_capacity * 10**2), 10**2)
 
-        # user_sat_at_departure = (new_capacity - self.ev_battery_capacity)**2
+        user_sat_at_departure = (new_capacity - self.ev_battery_capacity)**2
 
-        # user_sat_at_departure = - time_left_binary * user_sat_at_departure
-        # user_sat_at_departure = user_sat_at_departure.sum(axis=1)
+        user_sat_at_departure = - time_left_binary * user_sat_at_departure
+        user_sat_at_departure = user_sat_at_departure.sum(axis=1)
 
         if self.verbose:
             print(f'power_usage: {power_usage}')
@@ -281,4 +281,4 @@ class V2GridLoss(nn.Module):
 
         costs = costs.sum(axis=1)
         
-        return costs
+        return costs + user_sat_at_departure

@@ -82,7 +82,7 @@ class Traj(object):
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=lr)
-        
+
         self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(
@@ -121,42 +121,52 @@ class Traj(object):
         self.total_it += 1
 
         # Sample replay buffer
-        state, dones = replay_buffer.sample_new(batch_size)
+        state, dones, actions = replay_buffer.sample_new(batch_size)
+
+        # for i in range(100):
+        #     state_new = self.transition_fn(state=state[:, i, :],
+        #                                    new_state=state[:, i+1, :],
+        #                                    action=actions[:, i, :])
+        #     print(f'stat_new: {state_new.shape}')
+        #     if (state_new*(1-dones[:,i]).unsqueeze(1) -\
+        #         state[:, i+1, :]*(1-dones[:,i]).unsqueeze(1)).mean() > 0.001:
+        #         print(f'diff: {(state_new - state[:, i+1, :]).mean()}')
+        #         input('Error in state transition')
 
         self.actor.train()
-        
+
         with torch.no_grad():
             state_new = state[:, 0, :]
             i = 0
             while True:
                 discount = self.discount ** (i+1)
-                
-                
+
                 action_pred = self.actor_target(state_new)
                 reward = self.loss_fn.profit_max(state=state_new,
-                                                action=action_pred)
+                                                 action=action_pred)
 
                 if i == 0:
                     total_reward = +reward
                 else:
-                    total_reward += discount* reward * (1-dones[:, i])
+                    total_reward += discount * reward * (1-dones[:, i])
 
                 state_new = self.transition_fn(state=state_new,
-                                            new_state=state[:,i+1, :].detach(),
-                                            action=action_pred)
-                
+                                               new_state=state[:,
+                                                               i+1, :].detach(),
+                                               action=action_pred)
+
                 # print(f'dones: {dones[:, i]}')
                 if sum(dones[:, i]) == dones.shape[0]:
                     break
-                
+
                 if i == 0:
                     action_pred_first = action_pred
-                    
+
                 i += 1
-            
-        # print(f'action_pred_first: {action_pred_first.shape}')        
+
+        # print(f'action_pred_first: {action_pred_first.shape}')
         # print(f'state: {state[:, 0, :].shape}')
-        
+
         # Get current Q estimates
         current_Q = self.critic_target(state[:, 0, :], action_pred_first)
 
@@ -164,22 +174,23 @@ class Traj(object):
         # print(f'Current Q: {current_Q}')
         # print(f'Total Reward: {total_reward.shape}')
         # print(f'Total Reward: {total_reward}')
-        
+
         # Compute critic loss
         critic_loss = F.mse_loss(current_Q.view(-1), -total_reward)
 
         self.loss_dict['critic_loss'] = critic_loss.item()
-        
+
         # Optimize the critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        self.critic_optimizer.step()        
+        self.critic_optimizer.step()
         total_reward = total_reward.sum()
-        
-        actor_loss = -self.critic(state[:, 0, :], self.actor(state[:, 0, :])).mean()
+
+        actor_loss = -self.critic(state[:, 0, :],
+                                  self.actor(state[:, 0, :])).mean()
 
         self.loss_dict['actor_loss'] = actor_loss.item()
-        
+
         # dot = make_dot(total_reward)
         # dot.render("autograd_graph", format="png")
         # exit()
@@ -196,8 +207,7 @@ class Traj(object):
         self.loss_dict['actor_grad_norm'] = total_norm
 
         self.actor_optimizer.step()
-        
-        
+
         # Update the frozen target models
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(

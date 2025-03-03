@@ -44,11 +44,11 @@ def V2G_profitmax(env, total_costs, user_satisfaction_list, *args):
     # if verbose:
     #     print(f'!!! Costs: {total_costs}')
     
-    # user_costs = 0
-    # for ev in env.departing_evs:
-    #     if verbose:
-    #         print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity}')
-    #     user_costs += -(ev.current_capacity - ev.desired_capacity)**2
+    user_costs = 0
+    for ev in env.departing_evs:
+        # if verbose:
+        #     print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity}')
+        user_costs += -(ev.current_capacity - ev.desired_capacity)**2
     
     # if verbose:
     #     print(f'!!! User Satisfaction Penalty: {user_costs}')
@@ -57,4 +57,4 @@ def V2G_profitmax(env, total_costs, user_satisfaction_list, *args):
     # v_m = env.node_voltage[:, current_step]
 
     # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
-    return reward #+ 1000 * loss_v + user_costs
+    return reward + user_costs
