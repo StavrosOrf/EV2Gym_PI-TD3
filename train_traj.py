@@ -117,14 +117,14 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=600,
+        parser.add_argument("--start_timesteps", default=300,
                             type=int)
-        parser.add_argument('--eval_freq', default=700, type=int)
+        parser.add_argument('--eval_freq', default=300, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')

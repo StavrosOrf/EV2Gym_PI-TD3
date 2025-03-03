@@ -184,13 +184,50 @@ class Trajectory_ReplayBuffer(object):
         actions = torch.FloatTensor(self.action[ind, :, :]).to(self.device)
         next_states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
 
-        states = [states[i, start[i]:end[i], :] for i in range(batch_size)]
+        states = [states[i, start[i]:end[i], :]
+                  for i in range(batch_size)]
         next_states = [next_states[i, start[i]:end[i], :]
                        for i in range(batch_size)]
-        actions = [actions[i, start[i]:end[i], :] for i in range(batch_size)]
+        actions = [actions[i, start[i]:end[i], :]
+                   for i in range(batch_size)]
 
         states = torch.stack(states)
         next_states = torch.stack(next_states)
         actions = torch.stack(actions)
 
         return states, actions, next_states
+    
+        
+    def sample_new(self, batch_size):
+        ind = np.random.randint(0, self.size, size=batch_size)
+        start = np.random.randint(
+            2, self.max_length - 2, size=batch_size)
+        
+
+        # Ensure ind, start, and end are integers
+        ind = ind.astype(int)
+        start = start.astype(int)
+        # end = end.astype(int)
+
+        # Sample states and actions
+        states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
+
+        # states = [states[i, start[i]:, :]
+        #           for i in range(batch_size)]
+        
+        states_new = torch.zeros_like(states, device=self.device)
+        dones = torch.zeros((states.shape[0], self.max_length), device=self.device)
+                
+        for i in range(batch_size):
+            # print(f'self.max_length-start[i] {self.max_length-start[i]}')
+            # print(f'states[i, start[i]:, :].shape {states[i, start[i]:, :].shape}')
+            
+            states_new[i, :self.max_length-start[i], :] = states[i, start[i]:, :]            
+            dones[i, self.max_length-start[i]-1:] = 1    
+            
+        # print(f'start: {start}')
+        # print(f'dones: {dones}')
+        # print(f'states: {states.shape}')
+        # print(f'dones: {dones.shape}')
+        # input(f'states: {states.shape}')
+        return states, dones
