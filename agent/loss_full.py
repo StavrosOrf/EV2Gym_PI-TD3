@@ -198,3 +198,87 @@ class V2GridLoss(nn.Module):
 
         # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
         return loss #, v0_clamped.real.cpu().detach().numpy()
+
+
+    def profit_max(self, action, state):
+
+        if self.verbose:
+            print("==================================================")
+            print(f'action: {action.shape}')
+            print(f'state: {state.shape}')
+
+        number_of_cs = action.shape[1]
+        prices = state[:, 3] 
+        prices = torch.repeat_interleave(prices.view(-1, 1), number_of_cs, dim=1)
+        
+        step_size = 3
+        ev_state_start = 4 + 2*(self.num_buses-1)
+        batch_size = state.shape[0]
+
+        # timesscale is a vactor of size number_of_cs with the varaible timescale
+        timescale = torch.ones((batch_size, number_of_cs),
+                               device=self.device) * self.timescale / 60
+
+        current_capacity = state[:, ev_state_start:(
+            ev_state_start + step_size*number_of_cs):step_size]
+        ev_time_left = state[:, ev_state_start+1:(
+            ev_state_start + 1 + step_size*number_of_cs):step_size]
+        connected_bus = state[:, ev_state_start+2:(
+            ev_state_start + 2 + step_size*number_of_cs):step_size]
+        ev_connected_binary = current_capacity > 0
+
+        max_ev_charge_power = self.max_ev_charge_power * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+        max_ev_discharge_power = self.max_ev_discharge_power * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+        battery_capacity = self.ev_battery_capacity * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+        ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+
+        max_ev_charge_power = torch.min(
+            max_ev_charge_power, ev_connected_binary * (battery_capacity - current_capacity)/timescale)
+        max_ev_discharge_power = torch.max(
+            max_ev_discharge_power, ev_connected_binary * (ev_min_battery_capacity - current_capacity)/timescale)
+
+        if self.verbose:
+            print("--------------------------------------------------")
+            print(f'actions: {action}')
+            print(f'ev_connected_binary: {ev_connected_binary}')
+            print(f'current_capacity: {current_capacity}')
+            print(f'time_left: {ev_time_left}')
+            print(f'connected_bus: {connected_bus}')
+            print(f'prices: {prices}')
+            print(f'timescale: {timescale}')
+
+        # make a binary matrix when action is > 0
+        action_binary = torch.where(action >= 0, 1, 0)
+
+        power_usage = action * self.max_cs_power * action_binary -\
+            action * self.min_cs_power * (1 - action_binary)
+
+        power_usage = torch.min(power_usage, max_ev_charge_power)
+        power_usage = torch.max(power_usage, max_ev_discharge_power)
+        
+        costs = prices * power_usage * timescale  
+
+        # time_left_binary = torch.where(ev_time_left == 1, 1, 0)
+
+        # new_capacity = (current_capacity + power_usage * timescale)
+        # new_capacity = torch.true_divide(
+        #     torch.ceil(new_capacity * 10**2), 10**2)
+
+        # user_sat_at_departure = (new_capacity - self.ev_battery_capacity)**2
+
+        # user_sat_at_departure = - time_left_binary * user_sat_at_departure
+        # user_sat_at_departure = user_sat_at_departure.sum(axis=1)
+
+        if self.verbose:
+            print(f'power_usage: {power_usage}')
+            print(f'energy_usage: {power_usage * timescale}')
+            print(f'costs: {costs}')
+            print(f'costs: {costs.sum(axis=1)}')
+
+        costs = costs.sum(axis=1)
+        
+        return costs

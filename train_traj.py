@@ -12,7 +12,7 @@ import pickle
 import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward, V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -106,17 +106,18 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid_150.yaml")
-    # parser.add_argument("--config", default="v2g_grid_3.yaml")
+    parser.add_argument("--config", default="v2g_grid_50.yaml")
+    # parser.add_argument("--config", default="v2g_grid_150.yaml")
+    
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
     parser.add_argument("--load_model", default="")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument('--group_name', type=str, default='Full_problem_')
+    parser.add_argument('--group_name', type=str, default='cost_problem_')
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -124,7 +125,7 @@ if __name__ == "__main__":
         parser.add_argument("--start_timesteps", default=600,
                             type=int)
         parser.add_argument('--eval_freq', default=700, type=int)
-        parser.add_argument("--batch_size", default=4, type=int)  # 256
+        parser.add_argument("--batch_size", default=3, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
@@ -132,9 +133,9 @@ if __name__ == "__main__":
         parser.add_argument("--eval_episodes", default=1, type=int)
         parser.add_argument("--start_timesteps", default=300,
                             type=int)  # original 25e5
-        parser.add_argument("--eval_freq", default=300, #2250
+        parser.add_argument("--eval_freq", default=10, #2250
                             type=int)  # in episodes
-        parser.add_argument("--batch_size", default=2, type=int)  # 256
+        parser.add_argument("--batch_size", default=256, type=int)  # 256
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor
@@ -180,7 +181,7 @@ if __name__ == "__main__":
     parser.add_argument('--ph_coeff', type=float, default=10e-5)
     
     parser.add_argument('--K', type=int, default=6)
-    parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
     parser.add_argument('--mlp_hidden_dim', type=int, default=512)
 
@@ -205,14 +206,17 @@ if __name__ == "__main__":
     if not os.path.exists("./results"):
         os.makedirs("./results")
 
-    group_name = "150_SB3_tests"
+    group_name = "50_tests"
     reward_function = V2G_grid_full_reward
+    reward_function = V2G_profitmax
     state_function = V2G_grid_state_ModelBasedRL
 
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
 
     replay_path = 'replay/v2g_grid_150_1evals/replay_sim_2025_03_03_378219.pkl'
+    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_528065.pkl'
+    # replay_path = None
     gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,
                               'reward_function': reward_function,
@@ -311,7 +315,7 @@ if __name__ == "__main__":
     group_name = f'Traj_exps_{args.group_name}_{number_of_charging_stations}cs_{n_transformers}tr'
 
     if args.load_model == "":
-        exp_prefix = f'{args.name}-{random.randint(int(1e5), int(1e6) - 1)}'
+        exp_prefix = f'K={args.K}_batch_size{args.batch_size}_{args.name}-{random.randint(int(1e5), int(1e6) - 1)}'
     else:
         exp_prefix = args.load_model
     print(f'group_name: {group_name}, exp_prefix: {exp_prefix}')
@@ -474,21 +478,17 @@ if __name__ == "__main__":
 
         episode_timesteps += 1
 
-        if args.policy == "TD3" or args.policy == "TD3_GNN" or args.policy == "Traj":
-                # Select action randomly or according to policy + add noise
-                action = (
-                    policy.select_action(state) )
-                #     + np.random.normal(0, max_action *
-                #                        args.expl_noise, size=action_dim)
-                # ).clip(-max_action, max_action)
-                # Perform action
-                next_state, reward, done, _, stats = env.step(action)
+        if t < args.start_timesteps:
+    
+            # Select action randomly or according to policy + add noise
+            action = (
+                policy.select_action(state) )
+            #     + np.random.normal(0, max_action *
+            #                        args.expl_noise, size=action_dim)
+            # ).clip(-max_action, max_action)
+            # Perform action
+            next_state, reward, done, _, stats = env.step(action)
                 
-
-        if args.policy != "Traj":
-            # Store data in replay buffer
-            replay_buffer.add(state, action, next_state, reward, float(done))
-        else:
             action_traj[episode_timesteps] = torch.FloatTensor(action).to(device)
             state_traj[episode_timesteps] = torch.FloatTensor(state).to(device)
             done_traj[episode_timesteps] = torch.FloatTensor([done]).to(device)
@@ -515,6 +515,7 @@ if __name__ == "__main__":
                         #    'train/physics_loss': loss_dict['physics_loss'],
                             'train/time': time.time() - start_time, },
                             step=t)
+            done = True
 
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
@@ -522,12 +523,12 @@ if __name__ == "__main__":
                 f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}" +
                 f" Time: {time.time() - ep_start_time:.3f}")
             # Reset environment
-            state, _ = env.reset()
-            ep_start_time = time.time()
-            done = False
+            # state, _ = env.reset()
+            # ep_start_time = time.time()
+            # done = False
             
-            if args.policy == "Traj":
-                # Store trajectory in replay buffer
+            
+            if replay_buffer.size < 1:
                 replay_buffer.add(state_traj, action_traj)
                 action_traj = torch.zeros((simulation_length, action_dim)).to(device)
                 state_traj = torch.zeros((simulation_length, state_dim)).to(device)
@@ -536,36 +537,31 @@ if __name__ == "__main__":
 
             episode_num += 1
 
-            if args.log_to_wandb:
-                wandb.log({'train_ep/episode_reward': episode_reward,
-                           'train_ep/episode_num': episode_num},
-                          step=t)
-
             episode_reward = 0
             episode_timesteps = -1
 
-        # Evaluate episode
-        if (t + 1) % args.eval_freq == 0:
+            # Evaluate episode
+            if (t + 1) % args.eval_freq == 0:
 
-            avg_reward, eval_stats = eval_policy(policy=policy,
-                                                 args=args,
-                                                 eval_config=eval_config,
-                                                 config_file=config_file,
-                                                 )
-            evaluations.append(avg_reward)
+                avg_reward, eval_stats = eval_policy(policy=policy,
+                                                    args=args,
+                                                    eval_config=eval_config,
+                                                    config_file=config_file,
+                                                    )
+                evaluations.append(avg_reward)
 
-            if evaluations[-1] > best_reward:
-                best_reward = evaluations[-1]
+                if evaluations[-1] > best_reward:
+                    best_reward = evaluations[-1]
 
-                policy.save(f'saved_models/{exp_prefix}/model.best')
+                    policy.save(f'saved_models/{exp_prefix}/model.best')
 
-            if args.log_to_wandb:
-                wandb.log({'eval_a/mean_reward': evaluations[-1],
-                           'eval_a/best_reward': best_reward, },
-                          step=t)
+                if args.log_to_wandb:
+                    wandb.log({'eval_a/mean_reward': evaluations[-1],
+                            'eval_a/best_reward': best_reward, },
+                            step=t)
 
-                wandb.log(eval_stats,
-                          step=t)
+                    wandb.log(eval_stats,
+                            step=t)
 
     if args.log_to_wandb:
         wandb.finish()

@@ -1,4 +1,5 @@
 
+from torchviz import make_dot
 import copy
 import numpy as np
 import torch
@@ -8,6 +9,7 @@ import torch.nn.functional as F
 import torch_geometric.transforms as T
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.autograd.set_detect_anomaly(True)
 
 
 class Actor(nn.Module):
@@ -29,6 +31,25 @@ class Actor(nn.Module):
         a = self.dropout(a)
 
         return self.l3(a)
+
+
+class Critic(nn.Module):
+    def __init__(self, state_dim, action_dim, mlp_hidden_dim):
+        super(Critic, self).__init__()
+
+        # Q1 architecture
+        self.l1 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
+        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.l3 = nn.Linear(mlp_hidden_dim, 1)
+
+    def forward(self, state, action):
+        sa = torch.cat([state, action], 1)
+
+        q1 = F.relu(self.l1(sa))
+        q1 = F.relu(self.l2(q1))
+        q1 = self.l3(q1)
+
+        return q1
 
 
 class Traj(object):
@@ -61,6 +82,11 @@ class Traj(object):
         # self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=lr)
+        
+        self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
+        # self.critic_target = copy.deepcopy(self.critic)
+        self.critic_optimizer = torch.optim.Adam(
+            self.critic.parameters(), lr=lr)
 
         self.max_action = max_action
         self.discount = discount
@@ -98,9 +124,6 @@ class Traj(object):
         state, action, next_state = replay_buffer.sample(
             batch_size, self.sequence_length)
 
-        # print(f'State: {state.shape}')
-        # print(f'State: {state[:, 0, :].shape}')        
-
         if False:
             # test if loss_fn is working properly
             reward_test = self.loss_fn(state=state,
@@ -121,27 +144,95 @@ class Traj(object):
             if state_diff.mean() > 0.001:
                 print(f'State diff: {state_diff.mean()}')
                 input("Error in state transition")
-
+        
         self.actor.train()
+        
+        with torch.no_grad():
+            # Select action according to policy and add clipped noise
+            # noise = (
+            #     torch.randn_like(action) * self.policy_noise
+            # ).clamp(-self.noise_clip, self.noise_clip)
 
-        state_new = state[:, 0, :]
-        for i in range(self.sequence_length):
-            action_pred = self.actor(state_new)
-            reward = self.loss_fn(state=state[:, i, :],
-                                  action=action_pred)
+            # next_action = (
+            #     self.actor_target(next_state) + noise
+            # ).clamp(-self.max_action, self.max_action)
 
-            if i == 0:
-                total_reward = -reward
-            else:
-                total_reward -= reward
+            # Compute the target Q value
+            # target_Q1 = self.critic_target(next_state, next_action)
+            # target_Q = torch.min(target_Q1, target_Q2)
+            # target_Q1 = reward #+ not_done * self.discount * target_Q
+            state_new = state[:, 0, :]
+            for i in range(self.sequence_length-1):
+                # state_new = state[:, i, :]
+                action_pred = self.actor(state_new)
+                reward = self.loss_fn.profit_max(state=state_new,
+                                                action=action_pred)
 
-            state_new = self.transition_fn(state_new,
-                                           next_state[:, i, :],
-                                           action_pred)
+                if i == 0:
+                    total_reward = -reward
+                else:
+                    total_reward -= reward
 
-        self.loss_dict['physics_loss'] = reward.mean().item()
+                state_new = self.transition_fn(state=state_new,
+                                            new_state=next_state[:,i+1, :].detach(),
+                                            action=action_pred)
+                
+                if i == 0:
+                    action_pred_first = action_pred
+            
+        # Get current Q estimates
+        current_Q = self.critic(state[:, 0, :], action_pred_first)
 
-        total_reward = -total_reward.mean()
+        print(f'Current Q: {current_Q.shape}')
+        print(f'Current Q: {current_Q}')
+        print(f'Total Reward: {total_reward.shape}')
+        print(f'Total Reward: {total_reward}')
+        
+        # Compute critic loss
+        critic_loss = F.mse_loss(current_Q, total_reward)
+
+        self.loss_dict['critic_loss'] = critic_loss.item()
+        
+        # Optimize the critic
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        # torch.nn.utils.clip_grad_norm_(
+        #     self.critic.parameters(), max_norm=self.max_norm)
+        self.critic_optimizer.step()        
+
+        
+
+        # state_new = state[:, 0, :]
+        # for i in range(self.sequence_length-1):
+        #     # state_new = state[:, i, :]
+        #     action_pred = self.actor(state_new)
+        #     reward = self.loss_fn.profit_max(state=state_new,
+        #                                      action=action_pred)
+
+        #     if i == 0:
+        #         total_reward = -reward
+        #     else:
+        #         total_reward -= reward
+
+        #     state_new = self.transition_fn(state=state_new,
+        #                                    new_state=next_state[:,
+        #                                                         i+1, :].detach(),
+        #                                    action=action_pred)
+        
+        
+
+        self.loss_dict['physics_loss'] = total_reward.sum().item()
+
+        # total_reward = -total_reward.mean()
+        total_reward = total_reward.sum()
+        
+        actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+
+        self.loss_dict['actor_loss'] = actor_loss.item()
+        # dot = make_dot(total_reward)
+        # dot.render("autograd_graph", format="png")
+        # exit()
+
         # Optimize the actor
         self.actor_optimizer.zero_grad()
         total_reward.backward()

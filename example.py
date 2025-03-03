@@ -6,11 +6,12 @@ from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.baselines.heuristics import RoundRobin, RandomAgent, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward, V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
 from ev2gym.baselines.gurobi_models.v2g_grid import V2GProfitMax_Grid_OracleGB
+from ev2gym.baselines.gurobi_models.profit_max import V2GProfitMaxOracleGB
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,7 +30,7 @@ def eval():
 
     replay_path = None
 
-    config_file = "./config_files/v2g_grid_150.yaml"
+    config_file = "./config_files/v2g_grid_50.yaml"
     # config_file = "./config_files/v2g_grid_3.yaml"
     seed = 0
 
@@ -40,7 +41,7 @@ def eval():
                  save_replay=True,
                  save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=V2G_grid_full_reward,
+                 reward_function=V2G_profitmax,
                  )
 
     print(env.action_space)
@@ -109,7 +110,7 @@ def eval():
 
             # print("============================================================================")
             timer = time.time()
-            loss, v = loss_fn(action=torch.tensor(actions, device=device).reshape(1, -1),
+            loss = loss_fn.profit_max(action=torch.tensor(actions, device=device).reshape(1, -1),
                            state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 
@@ -123,8 +124,8 @@ def eval():
             # print(f'V real: {v_m}')
             # print(f'V pred: {v}')
             # print(f'v_loss {np.abs(v - v_m).mean()}')
-            if np.abs(v - v_m).mean() > 0.001:
-                input(f'Error in voltage calculation')
+            # if np.abs(v - v_m).mean() > 0.001:
+            #     input(f'Error in voltage calculation')
 
             # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
@@ -176,12 +177,13 @@ def eval():
 
 def evaluate_optimal(new_replay_path):
 
-    agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
+    # agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
 
     # # Profit maximization optimizer
-    # agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
+    agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
     # # Simulate in the gym environment and get the rewards
-    config_file = "./config_files/v2g_grid_3.yaml"
+    # config_file = "./config_files/v2g_grid_3.yaml"
+    config_file = "./config_files/v2g_grid_50.yaml"
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=new_replay_path,
@@ -212,8 +214,9 @@ def evaluate_optimal(new_replay_path):
 
 if __name__ == "__main__":
     # while True:
-    new_replay_path = eval()
+    # new_replay_path = eval()
     # new_replay_path = f'./replay/replay_sim_2025_02_24_968597.pkl'
     # new_replay_path = f'./replay/replay_sim_2025_02_24_430760.pkl'
     # new_replay_path = "./replay/replay_sim_2025_02_24_865151.pkl"
-    # evaluate_optimal(new_replay_path)
+    new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_528065.pkl'
+    evaluate_optimal(new_replay_path)
