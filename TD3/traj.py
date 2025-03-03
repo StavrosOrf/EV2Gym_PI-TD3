@@ -5,19 +5,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch_geometric.nn import GCNConv, GlobalAttention, GATConv
-
 import torch_geometric.transforms as T
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
-# Paper: https://arxiv.org/abs/1802.09477
-
 
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim,dropout=0.1):
+    def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim, dropout=0.1):
         super(Actor, self).__init__()
 
         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
@@ -28,14 +22,13 @@ class Actor(nn.Module):
         self.max_action = max_action
 
     def forward(self, state):
-        a = F.relu(self.l1(state))       
+
+        a = F.relu(self.l1(state))
         a = self.dropout(a)
         a = F.relu(self.l2(a))
         a = self.dropout(a)
 
         return self.l3(a)
-
-
 
 
 class Traj(object):
@@ -90,11 +83,13 @@ class Traj(object):
         }
 
     def select_action(self, state, **kwargs):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(device)
-        actions = self.actor(state).cpu().data.numpy().flatten()
-        # apply tanh to actions
-        actions = np.tanh(actions)
-        return actions
+
+        with torch.no_grad():
+            state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+            actions = self.actor(state).cpu().data.numpy().flatten()
+            # apply tanh to actions
+            actions = np.tanh(actions)
+            return actions
 
     def train(self, replay_buffer, batch_size=256):
         self.total_it += 1
@@ -104,16 +99,12 @@ class Traj(object):
             batch_size, self.sequence_length)
 
         # print(f'State: {state.shape}')
-        # print(f'Action: {action.shape}')
-        # print(f'Next State: {next_state.shape}')
-
-        # Delayed policy updates
-        # if self.total_it % self.policy_freq == 0:
+        # print(f'State: {state[:, 0, :].shape}')        
 
         if False:
             # test if loss_fn is working properly
             reward_test = self.loss_fn(state=state,
-                                        action=action)
+                                       action=action)
             reward_diff = torch.abs(
                 reward.view(-1) - reward_test.view(-1))
             if reward_diff.mean() > 0.001:
@@ -124,47 +115,45 @@ class Traj(object):
                 input("Error in reward calculation")
 
             next_state_test = self.transition_fn(state,
-                                                    next_state,
-                                                    action)
+                                                 next_state,
+                                                 action)
             state_diff = torch.abs(next_state - next_state_test)
             if state_diff.mean() > 0.001:
                 print(f'State diff: {state_diff.mean()}')
                 input("Error in state transition")
 
         self.actor.train()
-        
-        # total_reward = 0
-        state_new = state[0]
+
+        state_new = state[:, 0, :]
         for i in range(self.sequence_length):
             action_pred = self.actor(state_new)
-            reward = self.loss_fn(state=state[i],
-                                    action=action_pred)
+            reward = self.loss_fn(state=state[:, i, :],
+                                  action=action_pred)
 
             if i == 0:
                 total_reward = -reward
             else:
                 total_reward -= reward
-            
+
             state_new = self.transition_fn(state_new,
-                                            next_state[i],
-                                            action_pred)
+                                           next_state[:, i, :],
+                                           action_pred)
 
         self.loss_dict['physics_loss'] = reward.mean().item()
 
-        total_reward = total_reward.mean()
+        total_reward = -total_reward.mean()
         # Optimize the actor
         self.actor_optimizer.zero_grad()
         total_reward.backward()
-        
+
         total_norm = 0.0
         for param in self.actor.parameters():
             if param.grad is not None:
                 total_norm += param.grad.data.norm(2).item() ** 2
         total_norm = total_norm ** 0.5
         self.loss_dict['actor_grad_norm'] = total_norm
-        
-        self.actor_optimizer.step()
 
+        self.actor_optimizer.step()
 
         return self.loss_dict
 

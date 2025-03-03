@@ -18,14 +18,14 @@ counter = 0
 for model_type in ["dt"]:
     for lr in [1e-5]:
         for physics_loss_weight in [0]:        
-            for K in [12, 24]:
+            for K in [24]:
                 for batch_size in [128]:
                     for dataset in ["random_1000"]:
                         for embed_dim in [128]:  # 128, 512
                             #   ' --device cuda:0' + str(counter % 2) + \
                             for n_layer, n_head in [(3, 4)]:  # (3, 1),(3,4)
 
-                                run_name = f'whole_last_iteration.{model_type}_ph_coeff={physics_loss_weight}_run_{seed}_K={K}_batch={batch_size}_dataset={dataset}_embed_dim={embed_dim}_n_layer={n_layer}_n_head={n_head}'
+                                run_name = f'zero_likertg_whole_last_iteration.{model_type}_ph_coeff={physics_loss_weight}_run_{seed}_K={K}_batch={batch_size}_dataset={dataset}_embed_dim={embed_dim}_n_layer={n_layer}_n_head={n_head}'
                                 run_name += str(random.randint(0, 100000))
                                 
                                 command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_DT_research.py' + \

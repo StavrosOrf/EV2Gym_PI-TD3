@@ -80,6 +80,8 @@ class DecisionTransformer(TrajectoryModel):
             # attention mask for GPT: 1 if can be attended to, 0 if not
             attention_mask = torch.ones(
                 (batch_size, seq_length), dtype=torch.long)
+            
+        returns_to_go = torch.zeros_like(returns_to_go)
 
         # embed each modality with a different head
         state_embeddings = self.embed_state(states)

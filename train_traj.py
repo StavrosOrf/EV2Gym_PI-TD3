@@ -28,22 +28,6 @@ from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBu
 from gymnasium import Space
 from torch_geometric.data import Data
 
-
-class PyGDataSpace(Space):
-    def __init__(self):
-        super().__init__((), None)
-
-    def sample(self):
-        # Implement this method to generate a random Data object
-        pass
-
-    def contains(self, x):
-        return isinstance(x, Data)
-
-# Runs policy for X episodes and returns average reward
-# A fixed seed is used for the eval environment
-
-
 def eval_policy(policy,
                 args,
                 eval_config,
@@ -136,7 +120,7 @@ if __name__ == "__main__":
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
-        parser.add_argument("--eval_episodes", default=2, type=int)
+        parser.add_argument("--eval_episodes", default=1, type=int)
         parser.add_argument("--start_timesteps", default=600,
                             type=int)
         parser.add_argument('--eval_freq', default=700, type=int)
@@ -145,8 +129,8 @@ if __name__ == "__main__":
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
-        parser.add_argument("--eval_episodes", default=2, type=int)
-        parser.add_argument("--start_timesteps", default=2500,
+        parser.add_argument("--eval_episodes", default=1, type=int)
+        parser.add_argument("--start_timesteps", default=300,
                             type=int)  # original 25e5
         parser.add_argument("--eval_freq", default=300, #2250
                             type=int)  # in episodes
@@ -228,10 +212,12 @@ if __name__ == "__main__":
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
 
+    replay_path = 'replay/v2g_grid_150_1evals/replay_sim_2025_03_03_378219.pkl'
     gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,
                               'reward_function': reward_function,
                               'state_function': state_function,
+                              'load_from_replay_path': replay_path,
                               })
 
     env = gym.make('evs-v1')
@@ -322,7 +308,7 @@ if __name__ == "__main__":
     simulation_length = config["simulation_length"]
 
 
-    group_name = f'{args.group_name}_{number_of_charging_stations}cs_{n_transformers}tr'
+    group_name = f'Traj_exps_{args.group_name}_{number_of_charging_stations}cs_{n_transformers}tr'
 
     if args.load_model == "":
         exp_prefix = f'{args.name}-{random.randint(int(1e5), int(1e6) - 1)}'
@@ -488,38 +474,13 @@ if __name__ == "__main__":
 
         episode_timesteps += 1
 
-        # Select action randomly or according to policy
-        if t < args.start_timesteps and args.policy != "TD3_ActionGNN" and args.policy != "SAC_ActionGNN":
-            action = env.action_space.sample()
-            next_state, reward, done, _, stats = env.step(action)
-        else:
-
-            if args.policy == "TD3_ActionGNN":
-                mapped_action, action = policy.select_action(
-                    state, expl_noise=args.expl_noise)
-
-                # Perform action
-                next_state, reward, done, _, stats = env.step(mapped_action)
-
-            elif args.policy == "SAC_ActionGNN":
-                mapped_action, action = policy.select_action(state,
-                                                             evaluate=False,
-                                                             return_mapped_action=True)
-
-                # Perform action
-                next_state, reward, done, _, stats = env.step(mapped_action)
-            elif "SAC" in args.policy:
-                action = policy.select_action(state, evaluate=False)
-                # Perform action
-                next_state, reward, done, _, stats = env.step(action)
-
-            elif args.policy == "TD3" or args.policy == "TD3_GNN" or args.policy == "Traj":
+        if args.policy == "TD3" or args.policy == "TD3_GNN" or args.policy == "Traj":
                 # Select action randomly or according to policy + add noise
                 action = (
-                    policy.select_action(state)
-                    + np.random.normal(0, max_action *
-                                       args.expl_noise, size=action_dim)
-                ).clip(-max_action, max_action)
+                    policy.select_action(state) )
+                #     + np.random.normal(0, max_action *
+                #                        args.expl_noise, size=action_dim)
+                # ).clip(-max_action, max_action)
                 # Perform action
                 next_state, reward, done, _, stats = env.step(action)
                 
@@ -540,34 +501,20 @@ if __name__ == "__main__":
         if t >= args.start_timesteps:
 
             start_time = time.time()
-            if 'SAC' in args.policy:
-                critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = policy.train(
-                    replay_buffer, args.batch_size, updates)
-                updates += 1
 
-                if args.log_to_wandb:
-                    wandb.log({'train/critic_loss': critic_1_loss,
-                               'train/critic2_loss': critic_2_loss,
-                               'train/actor_loss': policy_loss,
-                               'train/ent_loss': ent_loss,
-                               'train/alpha': alpha,
-                               'train/time': time.time() - start_time, },
-                              step=t)
+            loss_dict = policy.train(
+                replay_buffer, args.batch_size)
 
-            else:
-                loss_dict = policy.train(
-                    replay_buffer, args.batch_size)
-
-                if args.log_to_wandb:
-                    
-                    # log all loss_dict keys, but add train/ in front of their name
-                    for key in loss_dict.keys():
-                        wandb.log({f'train/{key}': loss_dict[key]},
-                                  step=t)
-                    wandb.log({
-                            #    'train/physics_loss': loss_dict['physics_loss'],
-                               'train/time': time.time() - start_time, },
-                              step=t)
+            if args.log_to_wandb:
+                
+                # log all loss_dict keys, but add train/ in front of their name
+                for key in loss_dict.keys():
+                    wandb.log({f'train/{key}': loss_dict[key]},
+                                step=t)
+                wandb.log({
+                        #    'train/physics_loss': loss_dict['physics_loss'],
+                            'train/time': time.time() - start_time, },
+                            step=t)
 
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True

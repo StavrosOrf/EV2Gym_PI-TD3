@@ -90,8 +90,6 @@ class V2GridLoss(nn.Module):
             print("--------------------------------------------------")
             print(f'actions: {action}')
             print(f'ev_connected_binary: {ev_connected_binary}')
-            # print(f'max_ev_charge_power: {max_ev_charge_power}')
-            # print(f'max_ev_discharge_power: {max_ev_discharge_power}')
             print(f'current_capacity: {current_capacity}')
             print(f'time_left: {ev_time_left}')
             print(f'connected_bus: {connected_bus}')
@@ -103,9 +101,6 @@ class V2GridLoss(nn.Module):
 
         power_usage = action * self.max_cs_power * action_binary -\
             action * self.min_cs_power * (1 - action_binary)
-
-        # if self.verbose:
-        #     print(f'power_usage: {power_usage}')
 
         power_usage = torch.min(power_usage, max_ev_charge_power)
         power_usage = torch.max(power_usage, max_ev_discharge_power)
@@ -120,7 +115,7 @@ class V2GridLoss(nn.Module):
 
         user_sat_at_departure = (new_capacity - self.ev_battery_capacity)**2
 
-        user_sat_at_departure = -10 * time_left_binary * user_sat_at_departure
+        user_sat_at_departure = - time_left_binary * user_sat_at_departure
         user_sat_at_departure = user_sat_at_departure.sum(axis=1)
 
         if self.verbose:
@@ -150,12 +145,6 @@ class V2GridLoss(nn.Module):
         reactive_power_per_bus = state[:, 4 +
                                        self.num_buses-1:4+2*(self.num_buses-1)]
 
-        # if self.verbose:
-        #     print("--------------------------------------------------")
-        # print(f'EV_power_per_bus: {EV_power_per_bus}')
-        # print(f'active_power_per_bus: {active_power_per_bus}')
-        # print(f'reactive_power_per_bus: {reactive_power_per_bus}')
-
         active_power_pu = (active_power_per_bus +
                            EV_power_per_bus) / self.s_base
 
@@ -176,19 +165,6 @@ class V2GridLoss(nn.Module):
         S = S.view(batch_size, -1)
 
         W = self.L.view(-1)
-
-        # if self.verbose:
-        #     print(f'W: {W.shape}')
-        #     print(f'self.K: {self.K.shape}')
-        #     print(f'self.L: {self.L.shape}')
-        #     # print(f'Z: {Z.shape}')
-        #     # print(f'L: {L.shape}')
-        #     print(f'v0: {v0.shape}')
-        #     print(f'v_k: {v_k.shape}')
-        #     print(f'S: {S.shape}')
-
-        #     # print(f'self.L: {self.L}')
-        # print(f'L_m: {L_m}')
 
         while iteration < self.iterations and tol >= self.tolerance:
 
