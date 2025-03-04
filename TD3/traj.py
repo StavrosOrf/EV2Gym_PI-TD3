@@ -42,6 +42,11 @@ class Critic(nn.Module):
         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
         self.l3 = nn.Linear(mlp_hidden_dim, 1)
 
+        # Q2 architecture
+        self.l4 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
+        self.l5 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.l6 = nn.Linear(mlp_hidden_dim, 1)
+
     def forward(self, state, action):
         sa = torch.cat([state, action], 1)
 
@@ -49,7 +54,18 @@ class Critic(nn.Module):
         q1 = F.relu(self.l2(q1))
         q1 = self.l3(q1)
 
+        # q2 = F.relu(self.l4(sa))
+        # q2 = F.relu(self.l5(q2))
+        # q2 = self.l6(q2)
         return q1
+
+    # def Q1(self, state, action):
+    #     sa = torch.cat([state, action], 1)
+
+    #     q1 = F.relu(self.l1(sa))
+    #     q1 = F.relu(self.l2(q1))
+    #     q1 = self.l3(q1)
+    #     return q1
 
 
 class Traj(object):
@@ -135,69 +151,50 @@ class Traj(object):
 
         self.actor.train()
 
-        with torch.no_grad():
-            state_new = state[:, 0, :]
-            i = 0
-            while True:
-                discount = self.discount ** (i+1)
+        # with torch.no_grad():
+        state_new = state[:, 0, :]
+        i = 0
+        while True:
+        # for i in range(50):
+            discount = 0.99 #self.discount ** (i+1)
 
-                action_pred = self.actor_target(state_new)
-                reward = self.loss_fn.profit_max(state=state_new,
-                                                 action=action_pred)
+            action_pred = self.actor_target(state_new)
+            noise = (
+                torch.randn_like(actions[:,0,:]) * self.policy_noise
+            ).clamp(-self.noise_clip, self.noise_clip)
 
-                if i == 0:
-                    total_reward = +reward
-                else:
-                    total_reward += discount * reward * (1-dones[:, i])
+            action_pred = (
+                self.actor(state_new) + noise
+            ).clamp(-self.max_action, self.max_action)
+            
+            
+            reward = self.loss_fn.profit_max(state=state_new,
+                                                action=action_pred)
 
-                state_new = self.transition_fn(state=state_new,
-                                               new_state=state[:,
-                                                               i+1, :].detach(),
-                                               action=action_pred)
+            if i == 0:
+                total_reward = +reward
+            else:
+                total_reward += discount * reward * (1-dones[:, i])
 
-                # print(f'dones: {dones[:, i]}')
-                if sum(dones[:, i]) == dones.shape[0]:
-                    break
+            state_new = self.transition_fn(state=state_new,
+                                            new_state=state[:,
+                                                            i+1, :].detach(),
+                                            action=action_pred)
 
-                if i == 0:
-                    action_pred_first = action_pred
+            # print(f'dones: {dones[:, i]}')
+            if sum(dones[:, i]) == dones.shape[0]:
+                break
 
-                i += 1
+            # if i == 0:
+            #     action_pred_first = action_pred.detach()
 
-        # print(f'action_pred_first: {action_pred_first.shape}')
-        # print(f'state: {state[:, 0, :].shape}')
-
-        # Get current Q estimates
-        current_Q = self.critic_target(state[:, 0, :], action_pred_first)
-
-        # print(f'Current Q: {current_Q.shape}')
-        # print(f'Current Q: {current_Q}')
-        # print(f'Total Reward: {total_reward.shape}')
-        # print(f'Total Reward: {total_reward}')
-
-        # Compute critic loss
-        critic_loss = F.mse_loss(current_Q.view(-1), -total_reward)
-
-        self.loss_dict['critic_loss'] = critic_loss.item()
-
-        # Optimize the critic
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.critic_optimizer.step()
+            i += 1
         total_reward = total_reward.sum()
-
-        actor_loss = -self.critic(state[:, 0, :],
-                                  self.actor(state[:, 0, :])).mean()
-
-        self.loss_dict['actor_loss'] = actor_loss.item()
-
-        # dot = make_dot(total_reward)
-        # dot.render("autograd_graph", format="png")
-        # exit()
-
+        self.loss_dict['physics_loss'] = total_reward.item()
+                
         # Optimize the actor
         self.actor_optimizer.zero_grad()
-        actor_loss.backward()
+        total_reward.backward()
 
         total_norm = 0.0
         for param in self.actor.parameters():
@@ -207,15 +204,6 @@ class Traj(object):
         self.loss_dict['actor_grad_norm'] = total_norm
 
         self.actor_optimizer.step()
-
-        # Update the frozen target models
-        for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
-            target_param.data.copy_(
-                self.tau * param.data + (1 - self.tau) * target_param.data)
-
-        for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
-            target_param.data.copy_(
-                self.tau * param.data + (1 - self.tau) * target_param.data)
 
         return self.loss_dict
 

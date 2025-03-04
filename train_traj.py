@@ -122,7 +122,7 @@ if __name__ == "__main__":
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=300,
+        parser.add_argument("--start_timesteps", default=96,
                             type=int)
         parser.add_argument('--eval_freq', default=10, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     else:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=300,
+        parser.add_argument("--start_timesteps", default=96,
                             type=int)  # original 25e5
         parser.add_argument("--eval_freq", default=10, #2250
                             type=int)  # in episodes
@@ -143,9 +143,9 @@ if __name__ == "__main__":
     parser.add_argument("--tau", default=0.005, type=float)
     # TD3 parameters #############################################
     parser.add_argument("--expl_noise", default=0.1, type=float)  # 0.1
-    parser.add_argument("--policy_noise", default=0.2)  # 0.2
+    parser.add_argument("--policy_noise", default=0.5)  # 0.2
     # Range to clip target policy noise
-    parser.add_argument("--noise_clip", default=0.5)
+    parser.add_argument("--noise_clip", default=1)
     # Frequency of delayed policy updates
     parser.add_argument("--policy_freq", default=2, type=int)
     # Save model and optimizer parameters
@@ -215,7 +215,7 @@ if __name__ == "__main__":
                        Loader=yaml.FullLoader)
 
     # replay_path = 'replay/v2g_grid_150_1evals/replay_sim_2025_03_03_378219.pkl'
-    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_454410.pkl'
+    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
     # replay_path = None
     gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,

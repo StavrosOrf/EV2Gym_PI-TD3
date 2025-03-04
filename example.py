@@ -180,7 +180,8 @@ def evaluate_optimal(new_replay_path):
     # agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
 
     # # Profit maximization optimizer
-    agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
+    # agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
+    agent= ChargeAsFastAsPossible()
     # # Simulate in the gym environment and get the rewards
     # config_file = "./config_files/v2g_grid_3.yaml"
     config_file = "./config_files/v2g_grid_50.yaml"
@@ -190,7 +191,7 @@ def evaluate_optimal(new_replay_path):
                  verbose=False,
                  save_plots=True,
                  state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=V2G_grid_full_reward,
+                 reward_function=V2G_profitmax,
                  )
     state, _ = env.reset()
     rewards_opt = []
@@ -214,7 +215,7 @@ def evaluate_optimal(new_replay_path):
 
 if __name__ == "__main__":
     # while True:
-    new_replay_path = eval()
+    # new_replay_path = eval()
     
-    # new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_528065.pkl'
-    # evaluate_optimal(new_replay_path)
+    new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_454410.pkl'
+    evaluate_optimal(new_replay_path)

@@ -12,6 +12,7 @@ from ev2gym.baselines.gurobi_models.profit_max import V2GProfitMaxOracleGB
 from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
 
 from TD3.TD3 import TD3
+from TD3.traj import Traj
 
 from DT.load_model import load_DT_model
 from DT.evaluation.evaluate_episodes import evaluate_episode_rtg_from_replays
@@ -26,7 +27,7 @@ from ev2gym.baselines.mpc.ocmf_mpc import OCMF_V2G, OCMF_G2V
 from ev2gym.baselines.heuristics import RandomAgent, DoNothing, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
+from agent.reward import V2G_grid_simple_reward, V2G_profitmax
 from agent.utils import ReplayBuffer, ModelBasedRL
 
 from ev2gym.models.ev2gym_env import EV2Gym
@@ -65,7 +66,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 30
+    n_test_cycles = 1
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -77,7 +78,8 @@ def evaluator():
     # values in [0-1] probability of obs-delayed communication
     p_delay_list = [0]
 
-    config_file = "./config_files/v2g_grid_150.yaml"
+    # config_file = "./config_files/v2g_grid_150.yaml"
+    config_file = "./config_files/v2g_grid_50.yaml"
 
     # config_file = "./config_files/V2G_ProfixMaxWithLoads_25.yaml"
     # config_file = "./config_files/V2G_ProfixMaxWithLoads_100.yaml"
@@ -86,17 +88,20 @@ def evaluator():
     # if "V2G_ProfixMaxWithLoads" in config_file:
     state_function_Normal = V2G_grid_state_ModelBasedRL
     # state_function_GNN = V2G_ProfitMax_with_Loads_GNN
-    reward_function = V2G_grid_simple_reward
+    # reward_function = V2G_grid_simple_reward, V2G_profitmax
+    reward_function = V2G_profitmax
 
     # Algorithms to compare:
     # Use algorithm name or the saved RL model path as string
     algorithms = [
-        'DT_whole_last_iteration.dt_ph_coeff=0_run_42_K=12_batch=128_dataset=random_1000_embed_dim=128_n_layer=3_n_head=437070_939246',
+        # 'DT_whole_last_iteration.dt_ph_coeff=0_run_42_K=12_batch=128_dataset=random_1000_embed_dim=128_n_layer=3_n_head=437070_939246',
         ChargeAsFastAsPossible,
         DoNothing,
-        # RandomAgent,
-        "TD3_enhanced_test-547922",
-        'TD3_FixedLoss_newForm_noRegularizer_noActorGrad_TargetCritic-253974',
+        RandomAgent,
+        V2GProfitMaxOracleGB,
+        'Traj_K=6_batch_size64_noise=0.5-618003',
+        # "TD3_enhanced_test-547922",
+        # 'TD3_FixedLoss_newForm_noRegularizer_noActorGrad_TargetCritic-253974',
 
     ]
 
@@ -184,6 +189,7 @@ def evaluator():
         eval_replay_files = [generate_replay(
             evaluation_name) for _ in range(n_test_cycles)]
 
+    eval_replay_files = ['replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl']
     # save the list of EV profiles to a pickle file
     if SAVE_EV_PROFILES:
         with open(save_path + 'ev_profiles.pkl', 'wb') as f:
@@ -392,34 +398,37 @@ def evaluator():
                         elif "TD3" in algorithm:
                             algorithm_path = algorithm.split('_noSL')[0]
                             load_model_path = f'./eval_models/{algorithm_path}/'
-                            # Load kwargs.yaml as a dictionary
-                            # with open(f'{load_model_path}kwargs.yaml') as file:
-                            #     kwargs = yaml.load(
-                            #         file, Loader=yaml.FullLoader)
                             with open(f'{load_model_path}kwargs.yaml') as file:
                                 kwargs = yaml.load(
                                     file, Loader=yaml.UnsafeLoader)
-                            # if "ActionGNN" in algorithm:
-                            #     algorithm_name = "TD3_ActionGNN"
-                            #     print("Loading TD3_ActionGNN")
-                            #     if 'actor_num_gcn_layers' in kwargs:
-                            #         model = TD3_ActionGNN(**kwargs)
-                            #     else:
-                            #         model = TD3_ActionGNN_old(**kwargs)
-
-                            #     model.load(
-                            #         filename=f'{load_model_path}model.best')
-
-                            # elif "GNN" in algorithm:
-                            #     model = TD3_GNN(**kwargs)
-                            #     algorithm_name = "TD3_GNN"
-                            #     model.load(
-                            #         filename=f'{load_model_path}model.best')
 
                             # else:
                             print("Loading TD3 model")
                             model = TD3(**kwargs)
                             algorithm_name = "TD3"
+                            model.load(
+                                filename=f'{load_model_path}model.best')
+
+                            if k == 0:
+                                actor_model = model.actor
+                                model_parameters = filter(
+                                    lambda p: p.requires_grad, actor_model.parameters())
+                                params = sum([np.prod(p.size())
+                                              for p in model_parameters])
+                                print(
+                                    f'Actor model has {params} trainable parameters')
+                        
+                        elif "Traj" in algorithm:
+                            algorithm_path = algorithm.split('_noSL')[0]
+                            load_model_path = f'./eval_models/{algorithm_path}/'
+                            with open(f'{load_model_path}kwargs.yaml') as file:
+                                kwargs = yaml.load(
+                                    file, Loader=yaml.UnsafeLoader)
+
+                            # else:
+                            print("Loading TD3 model")
+                            model = Traj(**kwargs)
+                            algorithm_name = "Traj"
                             model.load(
                                 filename=f'{load_model_path}model.best')
 
@@ -525,7 +534,7 @@ def evaluator():
 
                                     stats = stats[0]
                                 elif "SAC" in algorithm or "TD3" in algorithm or \
-                                        "ModelBasedRL" in algorithm or "LSTM-ModelBasedRL" in algorithm:
+                                        "Traj" in algorithm or "LSTM-ModelBasedRL" in algorithm:
                                     action = model.select_action(state,
                                                                 return_mapped_action=True)
 
@@ -650,7 +659,10 @@ def evaluator():
     results_grouped = results_grouped.sort_values(
         by=('voltage_violation', 'mean'), ascending=False)
 
-    print(results_grouped[['voltage_violation',
+    print(results_grouped[[
+        'total_profits',
+        'total_ev_served',
+        # 'voltage_violation',
                            'average_user_satisfaction',
                            'total_energy_charged',
                            'total_energy_discharged',

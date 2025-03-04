@@ -283,15 +283,15 @@ class V2GProfitMaxOracleGB():
                            for t in range(self.sim_length)), name='ev_power_mode_2')
         
         # time of departure of EVs
-        # for t in range(self.sim_length):
-        #     for i in range(self.n_cs):
-        #         for p in range(self.number_of_ports_per_cs):
-        #             if t_dep[p, i, t] == 1:
-        #                 # input(f'Energy at departure: {t_dep[p,i,t]}')
-        #                 self.m.addLConstr(energy[p, i, t] >= ev_max_energy_at_departure[p,i,t],
-        #                 # self.m.addLConstr(energy[p, i, t] >= ev_max_energy_at_departure[p,i,t],
-        #                                 #    ev_des_energy[p, i, t]),
-        #                                   name=f'ev_departure_energy.{p}.{i}.{t}')
+        for t in range(self.sim_length):
+            for i in range(self.n_cs):
+                for p in range(self.number_of_ports_per_cs):
+                    if t_dep[p, i, t] == 1:
+                        # input(f'Energy at departure: {t_dep[p,i,t]}')
+                        self.m.addLConstr(energy[p, i, t] >= ev_max_energy_at_departure[p,i,t],
+                        # self.m.addLConstr(energy[p, i, t] >= ev_max_energy_at_departure[p,i,t],
+                                        #    ev_des_energy[p, i, t]),
+                                          name=f'ev_departure_energy.{p}.{i}.{t}')
 
         self.m.setObjective(costs,
                             GRB.MAXIMIZE)

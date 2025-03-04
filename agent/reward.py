@@ -48,7 +48,9 @@ def V2G_profitmax(env, total_costs, user_satisfaction_list, *args):
     for ev in env.departing_evs:
         # if verbose:
         #     print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity}')
-        user_costs += -(ev.current_capacity - ev.desired_capacity)**2
+        if ev.desired_capacity > ev.current_capacity:
+            # user_costs += -(ev.current_capacity - ev.desired_capacity)**2
+            user_costs += -100 * (ev.desired_capacity - ev.current_capacity)        
     
     # if verbose:
     #     print(f'!!! User Satisfaction Penalty: {user_costs}')
