@@ -2,6 +2,8 @@ import math
 import numpy as np
 import math
 
+from torch_geometric.data import Data
+
 
 def V2G_grid_state(env, *args):
     '''

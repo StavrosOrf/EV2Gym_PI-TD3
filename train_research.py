@@ -11,7 +11,7 @@ from tqdm import tqdm
 import pickle
 import pandas as pd
 
-from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
+from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL, PST_V2G_ProfitMaxGNN_state
 from agent.reward import V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
@@ -23,6 +23,7 @@ from ev2gym.models.ev2gym_env import EV2Gym
 from SAC.sac import SAC
 
 from TD3.TD3 import TD3
+from TD3.TD3_ActionGNN import TD3_ActionGNN
 from TD3.traj import Traj
 
 from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBuffer
@@ -120,7 +121,7 @@ if __name__ == "__main__":
     run_timer = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", default="TD3")  # TD3, Traj
+    parser.add_argument("--policy", default="TD3_ActionGNN")  # TD3, Traj, SAC, TD3_ActionGNN
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
@@ -201,8 +202,19 @@ if __name__ == "__main__":
     parser.add_argument('--K', type=int, default=6)
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
-    parser.add_argument('--mlp_hidden_dim', type=int, default=512)
+    # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
 
+    
+    # GNN Feature Extractor Parameters #############################################
+    parser.add_argument('--fx_dim', type=int, default=8)
+    parser.add_argument('--fx_GNN_hidden_dim', type=int, default=32)
+    parser.add_argument('--fx_num_heads', type=int, default=2)
+    parser.add_argument('--mlp_hidden_dim', type=int, default=256)
+    parser.add_argument('--discrete_actions', type=int, default=1)
+    parser.add_argument('--actor_num_gcn_layers', type=int, default=3)
+    parser.add_argument('--critic_num_gcn_layers', type=int, default=3)
+  
+  
     scale = 1
     args = parser.parse_args()
 
@@ -227,7 +239,8 @@ if __name__ == "__main__":
     group_name = "50_simple_tests"
     # reward_function = V2G_grid_full_reward
     reward_function = V2G_profitmax
-    state_function = V2G_grid_state_ModelBasedRL
+    # state_function = V2G_grid_state_ModelBasedRL
+    state_function = PST_V2G_ProfitMaxGNN_state
 
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
@@ -402,6 +415,39 @@ if __name__ == "__main__":
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
+    # Initialize policy
+    elif args.policy == "TD3_GNN" or args.policy == "TD3_ActionGNN":
+        # Target policy smoothing is scaled wrt the action scale
+        kwargs["policy_noise"] = args.policy_noise * max_action
+        kwargs["noise_clip"] = args.noise_clip * max_action
+        kwargs["policy_freq"] = args.policy_freq
+        kwargs["device"] = device
+        kwargs["lr"] = args.lr
+
+        kwargs['load_path'] = load_path
+        kwargs['discrete_actions'] = args.discrete_actions
+                
+        # if statefunction has attribute node_sizes
+        if hasattr(state_function, 'node_sizes'):
+            kwargs['fx_node_sizes'] = state_function.node_sizes
+
+        # Save kwargs to local path
+        with open(f'{save_path}/kwargs.yaml', 'w') as file:
+            yaml.dump(kwargs, file)
+
+        if args.policy == "TD3_GNN":
+            # policy = TD3_GNN(**kwargs)
+            # replay_buffer = GNN_ReplayBuffer(action_dim=action_dim,
+            #                                  max_size=replay_buffer_size,)
+            # # save the TD3_GNN.py file using cp
+            os.system(f'cp TD3/TD3_GNN.py {save_path}')
+
+        elif args.policy == "TD3_ActionGNN":
+            policy = TD3_ActionGNN(**kwargs)
+            replay_buffer = ActionGNN_ReplayBuffer(action_dim=action_dim,
+                                                   max_size=replay_buffer_size,)
+            os.system(f'cp TD3/TD3_ActionGNN.py {save_path}')
+            
     elif "SAC" in args.policy:
 
         kwargs["device"] = device
@@ -501,10 +547,10 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    action_traj = torch.zeros((simulation_length, action_dim)).to(device)
-    state_traj = torch.zeros((simulation_length, state_dim)).to(device)
-    done_traj = torch.zeros((simulation_length, 1)).to(device)
-    reward_traj = torch.zeros((simulation_length, 1)).to(device)
+    # action_traj = torch.zeros((simulation_length, action_dim)).to(device)
+    # state_traj = torch.zeros((simulation_length, state_dim)).to(device)
+    # done_traj = torch.zeros((simulation_length, 1)).to(device)
+    # reward_traj = torch.zeros((simulation_length, 1)).to(device)
 
     for t in range(start_timestep_training, int(args.max_timesteps)):
 
