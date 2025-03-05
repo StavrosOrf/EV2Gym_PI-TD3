@@ -275,21 +275,16 @@ class V2GridLoss(nn.Module):
             max=max_ev_charge_power
         )
         
-        costs = prices * power_usage * timescale  
+        # costs = prices * power_usage * timescale  
+        # costs = costs.sum(axis=1)
+        # return costs
 
         time_left_binary = torch.where(ev_time_left == 1, 1, 0)
 
         new_capacity = (current_capacity + power_usage * timescale)
-        new_capacity = torch.true_divide(
-            torch.ceil(new_capacity * 10**2), 10**2)
-        # new_capacity = torch.ceil(new_capacity * 100) / 100
-
-        # user_sat_at_departure = (new_capacity - self.ev_battery_capacity)**2
+        # new_capacity = torch.true_divide(
+        #     torch.ceil(new_capacity * 10**2), 10**2)
         
-        # user_sat_at_departure = 100*(self.ev_battery_capacity - new_capacity)
-
-        # user_sat_at_departure = - time_left_binary * user_sat_at_departure
-        # user_sat_at_departure = user_sat_at_departure.sum(axis=1)
         time_left_binary = (ev_time_left == 1).float()
         user_sat_at_departure = -100 * time_left_binary * (self.ev_battery_capacity-new_capacity)
         user_sat_at_departure = user_sat_at_departure.sum(dim=1)
@@ -297,9 +292,138 @@ class V2GridLoss(nn.Module):
         if self.verbose:
             print(f'power_usage: {power_usage}')
             print(f'energy_usage: {power_usage * timescale}')
-            print(f'costs: {costs}')
-            print(f'costs: {costs.sum(axis=1)}')
+            # print(f'costs: {costs}')
+            # print(f'costs: {costs.sum(axis=1)}')
 
-        costs = -costs.sum(axis=1)
         
-        return costs + user_sat_at_departure
+        return user_sat_at_departure
+        # return costs + user_sat_at_departure
+
+    def smooth_profit_max(self, action, state):
+        
+        alpha=10
+        if self.verbose:
+            print("==================================================")
+            print(f'action: {action.shape}')
+            print(f'state: {state.shape}')
+
+        number_of_cs = action.shape[1]
+        prices = state[:, 3] 
+        prices = torch.repeat_interleave(prices.view(-1, 1), number_of_cs, dim=1)
+        
+        step_size = 3
+        ev_state_start = 4 + 2*(self.num_buses-1)
+        batch_size = state.shape[0]
+
+        # timesscale is a vactor of size number_of_cs with the varaible timescale
+        timescale = torch.ones((batch_size, number_of_cs),
+                               device=self.device) * self.timescale / 60
+
+        current_capacity = state[:, ev_state_start:(
+            ev_state_start + step_size*number_of_cs):step_size]
+        ev_time_left = state[:, ev_state_start+1:(
+            ev_state_start + 1 + step_size*number_of_cs):step_size]
+        connected_bus = state[:, ev_state_start+2:(
+            ev_state_start + 2 + step_size*number_of_cs):step_size]
+        ev_connected_binary = current_capacity > 0
+
+        max_ev_charge_power = self.max_ev_charge_power * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+        max_ev_discharge_power = self.max_ev_discharge_power * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+        battery_capacity = self.ev_battery_capacity * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+        ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
+            (batch_size, number_of_cs), device=self.device)
+
+        if self.verbose:
+            print("--------------------------------------------------")
+            print(f'actions: {action}')
+            print(f'ev_connected_binary: {ev_connected_binary}')
+            print(f'current_capacity: {current_capacity}')
+            print(f'time_left: {ev_time_left}')
+            print(f'connected_bus: {connected_bus}')
+            print(f'prices: {prices}')
+            print(f'timescale: {timescale}')
+
+        # 1) Smoothly adjust charge/discharge power based on EV connection & capacity
+        
+        # with torch.no_grad():
+        max_ev_charge_power = smooth_min(
+            max_ev_charge_power,
+            ev_connected_binary * (battery_capacity - current_capacity) / timescale,
+            alpha=alpha
+        )
+        max_ev_discharge_power = smooth_max(
+            max_ev_discharge_power,
+            ev_connected_binary * (ev_min_battery_capacity - current_capacity) / timescale,
+            alpha=alpha
+        )
+
+        step_val = smooth_step(action, alpha=alpha)  # in [0,1]
+            
+        power_usage = action * self.max_cs_power * step_val -\
+                    action * self.min_cs_power * (1 - step_val)
+
+        # 3) Smooth clamp between discharge and charge limits
+        power_usage = smooth_clamp(power_usage,
+                                lower=max_ev_discharge_power,
+                                upper=max_ev_charge_power,
+                                alpha=alpha)
+
+        # 4) Calculate costs
+        costs = (prices * power_usage * timescale).sum(dim=1)
+        
+        # return costs
+        
+        # 1) Smooth time_left instead of hard binary
+        time_left_smooth = smooth_step(ev_time_left - 0.5, alpha=10.0)
+
+        # 2) Add power usage to current capacity
+        new_capacity = current_capacity + power_usage * timescale        
+        
+        # 4) "User satisfaction" cost depends on how far new_capacity is from target
+        #    Weighted by the smoothed "time left" factor
+        user_sat_at_departure = -100 * time_left_smooth * (self.ev_battery_capacity - new_capacity)
+
+        # 5) Sum over dimension 1 if needed
+        user_sat_at_departure = user_sat_at_departure.sum(dim=1)
+    
+        return 10*costs + user_sat_at_departure
+
+
+def smooth_step(x, alpha=10.0):
+    """
+    Smooth approximation of the step function:
+      step(x >= 0) ~ 0.5 * [1 + tanh(alpha * x)]
+    For large alpha, it behaves close to a binary step;
+    for small alpha, it's more 'spread out'.
+    """
+    return 0.5 * (1.0 + torch.tanh(alpha * x))
+
+def smooth_min(a, b, alpha=10.0, eps=1e-6):
+    """
+    Smooth approximation of min(a, b):
+      min(a,b) ~ (a + b - sqrt((a - b)^2 + eps)) / 2
+    The 'alpha' parameter can be used if you want a
+    sharper or softer transition, but here we simply
+    keep the expression symmetrical with a small eps
+    for numerical stability.
+    """
+    diff = a - b
+    return 0.5 * (a + b - torch.sqrt(diff * diff + eps))
+
+def smooth_max(a, b, alpha=10.0, eps=1e-6):
+    """
+    Smooth approximation of max(a, b):
+      max(a,b) ~ (a + b + sqrt((a - b)^2 + eps)) / 2
+    """
+    diff = a - b
+    return 0.5 * (a + b + torch.sqrt(diff * diff + eps))
+
+def smooth_clamp(x, lower, upper, alpha=10.0):
+    """
+    Clamp x to [lower, upper] via smooth min/max:
+      clamp(x, lower, upper) = min( max(x, lower), upper )
+    """
+    return smooth_min(smooth_max(x, lower, alpha=alpha), upper, alpha=alpha)

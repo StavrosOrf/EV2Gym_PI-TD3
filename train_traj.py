@@ -135,7 +135,7 @@ if __name__ == "__main__":
                             type=int)  # original 25e5
         parser.add_argument("--eval_freq", default=10, #2250
                             type=int)  # in episodes
-        parser.add_argument("--batch_size", default=256, type=int)  # 256
+        parser.add_argument("--batch_size", default=64, type=int)  # 256
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor

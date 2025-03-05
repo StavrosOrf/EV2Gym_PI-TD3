@@ -6,66 +6,158 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torch_geometric.transforms as T
+from torch_geometric.nn import GCNConv, global_mean_pool
+
+from torch_geometric.nn import global_mean_pool
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.autograd.set_detect_anomaly(True)
 
 
+# class Actor(nn.Module):
+#     def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim, dropout=0.1):
+#         super(Actor, self).__init__()
+
+#         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+#         self.l2 = nn.Linear(mlp_hidden_dim, 2*mlp_hidden_dim)
+#         self.l3 = nn.Linear(2*mlp_hidden_dim, 3*mlp_hidden_dim)
+#         self.l4 = nn.Linear(3*mlp_hidden_dim, mlp_hidden_dim)
+#         self.l5 = nn.Linear(mlp_hidden_dim, action_dim)
+#         self.dropout = nn.Dropout(dropout)
+
+#         self.max_action = max_action
+
+#     def forward(self, state):
+
+#         a = F.relu(self.l1(state))
+#         # a = self.dropout(a)
+#         a = F.relu(self.l2(a))
+#         a = F.relu(self.l3(a))
+#         a = F.relu(self.l4(a))
+#         # a = self.dropout(a)
+
+#         return torch.tanh(self.l5(a))
+        # return self.l3(a)
+
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim, dropout=0.1):
+    def __init__(self,
+                 max_action,
+                 fx_node_sizes,
+                 feature_dim=8,
+                 GNN_hidden_dim=32,
+                 num_gcn_layers=3,
+                 discrete_actions=1,
+                 device=torch.device('cpu')):
+        
         super(Actor, self).__init__()
 
-        self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
-        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.l3 = nn.Linear(mlp_hidden_dim, action_dim)
-        self.dropout = nn.Dropout(dropout)
+        self.device = device
+        self.feature_dim = feature_dim
+        self.discrete_actions = discrete_actions
+        self.num_gcn_layers = num_gcn_layers
+
+        # Node-specific embedding layers
+        self.ev_embedding = nn.Linear(fx_node_sizes['ev'], feature_dim)
+        self.cs_embedding = nn.Linear(fx_node_sizes['cs'], feature_dim)
+        self.tr_embedding = nn.Linear(fx_node_sizes['tr'], feature_dim)
+        self.env_embedding = nn.Linear(fx_node_sizes['env'], feature_dim)
+
+        # GCN layers to extract features with a unified edge index
+        self.gcn_conv = GCNConv(feature_dim, GNN_hidden_dim)
+        
+        if num_gcn_layers == 3:
+            self.gcn_layers = nn.ModuleList(
+                [GCNConv(GNN_hidden_dim, feature_dim)])
+
+        elif num_gcn_layers == 4:
+            self.gcn_layers = nn.ModuleList([GCNConv(GNN_hidden_dim, 2*GNN_hidden_dim),
+                                             GCNConv(2*GNN_hidden_dim, feature_dim)])
+
+        elif num_gcn_layers == 5:
+            self.gcn_layers = nn.ModuleList([GCNConv(GNN_hidden_dim, 2*GNN_hidden_dim),
+                                             GCNConv(2*GNN_hidden_dim, GNN_hidden_dim),
+                                             GCNConv(GNN_hidden_dim, feature_dim)])
+        elif num_gcn_layers == 6:
+            self.gcn_layers = nn.ModuleList([GCNConv(GNN_hidden_dim, 2*GNN_hidden_dim),
+                                             GCNConv(2*GNN_hidden_dim, 3*GNN_hidden_dim),
+                                             GCNConv(3*GNN_hidden_dim, 2*GNN_hidden_dim),
+                                             GCNConv(2*GNN_hidden_dim, feature_dim)])
+        else:
+            raise ValueError(
+                f"Number of Actor GCN layers not supported, use 3, 4, 5, or 6!")
+
+        self.gcn_last = GCNConv(feature_dim, discrete_actions)
 
         self.max_action = max_action
 
-    def forward(self, state):
+    def forward(self, state, return_mapper=False):
 
-        a = F.relu(self.l1(state))
-        # a = self.dropout(a)
-        a = F.relu(self.l2(a))
-        # a = self.dropout(a)
+        if isinstance(state.env_features, np.ndarray):
+            ev_features = torch.from_numpy(
+                state.ev_features).float().to(self.device)
+            cs_features = torch.from_numpy(
+                state.cs_features).float().to(self.device)
+            tr_features = torch.from_numpy(
+                state.tr_features).float().to(self.device)
+            env_features = torch.from_numpy(
+                state.env_features).float().to(self.device)
+            edge_index = torch.from_numpy(
+                state.edge_index).long().to(self.device)
+        else:
+            ev_features = state.ev_features
+            cs_features = state.cs_features
+            tr_features = state.tr_features
+            env_features = state.env_features
+            edge_index = state.edge_index
 
-        return torch.tanh(self.l3(a))
+        # edge_index = to_undirected(edge_index)
 
+        total_nodes = ev_features.shape[0] + cs_features.shape[0] + \
+            tr_features.shape[0] + env_features.shape[0]
 
-class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, mlp_hidden_dim):
-        super(Critic, self).__init__()
+        embedded_x = torch.zeros(
+            total_nodes, self.feature_dim, device=self.device).float()
 
-        # Q1 architecture
-        self.l1 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
-        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.l3 = nn.Linear(mlp_hidden_dim, 1)
+        # Apply embeddings to the corresponding segments
+        if len(state.ev_indexes) != 0:
+            embedded_x[state.ev_indexes] = self.ev_embedding(ev_features)
+            embedded_x[state.cs_indexes] = self.cs_embedding(cs_features)
+            embedded_x[state.tr_indexes] = self.tr_embedding(tr_features)
 
-        # Q2 architecture
-        self.l4 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
-        self.l5 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.l6 = nn.Linear(mlp_hidden_dim, 1)
+        embedded_x[state.env_indexes] = self.env_embedding(env_features)
 
-    def forward(self, state, action):
-        sa = torch.cat([state, action], 1)
+        embedded_x = embedded_x.reshape(-1, self.feature_dim)
+        embedded_x = F.relu(embedded_x)
 
-        q1 = F.relu(self.l1(sa))
-        q1 = F.relu(self.l2(q1))
-        q1 = self.l3(q1)
+        # Apply GCN layers with the unified edge index
+        x = self.gcn_conv(embedded_x, edge_index)
+        x = F.relu(x)
 
-        # q2 = F.relu(self.l4(sa))
-        # q2 = F.relu(self.l5(q2))
-        # q2 = self.l6(q2)
-        return q1
+        for layer in self.gcn_layers:
+            x = layer(x, edge_index)
+            x = F.relu(x)
 
-    # def Q1(self, state, action):
-    #     sa = torch.cat([state, action], 1)
+        # Residual connection
+        # x = embedded_x + x
 
-    #     q1 = F.relu(self.l1(sa))
-    #     q1 = F.relu(self.l2(q1))
-    #     q1 = self.l3(q1)
-    #     return q1
+        x = self.gcn_last(x, edge_index)
+
+        # Bound output to action space
+        x = self.max_action * torch.tanh(x)
+        # x = self.max_action * torch.sigmoid(x)
+
+        # apply action mask
+        # valid_action_indexes = torch.where(node_types == 3, 1, 0)
+        if self.discrete_actions > 1:
+            x = torch.nn.functional.softmax(x, dim=1)
+
+        x = x.reshape(-1)
+        # input()
+        # x = x * valid_action_indexes
+        if return_mapper:
+            return x, None, state.ev_indexes
+        else:
+            return x
 
 
 class Traj(object):
@@ -93,16 +185,18 @@ class Traj(object):
                            action_dim,
                            max_action,
                            mlp_hidden_dim,
-                           dropout=dropout
+                           
+                           device=device)
                            ).to(device)
-        self.actor_target = copy.deepcopy(self.actor)
+        
+        # self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=lr)
 
-        self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
-        self.critic_target = copy.deepcopy(self.critic)
-        self.critic_optimizer = torch.optim.Adam(
-            self.critic.parameters(), lr=lr)
+        # self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
+        # self.critic_target = copy.deepcopy(self.critic)
+        # self.critic_optimizer = torch.optim.Adam(
+        #     self.critic.parameters(), lr=lr)
 
         self.max_action = max_action
         self.discount = discount
@@ -155,33 +249,35 @@ class Traj(object):
         state_new = state[:, 0, :]
         i = 0
         while True:
-        # for i in range(50):
-            discount = 0.99 #self.discount ** (i+1)
+        # for i in range(1):
+            discount = 0.95  # self.discount ** (i+1)
+            # discount = 1  # self.discount ** (i+1)
 
-            action_pred = self.actor_target(state_new)
             noise = (
-                torch.randn_like(actions[:,0,:]) * self.policy_noise
+                torch.randn_like(actions[:, 0, :]) * self.policy_noise
             ).clamp(-self.noise_clip, self.noise_clip)
 
             action_pred = (
                 self.actor(state_new) + noise
             ).clamp(-self.max_action, self.max_action)
-            
-            
-            reward = self.loss_fn.profit_max(state=state_new,
-                                                action=action_pred)
+            # use sigmoid instead of clamp
+            # action_pred = torch.tanh(action_pred)
+
+            # reward = self.loss_fn.profit_max(state=state_new,
+            #                                     action=action_pred)
+            reward = self.loss_fn.smooth_profit_max(state=state_new,
+                                                    action=action_pred)
 
             if i == 0:
-                total_reward = +reward
+                total_reward = + reward
             else:
                 total_reward += discount * reward * (1-dones[:, i])
 
             state_new = self.transition_fn(state=state_new,
-                                            new_state=state[:,
-                                                            i+1, :].detach(),
-                                            action=action_pred)
+                                           new_state=state[:,
+                                                           i+1, :].detach(),
+                                           action=action_pred)
 
-            # print(f'dones: {dones[:, i]}')
             if sum(dones[:, i]) == dones.shape[0]:
                 break
 
@@ -189,9 +285,10 @@ class Traj(object):
             #     action_pred_first = action_pred.detach()
 
             i += 1
-        total_reward = total_reward.sum()
+
+        total_reward = -total_reward.mean()
         self.loss_dict['physics_loss'] = total_reward.item()
-                
+
         # Optimize the actor
         self.actor_optimizer.zero_grad()
         total_reward.backward()

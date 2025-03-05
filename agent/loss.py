@@ -471,3 +471,121 @@ class V2G_Grid_StateTransition(nn.Module):
         new_state = new_state * mask + new_values
 
         return new_state
+        alpha = 10.0
+        
+        max_ev_charge_power = smooth_min(
+            max_ev_charge_power,
+            ev_connected_binary * (battery_capacity -
+                                   current_capacity) / timescale,
+            alpha=alpha
+        )
+        max_ev_discharge_power = smooth_max(
+            max_ev_discharge_power,
+            ev_connected_binary *
+            (ev_min_battery_capacity - current_capacity) / timescale,
+            alpha=alpha
+        )
+
+        if self.verbose:
+            print(f'prices: {prices}')
+            print(f'current_capacity: {current_capacity}')
+            print(f'max battery_capacity: {battery_capacity}')
+            print(f'min_battery_capacity: {ev_min_battery_capacity}')
+            print(f'time_left: {ev_time_left}')
+            print(f'action: {action}')
+
+        # 2) Smooth approximation of "action_binary = torch.where(action >= 0, 1, 0)"
+        #    We use a smooth_step that transitions around 0.
+        # in [0,1], ~1 if action >= 0
+        action_smooth = smooth_step(action, alpha=alpha)
+
+        # Original piecewise:
+        #   power_usage = action * max_cs_power * action_binary
+        #                - action * min_cs_power * (1 - action_binary)
+        # We'll rewrite it using the smooth step:
+        power_usage = (
+            action_smooth * (action * self.max_cs_power) +
+            (1.0 - action_smooth) * (-action * self.min_cs_power)
+        )
+
+        # 3) Smooth clamp instead of torch.min / torch.max
+        power_usage = smooth_clamp(
+            power_usage,
+            lower=max_ev_discharge_power,
+            upper=max_ev_charge_power,
+            alpha=alpha
+        )
+
+        # 4) Smooth step for "new_ev_binary = torch.where(ev_time_left > 1, 1, 0)"
+        #    We'll shift by 1 so that if ev_time_left is well above 1, the output is ~1,
+        #    and if below 1, output is ~0.
+        new_ev_smooth = smooth_step(ev_time_left - 1.0, alpha=alpha)
+
+        if self.verbose:
+            print(f'power_usage: {power_usage}')
+            print(f'new_ev_smooth: {new_ev_smooth}')
+            print(f'timescale: {timescale}')
+
+        # 5) Build new_values with shape matching new_state
+        new_values = torch.zeros_like(new_state, device=self.device)
+
+        # For the EV states, we add: (current_capacity + power_usage * timescale) * new_ev_smooth
+        #   -> if new_ev_smooth ~1, we keep updated capacity
+        #   -> if new_ev_smooth ~0, we keep old capacity
+        # This is a bit trickier if you need exact indexing.
+        # We'll assume the same shape logic as your original code:
+        new_values[:, ev_state_start:(ev_state_start + step_size*number_of_cs):step_size] = (
+            current_capacity + power_usage * timescale
+        ) * new_ev_smooth
+
+        if self.verbose:
+            print(f'new_values: {new_values}')
+
+        # 6) Build the "mask" with a smooth approximation:
+        #    originally: mask = torch.where(..., 1, 0) => 1 - new_ev_binary
+        #    now: 1.0 - new_ev_smooth
+        mask = torch.ones_like(new_state, device=self.device)
+        mask[:, ev_state_start:(
+            ev_state_start + step_size*number_of_cs):step_size] = 1.0 - new_ev_smooth
+
+        # 7) Update new_state
+        new_state = new_state * mask + new_values
+        
+        return new_state
+
+
+def smooth_step(x, alpha=10.0):
+    """
+    Smooth approximation of a step function:
+      step(x >= 0) ~ 0.5 * [1 + tanh(alpha * x)]
+    - alpha controls how steeply we transition around x=0.
+    - Larger alpha => closer to a hard step, but can lead to large gradients near 0.
+    """
+    return 0.5 * (1.0 + torch.tanh(alpha * x))
+
+def smooth_min(a, b, alpha=10.0, eps=1e-6):
+    """
+    Smooth approximation of min(a, b):
+      min(a,b) ~ 0.5 * (a + b - sqrt((a - b)^2 + eps))
+    """
+    diff = a - b
+    return 0.5 * (a + b - torch.sqrt(diff * diff + eps))
+
+def smooth_max(a, b, alpha=10.0, eps=1e-6):
+    """
+    Smooth approximation of max(a, b):
+      max(a,b) ~ 0.5 * (a + b + sqrt((a - b)^2 + eps))
+    """
+    diff = a - b
+    return 0.5 * (a + b + torch.sqrt(diff * diff + eps))
+
+def smooth_clamp(x, lower, upper, alpha=10.0):
+    """
+    Clamp x into [lower, upper] with smooth_min/max.
+      clamp(x, lower, upper) = min( max(x, lower), upper )
+    """
+    return smooth_min(
+        smooth_max(x, lower, alpha=alpha),
+        upper,
+        alpha=alpha
+    )
