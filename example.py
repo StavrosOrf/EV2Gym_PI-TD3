@@ -193,13 +193,16 @@ def evaluate_optimal(new_replay_path):
                  state_function=V2G_grid_state_ModelBasedRL,
                  reward_function=V2G_profitmax,
                  )
-    state, _ = env.reset()
+    new_state, _ = env.reset()
     rewards_opt = []
 
     for t in range(env.simulation_length):
         actions = agent.get_action(env)
         # if verbose:
         #     print(f' OptimalActions: {actions}')
+        
+        print(f'state {t}: {new_state}')        
+        input('Press Enter to continue')
 
         new_state, reward, done, truncated, stats = env.step(
             actions, visualize=False)  # takes action
@@ -217,5 +220,5 @@ if __name__ == "__main__":
     # while True:
     # new_replay_path = eval()
     
-    new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_03_454410.pkl'
+    new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
     evaluate_optimal(new_replay_path)

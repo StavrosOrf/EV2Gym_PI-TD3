@@ -166,8 +166,9 @@ class TD3(object):
                 if False:
                     # test if loss_fn is working properly
                     reward_test = self.loss_fn(state=state,
-                                               action=action)                    
-                    reward_diff = torch.abs(reward.view(-1) - reward_test.view(-1))
+                                               action=action)
+                    reward_diff = torch.abs(
+                        reward.view(-1) - reward_test.view(-1))
                     if reward_diff.mean() > 0.01:
 
                         print(f'Reward diff: {reward_diff.mean()}')
@@ -187,8 +188,8 @@ class TD3(object):
                 next_state_pred = self.transition_fn(state,
                                                      next_state,
                                                      action_vector)
-                reward_pred = self.loss_fn(state=state,
-                                           action=action_vector)
+                reward_pred = self.loss_fn.smooth_profit_max(state=state,
+                                                             action=action_vector)
 
                 with torch.no_grad():
                     next_action = self.actor(next_state_pred)
@@ -204,7 +205,7 @@ class TD3(object):
             elif self.loss_fn is not None:
 
                 action_vector = self.actor(state)
-                physics_loss = self.loss_fn(
+                physics_loss = self.loss_fn.smooth_profit_max(
                     action=action_vector, state=state).mean()
                 actor_loss = -self.critic.Q1(state, action_vector).mean()
 

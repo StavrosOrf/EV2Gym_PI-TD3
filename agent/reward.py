@@ -59,4 +59,4 @@ def V2G_profitmax(env, total_costs, user_satisfaction_list, *args):
     # v_m = env.node_voltage[:, current_step]
 
     # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
-    return 10*reward + user_costs
+    return reward + user_costs

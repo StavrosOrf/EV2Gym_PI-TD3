@@ -12,13 +12,15 @@ import pickle
 import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+from agent.reward import V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
 from agent.utils import Trajectory_ReplayBuffer
 
 from ev2gym.models.ev2gym_env import EV2Gym
+
+from SAC.sac import SAC
 
 from TD3.TD3 import TD3
 from TD3.traj import Traj
@@ -51,8 +53,8 @@ def eval_policy(policy,
                 ):
 
     eval_episodes = len(eval_config['eval_replays'])
-    
-    policy.actor.eval()
+
+    # policy.actor.eval()
 
     avg_reward = 0.
     stats_list = []
@@ -118,11 +120,11 @@ if __name__ == "__main__":
     run_timer = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", default="Traj") #TD3, Traj
+    parser.add_argument("--policy", default="TD3")  # TD3, Traj
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid_150.yaml")
+    parser.add_argument("--config", default="v2g_grid_50.yaml")
     # parser.add_argument("--config", default="v2g_grid_3.yaml")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
@@ -132,25 +134,27 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
+    # DEVELOPMENT = True
+
     DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
-        parser.add_argument("--eval_episodes", default=2, type=int)
-        parser.add_argument("--start_timesteps", default=600,
+        parser.add_argument("--eval_episodes", default=1, type=int)
+        parser.add_argument("--start_timesteps", default=96,
                             type=int)
-        parser.add_argument('--eval_freq', default=700, type=int)
-        parser.add_argument("--batch_size", default=4, type=int)  # 256
+        parser.add_argument('--eval_freq', default=960, type=int)
+        parser.add_argument("--batch_size", default=3, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
-        parser.add_argument("--eval_episodes", default=2, type=int)
-        parser.add_argument("--start_timesteps", default=2500,
+        parser.add_argument("--eval_episodes", default=1, type=int)
+        parser.add_argument("--start_timesteps", default=960,
                             type=int)  # original 25e5
-        parser.add_argument("--eval_freq", default=300, #2250
+        parser.add_argument("--eval_freq", default=960,  # 2250
                             type=int)  # in episodes
-        parser.add_argument("--batch_size", default=2, type=int)  # 256
+        parser.add_argument("--batch_size", default=256, type=int)  # 256
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor
@@ -175,9 +179,8 @@ if __name__ == "__main__":
     parser.add_argument('--embed_dim', type=int, default=128)
     parser.add_argument('--n_layer', type=int, default=3)
     parser.add_argument('--n_head', type=int, default=1)
-    
-    parser.add_argument('--activation_function', type=str, default='relu')
 
+    parser.add_argument('--activation_function', type=str, default='relu')
 
     # SAC parameters #############################################
     parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
@@ -194,9 +197,9 @@ if __name__ == "__main__":
 
     # Physics loss #############################################
     parser.add_argument('--ph_coeff', type=float, default=10e-5)
-    
+
     parser.add_argument('--K', type=int, default=6)
-    parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
     parser.add_argument('--mlp_hidden_dim', type=int, default=512)
 
@@ -221,17 +224,20 @@ if __name__ == "__main__":
     if not os.path.exists("./results"):
         os.makedirs("./results")
 
-    group_name = "150_SB3_tests"
-    reward_function = V2G_grid_full_reward
+    group_name = "50_simple_tests"
+    # reward_function = V2G_grid_full_reward
+    reward_function = V2G_profitmax
     state_function = V2G_grid_state_ModelBasedRL
 
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
 
+    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
     gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,
                               'reward_function': reward_function,
                               'state_function': state_function,
+                              'load_from_replay_path': replay_path,
                               })
 
     env = gym.make('evs-v1')
@@ -292,22 +298,21 @@ if __name__ == "__main__":
         load_path = None
 
     loss_fn = V2GridLoss(K=env.get_wrapper_attr('grid').net._K_,
-                                   L=env.get_wrapper_attr('grid').net._L_,
-                                   s_base=env.get_wrapper_attr(
-                                       'grid').net.s_base,
-                                   num_buses=env.get_wrapper_attr(
-                                       'grid').net.nb,
-                                   device=device,
-                                   verbose=False,
-                                   )
+                         L=env.get_wrapper_attr('grid').net._L_,
+                         s_base=env.get_wrapper_attr(
+        'grid').net.s_base,
+        num_buses=env.get_wrapper_attr(
+        'grid').net.nb,
+        device=device,
+        verbose=False,
+    )
 
     transition_fn = V2G_Grid_StateTransition(verbose=False,
                                              device=device,
                                              num_buses=env.get_wrapper_attr(
                                                  'grid').net.nb,
                                              )
-    
-    
+
     # Set seeds
     # env.seed(args.seed)
     env.action_space.seed(args.seed)
@@ -320,7 +325,6 @@ if __name__ == "__main__":
     number_of_charging_stations = config["number_of_charging_stations"]
     n_transformers = config["number_of_transformers"]
     simulation_length = config["simulation_length"]
-
 
     group_name = f'{args.group_name}_{number_of_charging_stations}cs_{n_transformers}tr'
 
@@ -382,24 +386,47 @@ if __name__ == "__main__":
 
         kwargs['loss_fn'] = loss_fn
         kwargs['ph_coeff'] = args.ph_coeff
-        
+
         kwargs['transition_fn'] = transition_fn
-        
-        # kwargs['loss_fn'] = None
-        # kwargs['transition_fn'] = None
+
+        kwargs['loss_fn'] = None
+        kwargs['transition_fn'] = None
 
         # kwargs['loss_fn'] = None
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
-        
+
         os.system(f'cp TD3/TD3.py {save_path}')
-        
+
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
+    elif "SAC" in args.policy:
+
+        kwargs["device"] = device
+        kwargs["alpha"] = args.alpha
+        kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
+        kwargs["updates_per_step"] = args.updates_per_step
+        kwargs["target_update_interval"] = args.target_update_interval
+        kwargs["discount"] = args.discount
+        kwargs["tau"] = args.tau
+        kwargs['policy'] = args.policy_SAC
+        kwargs['lr'] = args.lr
+        kwargs['hidden_size'] = args.mlp_hidden_dim
+
+        if hasattr(state_function, 'node_sizes'):
+            fx_node_sizes = state_function.node_sizes
+
+        state_dim = env.observation_space.shape[0]
+        policy = SAC(num_inputs=state_dim,
+                     action_space=env.action_space,
+                     args=kwargs)
+        replay_buffer = ReplayBuffer(state_dim, action_dim)
+        os.system(f'cp SAC/sac.py {save_path}')
+
     elif args.policy == "Traj":
-        
+
         state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale
         kwargs["policy_noise"] = args.policy_noise * max_action
@@ -408,9 +435,9 @@ if __name__ == "__main__":
         kwargs["device"] = device
         kwargs['state_dim'] = state_dim
         kwargs['load_path'] = load_path
-        
+
         kwargs['loss_fn'] = loss_fn
-        kwargs['ph_coeff'] = args.ph_coeff        
+        kwargs['ph_coeff'] = args.ph_coeff
         kwargs['transition_fn'] = transition_fn
         kwargs['sequence_length'] = args.K
         kwargs['lr'] = args.lr
@@ -419,9 +446,9 @@ if __name__ == "__main__":
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
-        
+
         os.system(f'cp TD3/traj.py {save_path}')
-        
+
         policy = Traj(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -473,12 +500,11 @@ if __name__ == "__main__":
     ep_start_time = time.time()
 
     time_limit_minutes = int(args.time_limit_hours * 60)
-    
+
     action_traj = torch.zeros((simulation_length, action_dim)).to(device)
     state_traj = torch.zeros((simulation_length, state_dim)).to(device)
     done_traj = torch.zeros((simulation_length, 1)).to(device)
-    reward_traj = torch.zeros((simulation_length, 1)).to(device)    
-    
+    reward_traj = torch.zeros((simulation_length, 1)).to(device)
 
     for t in range(start_timestep_training, int(args.max_timesteps)):
 
@@ -522,17 +548,18 @@ if __name__ == "__main__":
                 ).clip(-max_action, max_action)
                 # Perform action
                 next_state, reward, done, _, stats = env.step(action)
-                
 
         if args.policy != "Traj":
             # Store data in replay buffer
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
-            action_traj[episode_timesteps] = torch.FloatTensor(action).to(device)
+            action_traj[episode_timesteps] = torch.FloatTensor(
+                action).to(device)
             state_traj[episode_timesteps] = torch.FloatTensor(state).to(device)
             done_traj[episode_timesteps] = torch.FloatTensor([done]).to(device)
-            reward_traj[episode_timesteps] = torch.FloatTensor([reward]).to(device)
-        
+            reward_traj[episode_timesteps] = torch.FloatTensor(
+                [reward]).to(device)
+
         state = next_state
         episode_reward += reward
 
@@ -559,15 +586,15 @@ if __name__ == "__main__":
                     replay_buffer, args.batch_size)
 
                 if args.log_to_wandb:
-                    
+
                     # log all loss_dict keys, but add train/ in front of their name
                     for key in loss_dict.keys():
                         wandb.log({f'train/{key}': loss_dict[key]},
                                   step=t)
                     wandb.log({
-                            #    'train/physics_loss': loss_dict['physics_loss'],
-                               'train/time': time.time() - start_time, },
-                              step=t)
+                        #    'train/physics_loss': loss_dict['physics_loss'],
+                        'train/time': time.time() - start_time, },
+                        step=t)
 
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
@@ -578,12 +605,14 @@ if __name__ == "__main__":
             state, _ = env.reset()
             ep_start_time = time.time()
             done = False
-            
+
             if args.policy == "Traj":
                 # Store trajectory in replay buffer
                 replay_buffer.add(state_traj, action_traj)
-                action_traj = torch.zeros((simulation_length, action_dim)).to(device)
-                state_traj = torch.zeros((simulation_length, state_dim)).to(device)
+                action_traj = torch.zeros(
+                    (simulation_length, action_dim)).to(device)
+                state_traj = torch.zeros(
+                    (simulation_length, state_dim)).to(device)
                 done_traj = torch.zeros((simulation_length, 1)).to(device)
                 reward_traj = torch.zeros((simulation_length, 1)).to(device)
 

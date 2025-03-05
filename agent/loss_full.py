@@ -389,7 +389,7 @@ class V2GridLoss(nn.Module):
         # 5) Sum over dimension 1 if needed
         user_sat_at_departure = user_sat_at_departure.sum(dim=1)
     
-        return 10*costs + user_sat_at_departure
+        return costs + user_sat_at_departure
 
 
 def smooth_step(x, alpha=10.0):

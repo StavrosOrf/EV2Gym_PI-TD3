@@ -5,6 +5,10 @@ import torch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
+
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -230,3 +234,158 @@ class Trajectory_ReplayBuffer(object):
         # print(f'dones: {dones.shape}')
         # input(f'states: {states.shape}')
         return states, dones, actions
+    
+    
+
+class ActionGNN_ReplayBuffer(object):
+    def __init__(self, action_dim, max_size=int(1e6)):
+        self.max_size = max_size
+        self.ptr = 0
+        self.size = 0
+
+        # state is a dict of type Data
+        self.state = [{} for i in range(max_size)]
+        self.action = [{} for i in range(max_size)]
+        self.next_state = [{} for i in range(max_size)]
+        self.reward = np.zeros((max_size, 1))
+        self.not_done = np.zeros((max_size, 1))
+
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
+
+    def add(self, state, action, next_state, reward, done):
+        self.state[self.ptr] = state
+        self.action[self.ptr] = action
+        self.next_state[self.ptr] = next_state
+        self.reward[self.ptr] = reward
+        self.not_done[self.ptr] = 1. - done
+
+        self.ptr = (self.ptr + 1) % self.max_size
+        self.size = min(self.size + 1, self.max_size)
+
+    def sample(self, batch_size):
+        ind = np.random.randint(0, self.size, size=batch_size)
+
+        edge_index = []
+        ev_indexes = np.array([])
+        cs_indexes = np.array([])
+        tr_indexes = np.array([])
+        env_indexes = np.array([])
+
+        edge_counter = 0
+        node_counter = 0
+
+        ev_features = np.concatenate(
+            [self.state[i].ev_features for i in ind], axis=0)
+        cs_features = np.concatenate(
+            [self.state[i].cs_features for i in ind], axis=0)
+        tr_features = np.concatenate(
+            [self.state[i].tr_features for i in ind], axis=0)
+        env_features = np.concatenate(
+            [self.state[i].env_features for i in ind], axis=0)
+        node_types = np.concatenate(
+            [self.state[i].node_types for i in ind], axis=0)
+
+        sample_node_length = [len(self.state[i].node_types) for i in ind]
+
+        for i in ind:
+            edge_index.append(self.state[i].edge_index + edge_counter)
+            ev_indexes = np.concatenate(
+                [ev_indexes, self.state[i].ev_indexes + node_counter], axis=0)
+            cs_indexes = np.concatenate(
+                [cs_indexes, self.state[i].cs_indexes + node_counter], axis=0)
+            tr_indexes = np.concatenate(
+                [tr_indexes, self.state[i].tr_indexes + node_counter], axis=0)
+            env_indexes = np.concatenate(
+                [env_indexes, self.state[i].env_indexes + node_counter], axis=0)
+
+            node_counter += len(self.state[i].node_types)
+            if self.state[i].edge_index.shape[1] > 0:
+                edge_counter += np.max(self.state[i].edge_index)
+            else:
+                edge_counter += 1
+
+        edge_index = np.concatenate(edge_index, axis=1)
+
+        state_batch = Data(edge_index=torch.from_numpy(edge_index).to(self.device),
+                           ev_features=torch.from_numpy(
+                               ev_features).to(self.device).float(),
+                           cs_features=torch.from_numpy(
+                               cs_features).to(self.device).float(),
+                           tr_features=torch.from_numpy(
+                               tr_features).to(self.device).float(),
+                           env_features=torch.from_numpy(
+                               env_features).to(self.device).float(),
+                           node_types=torch.from_numpy(
+                               node_types).to(self.device).float(),
+                           sample_node_length=sample_node_length,
+                           ev_indexes=ev_indexes,
+                           cs_indexes=cs_indexes,
+                           tr_indexes=tr_indexes,
+                           env_indexes=env_indexes)
+
+        action_batch = torch.concatenate([self.action[i] for i in ind], axis=0)
+
+        edge_index = []
+        ev_indexes = np.array([])
+        cs_indexes = np.array([])
+        tr_indexes = np.array([])
+        env_indexes = np.array([])
+
+        edge_counter = 0
+        node_counter = 0
+        ev_features = np.concatenate(
+            [self.next_state[i].ev_features for i in ind], axis=0)
+        cs_features = np.concatenate(
+            [self.next_state[i].cs_features for i in ind], axis=0)
+        tr_features = np.concatenate(
+            [self.next_state[i].tr_features for i in ind], axis=0)
+        env_features = np.concatenate(
+            [self.next_state[i].env_features for i in ind], axis=0)
+        node_types = np.concatenate(
+            [self.next_state[i].node_types for i in ind], axis=0)
+
+        sample_node_length = [len(self.next_state[i].node_types) for i in ind]
+
+        for i in ind:
+            edge_index.append(self.next_state[i].edge_index + edge_counter)
+            ev_indexes = np.concatenate(
+                [ev_indexes, self.next_state[i].ev_indexes + node_counter], axis=0)
+            cs_indexes = np.concatenate(
+                [cs_indexes, self.next_state[i].cs_indexes + node_counter], axis=0)
+            tr_indexes = np.concatenate(
+                [tr_indexes, self.next_state[i].tr_indexes + node_counter], axis=0)
+            env_indexes = np.concatenate(
+                [env_indexes, self.next_state[i].env_indexes + node_counter], axis=0)
+
+            node_counter += len(self.next_state[i].node_types)
+            if self.next_state[i].edge_index.shape[1] > 0:
+                edge_counter += np.max(self.next_state[i].edge_index)
+            else:
+                edge_counter += 1
+
+        edge_index = np.concatenate(edge_index, axis=1)
+        next_state_batch = Data(edge_index=torch.from_numpy(edge_index).to(self.device),
+                                ev_features=torch.from_numpy(
+                                    ev_features).to(self.device).float(),
+                                cs_features=torch.from_numpy(
+                                    cs_features).to(self.device).float(),
+                                tr_features=torch.from_numpy(
+                                    tr_features).to(self.device).float(),
+                                env_features=torch.from_numpy(
+                                    env_features).to(self.device).float(),
+                                node_types=torch.from_numpy(
+                                    node_types).to(self.device),
+                                sample_node_length=sample_node_length,
+                                ev_indexes=ev_indexes,
+                                cs_indexes=cs_indexes,
+                                tr_indexes=tr_indexes,
+                                env_indexes=env_indexes)
+
+        return (
+            state_batch,
+            action_batch,
+            next_state_batch,
+            torch.FloatTensor(self.reward[ind]).to(self.device),
+            torch.FloatTensor(self.not_done[ind]).to(self.device)
+        )

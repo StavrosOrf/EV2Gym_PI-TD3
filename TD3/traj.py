@@ -14,32 +14,41 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.autograd.set_detect_anomaly(True)
 
 
-# class Actor(nn.Module):
-#     def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim, dropout=0.1):
-#         super(Actor, self).__init__()
-
-#         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
-#         self.l2 = nn.Linear(mlp_hidden_dim, 2*mlp_hidden_dim)
-#         self.l3 = nn.Linear(2*mlp_hidden_dim, 3*mlp_hidden_dim)
-#         self.l4 = nn.Linear(3*mlp_hidden_dim, mlp_hidden_dim)
-#         self.l5 = nn.Linear(mlp_hidden_dim, action_dim)
-#         self.dropout = nn.Dropout(dropout)
-
-#         self.max_action = max_action
-
-#     def forward(self, state):
-
-#         a = F.relu(self.l1(state))
-#         # a = self.dropout(a)
-#         a = F.relu(self.l2(a))
-#         a = F.relu(self.l3(a))
-#         a = F.relu(self.l4(a))
-#         # a = self.dropout(a)
-
-#         return torch.tanh(self.l5(a))
-        # return self.l3(a)
-
 class Actor(nn.Module):
+    def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim, dropout=0.1):
+        super(Actor, self).__init__()
+
+        self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+        self.l2 = nn.Linear(mlp_hidden_dim, 2*mlp_hidden_dim)
+        self.l3 = nn.Linear(2*mlp_hidden_dim, 3*mlp_hidden_dim)
+        self.l4 = nn.Linear(3*mlp_hidden_dim, mlp_hidden_dim)
+        self.l5 = nn.Linear(mlp_hidden_dim, action_dim)        
+        
+        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
+        self.ln2 = nn.LayerNorm(2*mlp_hidden_dim)
+        self.ln3 = nn.LayerNorm(3*mlp_hidden_dim)
+        self.ln4 = nn.LayerNorm(mlp_hidden_dim)
+
+        self.max_action = max_action
+
+    def forward(self, state):
+
+        a = F.relu(self.l1(state))
+        # add batch normalization
+        a = self.ln1(a)
+        # a = self.dropout(a)
+        a = F.relu(self.l2(a))
+        a = self.ln2(a)
+        a = F.relu(self.l3(a))
+        a = self.ln3(a)
+        a = F.relu(self.l4(a))
+        a = self.ln4(a)
+        # a = self.dropout(a)
+
+        return torch.tanh(self.l5(a))
+        return self.l3(a)
+
+class ActorGNN(nn.Module):
     def __init__(self,
                  max_action,
                  fx_node_sizes,
@@ -166,6 +175,7 @@ class Traj(object):
             state_dim,
             action_dim,
             max_action,
+            # fx_node_sizes,
             ph_coeff=1,
             discount=0.99,
             tau=0.005,
@@ -175,9 +185,12 @@ class Traj(object):
             mlp_hidden_dim=256,
             sequence_length=3,
             lr=3e-4,
-            dropout=0.1,
             loss_fn=None,
             transition_fn=None,
+            # fx_dim=8,
+            # fx_GNN_hidden_dim=32,
+            # discrete_actions=1,
+            # actor_num_gcn_layers = 3,  
             **kwargs
     ):
 
@@ -185,18 +198,20 @@ class Traj(object):
                            action_dim,
                            max_action,
                            mlp_hidden_dim,
-                           
-                           device=device)
                            ).to(device)
+        # self.actor = Actor(max_action,
+        #                    feature_dim=fx_dim,
+        #                    GNN_hidden_dim=fx_GNN_hidden_dim,
+        #                    fx_node_sizes=fx_node_sizes,
+        #                    discrete_actions=discrete_actions,
+        #                    num_gcn_layers = actor_num_gcn_layers,
+        #                    device=self.device
+        #                    ).to(self.device)
         
         # self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=lr)
 
-        # self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
-        # self.critic_target = copy.deepcopy(self.critic)
-        # self.critic_optimizer = torch.optim.Adam(
-        #     self.critic.parameters(), lr=lr)
 
         self.max_action = max_action
         self.discount = discount
@@ -224,7 +239,7 @@ class Traj(object):
             state = torch.FloatTensor(state.reshape(1, -1)).to(device)
             actions = self.actor(state).cpu().data.numpy().flatten()
             # apply tanh to actions
-            actions = np.tanh(actions)
+            # actions = np.tanh(actions)
             return actions
 
     def train(self, replay_buffer, batch_size=256):
@@ -250,33 +265,50 @@ class Traj(object):
         i = 0
         while True:
         # for i in range(1):
-            discount = 0.95  # self.discount ** (i+1)
+            discount = 0.99  # self.discount ** (i+1)
             # discount = 1  # self.discount ** (i+1)
 
-            noise = (
-                torch.randn_like(actions[:, 0, :]) * self.policy_noise
-            ).clamp(-self.noise_clip, self.noise_clip)
+            if i <= 5:
+                noise = (
+                    torch.randn_like(actions[:, 0, :]) * self.policy_noise
+                ).clamp(-self.noise_clip, self.noise_clip)
 
-            action_pred = (
-                self.actor(state_new) + noise
-            ).clamp(-self.max_action, self.max_action)
-            # use sigmoid instead of clamp
-            # action_pred = torch.tanh(action_pred)
+                action_pred = (
+                    self.actor(state_new) + noise
+                ).clamp(-self.max_action, self.max_action)
+
+                reward = self.loss_fn.smooth_profit_max(state=state_new,
+                                                    action=action_pred)
+
+                if i == 0:
+                    total_reward = + reward
+                else:
+                    total_reward += discount * reward * (1-dones[:, i])
+
+                state_new = self.transition_fn(state=state_new,
+                                            new_state=state[:,
+                                                            i+1, :].detach(),
+                                            action=action_pred)
+            else:
+                with torch.no_grad():
+                    action_pred = self.actor(state_new)    
+                    
+                    reward = self.loss_fn.smooth_profit_max(state=state_new,
+                                                    action=action_pred)
+
+                    if i == 0:
+                        total_reward = + reward
+                    else:
+                        total_reward += discount * reward * (1-dones[:, i])
+
+                    state_new = self.transition_fn(state=state_new,
+                                                new_state=state[:,
+                                                                i+1, :].detach(),
+                                                action=action_pred)
 
             # reward = self.loss_fn.profit_max(state=state_new,
             #                                     action=action_pred)
-            reward = self.loss_fn.smooth_profit_max(state=state_new,
-                                                    action=action_pred)
-
-            if i == 0:
-                total_reward = + reward
-            else:
-                total_reward += discount * reward * (1-dones[:, i])
-
-            state_new = self.transition_fn(state=state_new,
-                                           new_state=state[:,
-                                                           i+1, :].detach(),
-                                           action=action_pred)
+            
 
             if sum(dones[:, i]) == dones.shape[0]:
                 break
@@ -286,7 +318,7 @@ class Traj(object):
 
             i += 1
 
-        total_reward = -total_reward.mean()
+        total_reward = total_reward.mean()
         self.loss_dict['physics_loss'] = total_reward.item()
 
         # Optimize the actor
