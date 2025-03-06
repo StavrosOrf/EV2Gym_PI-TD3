@@ -180,8 +180,8 @@ def evaluate_optimal(new_replay_path):
     # agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
 
     # # Profit maximization optimizer
-    # agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
-    agent= ChargeAsFastAsPossible()
+    agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
+    # agent= ChargeAsFastAsPossible()
     # # Simulate in the gym environment and get the rewards
     # config_file = "./config_files/v2g_grid_3.yaml"
     config_file = "./config_files/v2g_grid_50.yaml"
@@ -201,8 +201,8 @@ def evaluate_optimal(new_replay_path):
         # if verbose:
         #     print(f' OptimalActions: {actions}')
         
-        print(f'state {t}: {new_state}')        
-        input('Press Enter to continue')
+        # print(f'state {t}: {new_state}')        
+        # input('Press Enter to continue')
 
         new_state, reward, done, truncated, stats = env.step(
             actions, visualize=False)  # takes action

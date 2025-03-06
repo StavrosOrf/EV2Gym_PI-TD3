@@ -16,7 +16,7 @@ from agent.reward import V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
-from agent.utils import Trajectory_ReplayBuffer
+from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Action
 
 from ev2gym.models.ev2gym_env import EV2Gym
 
@@ -67,6 +67,11 @@ def eval_policy(policy,
                           state_function=eval_config['state_function'],
                           reward_function=eval_config['reward_function'],
                           )
+
+        if args.discrete_actions == 3:
+            eval_env = ThreeStep_Action(eval_env)
+        elif args.discrete_actions == 2:
+            eval_env = TwoStep_Action(eval_env)
 
         state, _ = eval_env.reset()
         done = False
@@ -121,7 +126,8 @@ if __name__ == "__main__":
     run_timer = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", default="TD3_ActionGNN")  # TD3, Traj, SAC, TD3_ActionGNN
+    # TD3, Traj, SAC, TD3_ActionGNN
+    parser.add_argument("--policy", default="TD3_ActionGNN")
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
@@ -155,14 +161,14 @@ if __name__ == "__main__":
                             type=int)  # original 25e5
         parser.add_argument("--eval_freq", default=960,  # 2250
                             type=int)  # in episodes
-        parser.add_argument("--batch_size", default=256, type=int)  # 256
+        parser.add_argument("--batch_size", default=32, type=int)  # 256
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor
     # Target network update rate
     parser.add_argument("--tau", default=0.005, type=float)
     # TD3 parameters #############################################
-    parser.add_argument("--expl_noise", default=0.1, type=float)  # 0.1
+    parser.add_argument("--expl_noise", default=0.3, type=float)  # 0.1
     parser.add_argument("--policy_noise", default=0.2)  # 0.2
     # Range to clip target policy noise
     parser.add_argument("--noise_clip", default=0.5)
@@ -180,7 +186,6 @@ if __name__ == "__main__":
     parser.add_argument('--embed_dim', type=int, default=128)
     parser.add_argument('--n_layer', type=int, default=3)
     parser.add_argument('--n_head', type=int, default=1)
-
     parser.add_argument('--activation_function', type=str, default='relu')
 
     # SAC parameters #############################################
@@ -204,7 +209,6 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=3e-5)
     # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
 
-    
     # GNN Feature Extractor Parameters #############################################
     parser.add_argument('--fx_dim', type=int, default=8)
     parser.add_argument('--fx_GNN_hidden_dim', type=int, default=32)
@@ -213,10 +217,12 @@ if __name__ == "__main__":
     parser.add_argument('--discrete_actions', type=int, default=1)
     parser.add_argument('--actor_num_gcn_layers', type=int, default=3)
     parser.add_argument('--critic_num_gcn_layers', type=int, default=3)
-  
-  
+
     scale = 1
     args = parser.parse_args()
+
+    if args.discrete_actions > 1 and args.policy != "TD3_ActionGNN":
+        raise ValueError(f"{args.policy} does not support discrete actions.")
 
     device = args.device
     device = device if torch.cuda.is_available() else 'cpu'
@@ -254,6 +260,14 @@ if __name__ == "__main__":
                               })
 
     env = gym.make('evs-v1')
+
+    if args.discrete_actions == 3:
+        env = ThreeStep_Action(env)
+    elif args.discrete_actions == 2:
+        env = TwoStep_Action(env)
+    elif args.discrete_actions != 1:
+        raise ValueError(
+            "Discrete action number not recognized. Only support 1 or 3 at the moment!")
 
     # =========================================================================
     problem_name = config_file.split('/')[-1].split('.')[0]
@@ -426,7 +440,7 @@ if __name__ == "__main__":
 
         kwargs['load_path'] = load_path
         kwargs['discrete_actions'] = args.discrete_actions
-                
+
         # if statefunction has attribute node_sizes
         if hasattr(state_function, 'node_sizes'):
             kwargs['fx_node_sizes'] = state_function.node_sizes
@@ -447,7 +461,7 @@ if __name__ == "__main__":
             replay_buffer = ActionGNN_ReplayBuffer(action_dim=action_dim,
                                                    max_size=replay_buffer_size,)
             os.system(f'cp TD3/TD3_ActionGNN.py {save_path}')
-            
+
     elif "SAC" in args.policy:
 
         kwargs["device"] = device

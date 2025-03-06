@@ -9,6 +9,10 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
+import gymnasium as gym
+from gymnasium.spaces import Box
+from gymnasium.spaces import MultiDiscrete, Discrete
+
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -389,3 +393,87 @@ class ActionGNN_ReplayBuffer(object):
             torch.FloatTensor(self.reward[ind]).to(self.device),
             torch.FloatTensor(self.not_done[ind]).to(self.device)
         )
+
+class ThreeStep_Action(gym.ActionWrapper, gym.utils.RecordConstructorArgs):
+    """
+    Clip the continuous action within the valid :class:`Box` observation space bound.
+    """
+
+    def __init__(self, env: gym.Env):
+        """
+        Args:
+            env: The environment to apply the wrapper
+        """
+        assert isinstance(env.action_space, Box)
+
+        gym.utils.RecordConstructorArgs.__init__(self)
+        gym.ActionWrapper.__init__(self, env)
+
+        self.min_action = np.zeros(env.action_space.shape)
+
+        epsilon = 1e-4
+        counter = 0
+        # for cs in env.charging_stations:
+        #     n_ports = cs.n_ports
+        #     for i in range(n_ports):
+        #         self.min_action[counter] = cs.min_charge_current / \
+        #             cs.max_charge_current + epsilon
+
+        #         counter += 1
+
+    def action(self, action: np.ndarray) -> np.ndarray:
+        """ 
+        If action[i] == 0 then action[i] = 0
+        elif action[i] == 1 then action[i] = self.min_action
+        else action[i] = 1
+
+        Args:
+            action: The action to clip
+
+        Returns:
+            The clipped action
+        """
+
+        return np.where(action == 0, -1, np.where(action == 1, 0, 1))
+    
+class TwoStep_Action(gym.ActionWrapper, gym.utils.RecordConstructorArgs):
+    """
+    Clip the continuous action within the valid :class:`Box` observation space bound.
+    """
+
+    def __init__(self, env: gym.Env):
+        """
+        Args:
+            env: The environment to apply the wrapper
+        """
+        assert isinstance(env.action_space, Box)
+
+        gym.utils.RecordConstructorArgs.__init__(self)
+        gym.ActionWrapper.__init__(self, env)
+
+        self.min_action = np.zeros(env.action_space.shape)
+
+        # epsilon = 1e-4
+        # counter = 0
+        # for cs in env.charging_stations:
+        #     n_ports = cs.n_ports
+        #     for i in range(n_ports):
+        #         self.min_action[counter] = cs.min_charge_current / \
+        #             cs.max_charge_current + epsilon
+
+        #         counter += 1
+
+    def action(self, action: np.ndarray) -> np.ndarray:
+        """ 
+        If action[i] == 0 then action[i] = 0
+        elif action[i] == 1 then action[i] = self.min_action
+        else action[i] = 1
+
+        Args:
+            action: The action to clip
+
+        Returns:
+            The clipped action
+        """
+
+        return np.where(action == 0, -1,1)
