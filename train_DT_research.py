@@ -21,6 +21,7 @@ from DT.training.traj_trainer import TrajectoryTrainer
 from ev2gym.models.ev2gym_env import EV2Gym
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+from agent.reward import V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -69,7 +70,8 @@ def experiment(vars):
     number_of_charging_stations = config["number_of_charging_stations"]
     steps = config["simulation_length"]
 
-    reward_function = V2G_grid_full_reward
+    # reward_function = V2G_grid_full_reward
+    reward_function = V2G_profitmax
     state_function = V2G_grid_state_ModelBasedRL
 
     env = EV2Gym(config_file=config_path,
@@ -83,10 +85,12 @@ def experiment(vars):
         f'Observation space: {env.observation_space.shape[0]}, action space: {env.action_space.shape[0]}')
 
     # load dataset
-    if dataset == 'random_1000':
-        dataset_path = 'trajectories/v2g_grid_150_random_150_1000.pkl.gz'
-    else:
-        raise NotImplementedError("Dataset not found")
+    # if dataset == 'random_1000':
+    #     dataset_path = 'trajectories/v2g_grid_150_random_150_1000.pkl.gz'
+    # else:
+    #     raise NotImplementedError("Dataset not found")
+    
+    dataset_path = 'trajectories/v2g_grid_50_random_50_100.pkl.gz'
 
     max_ep_len = steps
     g_name = vars['group_name']
@@ -127,12 +131,14 @@ def experiment(vars):
 
     # Initialize eval_envs from replays
     eval_replay_path = vars['eval_replay_path']
-    eval_replays = os.listdir(eval_replay_path)
+    # eval_replays = os.listdir(eval_replay_path)
+    eval_replays = ['replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl']
     eval_envs = []
     print(f'Loading evaluation replays from {eval_replay_path}')
     for i, replay in enumerate(eval_replays):
         eval_env = EV2Gym(config_file=config_path,
-                          load_from_replay_path=eval_replay_path + replay,
+                        #   load_from_replay_path=eval_replay_path + replay,
+                          load_from_replay_path=replay,
                           state_function=state_function,
                           reward_function=reward_function,
                           )
@@ -322,6 +328,7 @@ def experiment(vars):
             resid_pdrop=vars['dropout'],
             attn_pdrop=vars['dropout'],
         )
+        
     else:
         raise NotImplementedError
 
@@ -505,10 +512,10 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=3)
     # dt for decision transformer, bc for behavior cloning
     parser.add_argument('--model_type', type=str,
-                        default='dt')  # dt, gnn_dt, gnn_in_out_dt, bc, gnn_act_emb
+                        default='dt')  # 
     parser.add_argument('--embed_dim', type=int, default=128)
     parser.add_argument('--n_layer', type=int, default=3)
-    parser.add_argument('--n_head', type=int, default=1)
+    parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--activation_function', type=str, default='relu')
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
@@ -519,9 +526,9 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
     parser.add_argument('--config_file', type=str,
-                        default="v2g_grid_150.yaml")
+                        default="v2g_grid_50.yaml")
 
-    parser.add_argument('--num_eval_episodes', type=int, default=2)
+    parser.add_argument('--num_eval_episodes', type=int, default=1)
     parser.add_argument('--eval_replay_path', type=str,
                         default="./replay/v2g_grid_150_100evals/")
 
@@ -539,7 +546,7 @@ if __name__ == '__main__':
 
     # GNN DT
     parser.add_argument('--physics_loss_weight', type=float, default=0)
-    parser.add_argument('--trajectory_trainer', type=bool, default=True)
+    parser.add_argument('--trajectory_trainer', type=bool, default=False)
 
     args = parser.parse_args()
 

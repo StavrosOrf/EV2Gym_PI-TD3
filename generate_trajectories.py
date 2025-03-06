@@ -13,8 +13,9 @@ from ev2gym.rl_agent.reward import SquaredTrackingErrorReward, ProfitMax_TrPenal
 from ev2gym.rl_agent.state import V2G_profit_max, PublicPST, V2G_profit_max_loads
 from ev2gym.baselines.heuristics import RandomAgent, ChargeAsFastAsPossible
 
-from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+# from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL, PST_V2G_ProfitMaxGNN_state
+from agent.reward import V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -27,27 +28,31 @@ if __name__ == "__main__":
     SAVE_EVAL_REPLAYS = args.save_eval_replays
 
     if args.env == "150":
-        args.config_file = "./config_files/v2g_grid_150.yaml"
+        args.config_file = "./config_files/v2g_grid_50.yaml"
     # elif args.env == "250":
     #     args.config_file = "./config_files/PST_V2G_ProfixMax_250.yaml"
     else:
         raise ValueError(f"Environment {args.env} not supported")
 
-    reward_function = V2G_grid_full_reward
+    reward_function = V2G_profitmax
     state_function = V2G_grid_state_ModelBasedRL
     
     problem = args.config_file.split("/")[-1].split(".")[0]
+    
+    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
 
     env = EV2Gym(config_file=args.config_file,
                  state_function=state_function,
                  reward_function=reward_function,
                  save_replay=SAVE_EVAL_REPLAYS,
+                #  load_from_replay_path=replay_path,
                  )
 
     temp_env = EV2Gym(config_file=args.config_file,
                       save_replay=True,
                       reward_function=reward_function,
                       state_function=state_function,
+                    #   load_from_replay_path=replay_path,
                       )
 
     n_trajectories = args.n_trajectories

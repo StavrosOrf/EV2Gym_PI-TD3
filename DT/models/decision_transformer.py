@@ -40,12 +40,9 @@ class DecisionTransformer(TrajectoryModel):
         # note: the only difference between this GPT2Model and the default Huggingface version
         # is that the positional embeddings are removed (since we'll add those ourselves)
         self.transformer = GPT2Model(config)
-        # config = transformers.GPTNeoConfig(
-        #     vocab_size=1,  # doesn't matter -- we don't use the vocab
-        #     hidden_size=hidden_size
-        # )
-        # self.transformer = GPTNeoForCausalLM(config)
-        # self.transformer = MambaForCausalLM(config)
+        
+        
+
 
         # print("hiden size: ", hidden_size,max_ep_len)
         self.embed_timestep = nn.Embedding(max_ep_len, hidden_size)
