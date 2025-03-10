@@ -471,8 +471,9 @@ class V2G_Grid_StateTransition(nn.Module):
         new_state = new_state * mask + new_values
 
         return new_state
+    
         alpha = 10.0
-        
+
         max_ev_charge_power = smooth_min(
             max_ev_charge_power,
             ev_connected_binary * (battery_capacity -
@@ -550,7 +551,7 @@ class V2G_Grid_StateTransition(nn.Module):
 
         # 7) Update new_state
         new_state = new_state * mask + new_values
-        
+
         return new_state
 
 
@@ -563,6 +564,7 @@ def smooth_step(x, alpha=10.0):
     """
     return 0.5 * (1.0 + torch.tanh(alpha * x))
 
+
 def smooth_min(a, b, alpha=10.0, eps=1e-6):
     """
     Smooth approximation of min(a, b):
@@ -571,6 +573,7 @@ def smooth_min(a, b, alpha=10.0, eps=1e-6):
     diff = a - b
     return 0.5 * (a + b - torch.sqrt(diff * diff + eps))
 
+
 def smooth_max(a, b, alpha=10.0, eps=1e-6):
     """
     Smooth approximation of max(a, b):
@@ -578,6 +581,7 @@ def smooth_max(a, b, alpha=10.0, eps=1e-6):
     """
     diff = a - b
     return 0.5 * (a + b + torch.sqrt(diff * diff + eps))
+
 
 def smooth_clamp(x, lower, upper, alpha=10.0):
     """

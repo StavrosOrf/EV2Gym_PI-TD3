@@ -6,7 +6,7 @@ from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.baselines.heuristics import RoundRobin, RandomAgent, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward, V2G_profitmax
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward, V2G_profitmax, V2G_profitmaxV2
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -30,18 +30,18 @@ def eval():
 
     replay_path = None
 
-    config_file = "./config_files/v2g_grid_50.yaml"
-    # config_file = "./config_files/v2g_grid_3.yaml"
+    # config_file = "./config_files/v2g_grid_50.yaml"
+    # config_file = "./config_files/v2g_grid_150.yaml"
+    config_file = "./config_files/v2g_grid_3.yaml"
     seed = 0
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
-                 verbose=False,
-                 #  seed=seed,
+                 verbose=True,
                  save_replay=True,
                  save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=V2G_profitmax,
+                 reward_function=V2G_profitmaxV2,
                  )
 
     print(env.action_space)
@@ -82,13 +82,16 @@ def eval():
     results_df = None
     total_timer = 0
 
-    for i in range(10):
+    for i in range(1):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)
 
             new_state, reward, done, truncated, stats = env.step(
-                actions)  # takes action
+                actions,
+                visualize=True,   
+            )
+            input('press enter to continue')
             # print(
             #     "============================================================================")
             predicted_state = state_transition(state=torch.tensor(state, device=device).reshape(1, -1),
@@ -106,7 +109,17 @@ def eval():
             if np.abs(predicted_state - new_state).mean() > 0.001:
                 # make noise beep
                 print(f'diff: {np.abs(predicted_state - new_state).mean()}')
-                input('Error in state transition')
+                
+                step_size = 3
+                ev_state_start = 4 + 2*(env.grid.net.nb-1)
+                number_of_cs = len(actions)
+                current_capacity = new_state[ev_state_start:(
+                        ev_state_start + step_size*number_of_cs):step_size]
+                print(f'actual: {current_capacity}')
+                print("="*50)
+                print(f'predicted: {predicted_state}')
+                print(f'actual: {new_state}')
+                input('Error in state transition')  
 
             # print("============================================================================")
             timer = time.time()
@@ -130,12 +143,13 @@ def eval():
             # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
             # print(f'Loss V: {loss_v}')
-            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
+            
+            # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
 
-            if reward_loss > 0.001:
-                print(
-                    f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
-                input(f'Error in reward calculation')
+            # if reward_loss > 0.001:
+            #     print(
+            #         f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
+            #     input(f'Error in reward calculation')
 
             state = new_state
 
@@ -218,7 +232,8 @@ def evaluate_optimal(new_replay_path):
 
 if __name__ == "__main__":
     # while True:
-    # new_replay_path = eval()
+    new_replay_path = eval()
+    exit()
     
     new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
     evaluate_optimal(new_replay_path)

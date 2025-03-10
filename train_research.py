@@ -12,7 +12,7 @@ import pickle
 import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL, PST_V2G_ProfitMaxGNN_state
-from agent.reward import V2G_profitmax
+from agent.reward import V2G_profitmax, V2G_profitmaxV2
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -25,6 +25,7 @@ from SAC.sac import SAC
 from TD3.TD3 import TD3
 from TD3.TD3_ActionGNN import TD3_ActionGNN
 from TD3.traj import Traj
+from TD3.mb import MB
 
 from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBuffer
 
@@ -127,7 +128,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     # TD3, Traj, SAC, TD3_ActionGNN
-    parser.add_argument("--policy", default="TD3_ActionGNN")
+    parser.add_argument("--policy", default="TD3") # TD3, Traj, SAC, TD3_ActionGNN
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
@@ -148,32 +149,32 @@ if __name__ == "__main__":
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=96,
+        parser.add_argument("--start_timesteps", default=96*2,
                             type=int)
-        parser.add_argument('--eval_freq', default=960, type=int)
+        parser.add_argument('--eval_freq', default=96*5, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=960,
+        parser.add_argument("--start_timesteps", default=5000,
                             type=int)  # original 25e5
         parser.add_argument("--eval_freq", default=960,  # 2250
                             type=int)  # in episodes
-        parser.add_argument("--batch_size", default=32, type=int)  # 256
+        parser.add_argument("--batch_size", default=64, type=int)  # 256
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor
     # Target network update rate
     parser.add_argument("--tau", default=0.005, type=float)
     # TD3 parameters #############################################
-    parser.add_argument("--expl_noise", default=0.3, type=float)  # 0.1
+    parser.add_argument("--expl_noise", default=0.1, type=float)  # 0.1
     parser.add_argument("--policy_noise", default=0.2)  # 0.2
     # Range to clip target policy noise
     parser.add_argument("--noise_clip", default=0.5)
     # Frequency of delayed policy updates
-    parser.add_argument("--policy_freq", default=2, type=int)
+    parser.add_argument("--policy_freq", default=10, type=int)
     # Save model and optimizer parameters
     parser.add_argument("--save_replay_buffer", action="store_true")
     parser.add_argument("--delete_replay_buffer", action="store_true")
@@ -213,7 +214,7 @@ if __name__ == "__main__":
     parser.add_argument('--fx_dim', type=int, default=8)
     parser.add_argument('--fx_GNN_hidden_dim', type=int, default=32)
     parser.add_argument('--fx_num_heads', type=int, default=2)
-    parser.add_argument('--mlp_hidden_dim', type=int, default=256)
+    parser.add_argument('--mlp_hidden_dim', type=int, default=128)
     parser.add_argument('--discrete_actions', type=int, default=1)
     parser.add_argument('--actor_num_gcn_layers', type=int, default=3)
     parser.add_argument('--critic_num_gcn_layers', type=int, default=3)
@@ -244,9 +245,10 @@ if __name__ == "__main__":
 
     group_name = "50_simple_tests"
     # reward_function = V2G_grid_full_reward
-    reward_function = V2G_profitmax
-    # state_function = V2G_grid_state_ModelBasedRL
-    state_function = PST_V2G_ProfitMaxGNN_state
+    # reward_function = V2G_profitmax
+    reward_function = V2G_profitmaxV2
+    state_function = V2G_grid_state_ModelBasedRL
+    # state_function = PST_V2G_ProfitMaxGNN_state
 
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
@@ -429,6 +431,30 @@ if __name__ == "__main__":
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
+    elif args.policy == "MB":
+        state_dim = env.observation_space.shape[0]
+        # Target policy smoothing is scaled wrt the action scale
+        kwargs["policy_noise"] = args.policy_noise * max_action
+        kwargs["noise_clip"] = args.noise_clip * max_action
+        kwargs["policy_freq"] = args.policy_freq
+        kwargs["device"] = device
+        kwargs['state_dim'] = state_dim
+        kwargs['load_path'] = load_path
+
+        kwargs['loss_fn'] = loss_fn
+        kwargs['ph_coeff'] = args.ph_coeff
+
+        kwargs['transition_fn'] = transition_fn
+
+        # kwargs['loss_fn'] = None
+        # Save kwargs to local path
+        with open(f'{save_path}/kwargs.yaml', 'w') as file:
+            yaml.dump(kwargs, file)
+
+        os.system(f'cp TD3/mb.py {save_path}')
+
+        policy = MB(**kwargs)
+        replay_buffer = ReplayBuffer(state_dim, action_dim)
     # Initialize policy
     elif args.policy == "TD3_GNN" or args.policy == "TD3_ActionGNN":
         # Target policy smoothing is scaled wrt the action scale
@@ -599,7 +625,7 @@ if __name__ == "__main__":
                 # Perform action
                 next_state, reward, done, _, stats = env.step(action)
 
-            elif args.policy == "TD3" or args.policy == "TD3_GNN" or args.policy == "Traj":
+            elif args.policy == "TD3" or args.policy == "MB" or args.policy == "Traj":
                 # Select action randomly or according to policy + add noise
                 action = (
                     policy.select_action(state)
@@ -608,9 +634,12 @@ if __name__ == "__main__":
                 ).clip(-max_action, max_action)
                 # Perform action
                 next_state, reward, done, _, stats = env.step(action)
+            else:
+                raise ValueError("Policy not recognized.")
 
         if args.policy != "Traj":
             # Store data in replay buffer
+            # print(f"state: {state}, action: {action}, next_state: {next_state}, reward: {reward}, done: {done}")
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
             action_traj[episode_timesteps] = torch.FloatTensor(

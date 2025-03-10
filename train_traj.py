@@ -207,7 +207,7 @@ if __name__ == "__main__":
         os.makedirs("./results")
 
     group_name = "50_tests"
-    reward_function = V2G_grid_full_reward
+    # reward_function = V2G_grid_full_reward
     reward_function = V2G_profitmax
     state_function = V2G_grid_state_ModelBasedRL
 
@@ -390,7 +390,7 @@ if __name__ == "__main__":
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 max_episode_length=simulation_length,)
-
+        
     else:
         raise ValueError("Policy not recognized.")
 
