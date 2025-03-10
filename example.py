@@ -48,8 +48,8 @@ def eval():
     print(env.observation_space)
     new_replay_path = f"replay/replay_{env.sim_name}.pkl"
 
-    # agent = ChargeAsFastAsPossible()
-    agent = RandomAgent()
+    agent = ChargeAsFastAsPossible()
+    # agent = RandomAgent()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
 
     max_cs_power = env.charging_stations[0].get_max_power()
@@ -68,7 +68,7 @@ def eval():
                          ev_battery_capacity=ev_battery_capacity,
                          ev_min_battery_capacity=ev_min_battery_capacity,
                          device=device,
-                         verbose=False,
+                         verbose=True,
                          )
 
     state_transition = V2G_Grid_StateTransition(verbose=False,
@@ -89,9 +89,9 @@ def eval():
 
             new_state, reward, done, truncated, stats = env.step(
                 actions,
-                visualize=True,   
+                visualize=True,
             )
-            input('press enter to continue')
+            # input('press enter to continue')
             # print(
             #     "============================================================================")
             predicted_state = state_transition(state=torch.tensor(state, device=device).reshape(1, -1),
@@ -109,22 +109,23 @@ def eval():
             if np.abs(predicted_state - new_state).mean() > 0.001:
                 # make noise beep
                 print(f'diff: {np.abs(predicted_state - new_state).mean()}')
-                
+
                 step_size = 3
                 ev_state_start = 4 + 2*(env.grid.net.nb-1)
                 number_of_cs = len(actions)
                 current_capacity = new_state[ev_state_start:(
-                        ev_state_start + step_size*number_of_cs):step_size]
+                    ev_state_start + step_size*number_of_cs):step_size]
                 print(f'actual: {current_capacity}')
                 print("="*50)
                 print(f'predicted: {predicted_state}')
                 print(f'actual: {new_state}')
-                input('Error in state transition')  
+                input('Error in state transition')
 
             # print("============================================================================")
             timer = time.time()
-            loss = loss_fn.profit_max(action=torch.tensor(actions, device=device).reshape(1, -1),
-                           state=torch.tensor(state, device=device).reshape(1, -1))
+            
+            loss = loss_fn.profit_maxV2(action=torch.tensor(actions, device=device).reshape(1, -1),
+                                        state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 
             # v = loss_fn.voltage_real_operations(state=torch.tensor(state, device=device).reshape(1, -1),
@@ -132,6 +133,7 @@ def eval():
             #     actions, device=device).reshape(1, -1),
             # )
             v_m = env.node_voltage[1:, t]
+
             # v = v.cpu().detach().numpy().reshape(-1)
             # # print(f'\n \n')
             # print(f'V real: {v_m}')
@@ -143,14 +145,14 @@ def eval():
             # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m))
 
             # print(f'Loss V: {loss_v}')
+
+            reward_loss = np.abs(reward - loss.cpu().detach().numpy())
+
+            if reward_loss > 0.001:
+                print(
+                    f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
+                input(f'Error in reward calculation')
             
-            # reward_loss = np.abs(reward - loss.cpu().detach().numpy())
-
-            # if reward_loss > 0.001:
-            #     print(
-            #         f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
-            #     input(f'Error in reward calculation')
-
             state = new_state
 
             if done and truncated:
@@ -194,8 +196,8 @@ def evaluate_optimal(new_replay_path):
     # agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
 
     # # Profit maximization optimizer
-    agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
-    # agent= ChargeAsFastAsPossible()
+    # agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
+    agent = ChargeAsFastAsPossible()
     # # Simulate in the gym environment and get the rewards
     # config_file = "./config_files/v2g_grid_3.yaml"
     config_file = "./config_files/v2g_grid_50.yaml"
@@ -203,9 +205,9 @@ def evaluate_optimal(new_replay_path):
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=new_replay_path,
                  verbose=False,
-                 save_plots=True,
+                 save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=V2G_profitmax,
+                 reward_function=V2G_profitmaxV2,
                  )
     new_state, _ = env.reset()
     rewards_opt = []
@@ -214,8 +216,8 @@ def evaluate_optimal(new_replay_path):
         actions = agent.get_action(env)
         # if verbose:
         #     print(f' OptimalActions: {actions}')
-        
-        # print(f'state {t}: {new_state}')        
+
+        # print(f'state {t}: {new_state}')
         # input('Press Enter to continue')
 
         new_state, reward, done, truncated, stats = env.step(
@@ -234,6 +236,6 @@ if __name__ == "__main__":
     # while True:
     new_replay_path = eval()
     exit()
-    
+
     new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
     evaluate_optimal(new_replay_path)

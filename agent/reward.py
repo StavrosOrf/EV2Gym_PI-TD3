@@ -71,12 +71,12 @@ def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
         print(f'!!! Costs: {total_costs}')
     
     user_costs = 0
-    # for ev in env.departing_evs:
-    #     # if verbose:
-    #     #     print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity}')
-    #     if ev.desired_capacity > ev.current_capacity:
-    #         # user_costs += -(ev.current_capacity - ev.desired_capacity)**2
-    #         user_costs += -100 * (ev.desired_capacity - ev.current_capacity)        
+    
+    linear = False
+    if linear:
+        cost_multiplier = 0.1
+    else:
+        cost_multiplier = 0.05
     
     for cs in env.charging_stations:
         for ev in cs.evs_connected:
@@ -91,7 +91,11 @@ def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
                 if min_steps_to_full > departing_step:                    
                     min_capacity_at_time = ev.desired_capacity - ((departing_step+1) * ev.max_ac_charge_power/(60/env.timescale))
                     
-                    cost = 0.05*(min_capacity_at_time - ev.current_capacity)**2
+                    if linear:
+                        cost = cost_multiplier*(min_capacity_at_time - ev.current_capacity)
+                    else:
+                        cost = cost_multiplier*(min_capacity_at_time - ev.current_capacity)**2
+                        
                     if verbose:
                         print(f'min_capacity_at_time: {min_capacity_at_time} | {ev.current_capacity} | {ev.desired_capacity} | {min_steps_to_full:.3f} | {departing_step} | cost {(cost):.3f}') 
                     user_costs += - cost
@@ -102,13 +106,14 @@ def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
     for ev in env.departing_evs:
         if ev.desired_capacity > ev.current_capacity:            
             if verbose:
-                print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity} | costs: {-0.05*(ev.desired_capacity - ev.current_capacity)**2}')
-            user_costs += -0.05 * (ev.desired_capacity - ev.current_capacity)**2
+                print(f'!!! EV: {ev.current_capacity} | {ev.desired_capacity} | costs: {-cost_multiplier*(ev.desired_capacity - ev.current_capacity)**2}')
+                
+            if linear:
+                user_costs += -cost_multiplier * (ev.desired_capacity - ev.current_capacity)
+            else:
+                user_costs += -cost_multiplier * (ev.desired_capacity - ev.current_capacity)**2
+            
     if verbose:
         print(f'!!! User Satisfaction Penalty: {user_costs}')
 
-    # current_step = env.current_step - 1
-    # v_m = env.node_voltage[:, current_step]
-
-    # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
     return (reward + user_costs)
