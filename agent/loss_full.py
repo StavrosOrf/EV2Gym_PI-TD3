@@ -53,9 +53,10 @@ class V2GridLoss(nn.Module):
             print(f'state: {state.shape}')
 
         number_of_cs = action.shape[1]
-        prices = state[:, 3] 
-        prices = torch.repeat_interleave(prices.view(-1, 1), number_of_cs, dim=1)
-        
+        prices = state[:, 3]
+        prices = torch.repeat_interleave(
+            prices.view(-1, 1), number_of_cs, dim=1)
+
         step_size = 3
         ev_state_start = 4 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
@@ -104,8 +105,8 @@ class V2GridLoss(nn.Module):
 
         power_usage = torch.min(power_usage, max_ev_charge_power)
         power_usage = torch.max(power_usage, max_ev_discharge_power)
-        
-        costs = prices * power_usage * timescale  
+
+        costs = prices * power_usage * timescale
 
         time_left_binary = torch.where(ev_time_left == 1, 1, 0)
 
@@ -122,13 +123,13 @@ class V2GridLoss(nn.Module):
             print(f'New capacity: {new_capacity}')
             print(f'power_usage: {power_usage}')
             print(f'energy_usage: {power_usage * timescale}')
-            
+
             print(f'costs: {costs}')
             print(f'costs: {costs.sum(axis=1)}')
             print(f'user_sat_at_departure: {user_sat_at_departure}')
 
         costs = costs.sum(axis=1)
-        
+
         # go from power usage to EV_power_per_bus
         EV_power_per_bus = torch.zeros(
             (batch_size, self.num_buses-1),
@@ -184,8 +185,8 @@ class V2GridLoss(nn.Module):
         # Compute the loss as a real number
         # For example, penalty on deviation from 1.0
         voltage_loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
-                         0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
-        
+                                 0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
+
         loss = 1000*voltage_loss + costs + user_sat_at_departure
 
         if self.verbose:
@@ -197,8 +198,7 @@ class V2GridLoss(nn.Module):
                   )
 
         # return 1000*loss.sum(), v0_clamped.real.cpu().detach().numpy()
-        return loss #, v0_clamped.real.cpu().detach().numpy()
-
+        return loss  # , v0_clamped.real.cpu().detach().numpy()
 
     def profit_max(self, action, state):
 
@@ -208,9 +208,10 @@ class V2GridLoss(nn.Module):
             print(f'state: {state.shape}')
 
         number_of_cs = action.shape[1]
-        prices = state[:, 3] 
-        prices = torch.repeat_interleave(prices.view(-1, 1), number_of_cs, dim=1)
-        
+        prices = state[:, 3]
+        prices = torch.repeat_interleave(
+            prices.view(-1, 1), number_of_cs, dim=1)
+
         step_size = 3
         ev_state_start = 4 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
@@ -261,7 +262,7 @@ class V2GridLoss(nn.Module):
 
         # power_usage = torch.min(power_usage, max_ev_charge_power)
         # power_usage = torch.max(power_usage, max_ev_discharge_power)
-        
+
         power_usage = torch.where(
             action >= 0,
             action * self.max_cs_power,
@@ -270,12 +271,12 @@ class V2GridLoss(nn.Module):
 
         # Clamp between discharge and charge limits
         power_usage = torch.clamp(
-            power_usage, 
-            min=max_ev_discharge_power, 
+            power_usage,
+            min=max_ev_discharge_power,
             max=max_ev_charge_power
         )
-        
-        costs = prices * power_usage * timescale  
+
+        costs = prices * power_usage * timescale
         costs = costs.sum(axis=1)
         # return costs
 
@@ -284,9 +285,10 @@ class V2GridLoss(nn.Module):
         new_capacity = (current_capacity + power_usage * timescale)
         # new_capacity = torch.true_divide(
         #     torch.ceil(new_capacity * 10**2), 10**2)
-        
+
         time_left_binary = (ev_time_left == 1).float()
-        user_sat_at_departure = -100 * time_left_binary * (self.ev_battery_capacity-new_capacity)
+        user_sat_at_departure = -100 * time_left_binary * \
+            (self.ev_battery_capacity-new_capacity)
         user_sat_at_departure = user_sat_at_departure.sum(dim=1)
 
         if self.verbose:
@@ -295,22 +297,22 @@ class V2GridLoss(nn.Module):
             # print(f'costs: {costs}')
             # print(f'costs: {costs.sum(axis=1)}')
 
-        
         # return user_sat_at_departure
         return costs + user_sat_at_departure
 
     def smooth_profit_max(self, action, state):
-        
-        alpha=10
+
+        alpha = 10
         if self.verbose:
             print("==================================================")
             print(f'action: {action.shape}')
             print(f'state: {state.shape}')
 
         number_of_cs = action.shape[1]
-        prices = state[:, 3] 
-        prices = torch.repeat_interleave(prices.view(-1, 1), number_of_cs, dim=1)
-        
+        prices = state[:, 3]
+        prices = torch.repeat_interleave(
+            prices.view(-1, 1), number_of_cs, dim=1)
+
         step_size = 3
         ev_state_start = 4 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
@@ -347,50 +349,52 @@ class V2GridLoss(nn.Module):
             print(f'timescale: {timescale}')
 
         # 1) Smoothly adjust charge/discharge power based on EV connection & capacity
-        
+
         # with torch.no_grad():
         max_ev_charge_power = smooth_min(
             max_ev_charge_power,
-            ev_connected_binary * (battery_capacity - current_capacity) / timescale,
+            ev_connected_binary * (battery_capacity -
+                                   current_capacity) / timescale,
             alpha=alpha
         )
         max_ev_discharge_power = smooth_max(
             max_ev_discharge_power,
-            ev_connected_binary * (ev_min_battery_capacity - current_capacity) / timescale,
+            ev_connected_binary *
+            (ev_min_battery_capacity - current_capacity) / timescale,
             alpha=alpha
         )
 
         step_val = smooth_step(action, alpha=alpha)  # in [0,1]
-            
+
         power_usage = action * self.max_cs_power * step_val -\
-                    action * self.min_cs_power * (1 - step_val)
+            action * self.min_cs_power * (1 - step_val)
 
         # 3) Smooth clamp between discharge and charge limits
         power_usage = smooth_clamp(power_usage,
-                                lower=max_ev_discharge_power,
-                                upper=max_ev_charge_power,
-                                alpha=alpha)
+                                   lower=max_ev_discharge_power,
+                                   upper=max_ev_charge_power,
+                                   alpha=alpha)
 
         # 4) Calculate costs
         costs = (prices * power_usage * timescale).sum(dim=1)
-        
+
         # return costs
-        
+
         # 1) Smooth time_left instead of hard binary
         time_left_smooth = smooth_step(ev_time_left - 0.5, alpha=10.0)
 
         # 2) Add power usage to current capacity
-        new_capacity = current_capacity + power_usage * timescale        
-        
+        new_capacity = current_capacity + power_usage * timescale
+
         # 4) "User satisfaction" cost depends on how far new_capacity is from target
         #    Weighted by the smoothed "time left" factor
-        user_sat_at_departure = -100 * time_left_smooth * (self.ev_battery_capacity - new_capacity)
+        user_sat_at_departure = -100 * time_left_smooth * \
+            (self.ev_battery_capacity - new_capacity)
 
         # 5) Sum over dimension 1 if needed
         user_sat_at_departure = user_sat_at_departure.sum(dim=1)
-    
-        return costs + user_sat_at_departure
 
+        return costs + user_sat_at_departure
 
     def profit_maxV2(self, action, state):
 
@@ -400,9 +404,10 @@ class V2GridLoss(nn.Module):
             print(f'state: {state.shape}')
 
         number_of_cs = action.shape[1]
-        prices = state[:, 3] 
-        prices = torch.repeat_interleave(prices.view(-1, 1), number_of_cs, dim=1)
-        
+        prices = state[:, 3]
+        prices = torch.repeat_interleave(
+            prices.view(-1, 1), number_of_cs, dim=1)
+
         step_size = 3
         ev_state_start = 4 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
@@ -453,7 +458,7 @@ class V2GridLoss(nn.Module):
 
         # power_usage = torch.min(power_usage, max_ev_charge_power)
         # power_usage = torch.max(power_usage, max_ev_discharge_power)
-        
+
         power_usage = torch.where(
             action >= 0,
             action * self.max_cs_power,
@@ -462,40 +467,47 @@ class V2GridLoss(nn.Module):
 
         # Clamp between discharge and charge limits
         power_usage = torch.clamp(
-            power_usage, 
-            min=max_ev_discharge_power, 
+            power_usage,
+            min=max_ev_discharge_power,
             max=max_ev_charge_power
         )
-        
-        costs = prices * power_usage * timescale  
+
+        costs = prices * power_usage * timescale
         costs = costs.sum(axis=1)
-        
-        user_cost_multiplier = 0.005        
-        
+
+        user_cost_multiplier = 0.05
+
         new_capacity = (current_capacity + power_usage * timescale)
         # new_capacity = torch.true_divide(
         #     torch.ceil(new_capacity * 10**2), 10**2)
-        
+
+        eps = 1e-6
         # Calculate the minimum number of steps required to fully charge the EV from its current state
-        min_steps_to_full = (self.ev_battery_capacity - new_capacity) / (max_ev_charge_power * timescale)
+        min_steps_to_full = (self.ev_battery_capacity -
+                             new_capacity) / ( self.max_ev_charge_power * timescale + eps)
+
+        ev_time_left -= 2
         
         # Create a mask for EVs that cannot be fully charged within the remaining time
         penalty_mask = (min_steps_to_full > ev_time_left).float()
-        
+        penalty_mask = penalty_mask*ev_connected_binary
+
         # Compute the minimum capacity achievable by departure (if charging at max power)
-        min_capacity_at_time = self.ev_battery_capacity - ((ev_time_left + 1) * max_ev_charge_power * timescale)
+        min_capacity_at_time = self.ev_battery_capacity - \
+            ((ev_time_left + 1) *  self.max_ev_charge_power * timescale)
         # Calculate the penalty per EV (only applied where the mask is active)
-        
-        penalty = user_cost_multiplier * (min_capacity_at_time - new_capacity)**2
-        penalty = penalty * penalty_mask
+
+        penalty = user_cost_multiplier * \
+            (min_capacity_at_time - new_capacity)**2
+        penalty = - penalty * penalty_mask
         user_sat_at_departure = penalty.sum(dim=1)
-        
+
         if self.verbose:
             print(f'power_usage: {power_usage}')
             print(f'energy_usage: {power_usage * timescale}')
             print(f'costs: {costs}')
             print('-- '*20)
-            
+            print(f'ev_time_left: {ev_time_left}')
             print(f'new_capacity: {new_capacity}')
             print(f'penalty_mask: {penalty_mask}')
             print(f'min_capacity_at_time: {min_capacity_at_time}')
@@ -503,13 +515,9 @@ class V2GridLoss(nn.Module):
             print(f'min_steps_to_full: {min_steps_to_full}')
             print(f'penalty: {penalty}')
             print(f'user_sat_at_departure: {user_sat_at_departure}')
-        
-        
 
-        time_left_binary = torch.where(ev_time_left == 1, 1, 0)
+        # time_left_binary = torch.where(ev_time_left == 1, 1, 0)
 
-
-        
         # time_left_binary = (ev_time_left == 1).float()
         # user_sat_at_departure = -100 * time_left_binary * (self.ev_battery_capacity-new_capacity)
         # user_sat_at_departure = user_sat_at_departure.sum(dim=1)
@@ -520,9 +528,9 @@ class V2GridLoss(nn.Module):
         #     print(f'costs: {costs}')
         #     print(f'costs: {costs.sum(axis=1)}')
 
-        
         # return user_sat_at_departure
         return costs + user_sat_at_departure
+
 
 def smooth_step(x, alpha=10.0):
     """
@@ -532,6 +540,7 @@ def smooth_step(x, alpha=10.0):
     for small alpha, it's more 'spread out'.
     """
     return 0.5 * (1.0 + torch.tanh(alpha * x))
+
 
 def smooth_min(a, b, alpha=10.0, eps=1e-6):
     """
@@ -545,6 +554,7 @@ def smooth_min(a, b, alpha=10.0, eps=1e-6):
     diff = a - b
     return 0.5 * (a + b - torch.sqrt(diff * diff + eps))
 
+
 def smooth_max(a, b, alpha=10.0, eps=1e-6):
     """
     Smooth approximation of max(a, b):
@@ -553,10 +563,10 @@ def smooth_max(a, b, alpha=10.0, eps=1e-6):
     diff = a - b
     return 0.5 * (a + b + torch.sqrt(diff * diff + eps))
 
+
 def smooth_clamp(x, lower, upper, alpha=10.0):
     """
     Clamp x to [lower, upper] via smooth min/max:
       clamp(x, lower, upper) = min( max(x, lower), upper )
     """
     return smooth_min(smooth_max(x, lower, alpha=alpha), upper, alpha=alpha)
-

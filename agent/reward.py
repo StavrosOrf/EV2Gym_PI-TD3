@@ -65,9 +65,10 @@ def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
 
     reward = total_costs
     
-    verbose = False
+    verbose = True
     
     if verbose:
+        print("\n=---- Reward Calculation V2G ProfitMax V2 ----=")
         print(f'!!! Costs: {total_costs}')
     
     user_costs = 0
@@ -96,12 +97,13 @@ def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
                     else:
                         cost = cost_multiplier*(min_capacity_at_time - ev.current_capacity)**2
                         
-                    if verbose:
-                        print(f'min_capacity_at_time: {min_capacity_at_time} | {ev.current_capacity} | {ev.desired_capacity} | {min_steps_to_full:.3f} | {departing_step} | cost {(cost):.3f}') 
                     user_costs += - cost
                 
                 if verbose:
-                    print(f'- EV: {ev.current_capacity} | {ev.desired_capacity} | {min_steps_to_full:.3f} | {departing_step} | cost {(cost):.3f}')
+                    if min_steps_to_full > departing_step:                    
+                        print(f'-!EV: {min_capacity_at_time} | {ev.current_capacity} | {ev.desired_capacity} | {min_steps_to_full:.3f} | {departing_step} | cost {(cost):.3f}') 
+                    else:
+                        print(f'- EV: {ev.current_capacity} | {ev.desired_capacity} | {min_steps_to_full:.3f} | {departing_step} | cost {(cost):.3f}')
                 
     for ev in env.departing_evs:
         if ev.desired_capacity > ev.current_capacity:            
@@ -115,5 +117,6 @@ def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
             
     if verbose:
         print(f'!!! User Satisfaction Penalty: {user_costs}')
-
+        print("=-"*25)
+    
     return (reward + user_costs)

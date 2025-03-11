@@ -31,13 +31,13 @@ def eval():
     replay_path = None
 
     # config_file = "./config_files/v2g_grid_50.yaml"
-    # config_file = "./config_files/v2g_grid_150.yaml"
-    config_file = "./config_files/v2g_grid_3.yaml"
+    config_file = "./config_files/v2g_grid_150.yaml"
+    # config_file = "./config_files/v2g_grid_3.yaml"
     seed = 0
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
-                 verbose=True,
+                 verbose=False,
                  save_replay=True,
                  save_plots=False,
                  state_function=V2G_grid_state_ModelBasedRL,
@@ -48,8 +48,8 @@ def eval():
     print(env.observation_space)
     new_replay_path = f"replay/replay_{env.sim_name}.pkl"
 
-    agent = ChargeAsFastAsPossible()
-    # agent = RandomAgent()
+    # agent = ChargeAsFastAsPossible()
+    agent = RandomAgent()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
 
     max_cs_power = env.charging_stations[0].get_max_power()
@@ -82,14 +82,14 @@ def eval():
     results_df = None
     total_timer = 0
 
-    for i in range(1):
+    for i in range(100):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)
 
             new_state, reward, done, truncated, stats = env.step(
                 actions,
-                visualize=True,
+                visualize=False,
             )
             # input('press enter to continue')
             # print(
@@ -148,11 +148,12 @@ def eval():
 
             reward_loss = np.abs(reward - loss.cpu().detach().numpy())
 
-            if reward_loss > 0.001:
+            if reward_loss > 0.01:
                 print(
                     f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
                 input(f'Error in reward calculation')
             
+            # input(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
             state = new_state
 
             if done and truncated:

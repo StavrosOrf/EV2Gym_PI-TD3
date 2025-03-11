@@ -143,6 +143,6 @@ ev:
   min_battery_capacity: 15 # in kWh
   min_time_of_stay: 200 # in minutes
   min_emergency_battery_capacity: 15 # in kWh
-  desired_capacity: 0.8 # in (0-1) (0% - 100%)
+  desired_capacity: 1 # in (0-1) (0% - 100%) #Keep at 100% for now
   #if trasition_soc is < 1, the curve of the line is affected by:
   transition_soc_multiplier: 50 # default 1 (the higher the number the shorter the effect of CCCV region)

@@ -180,7 +180,7 @@ class EV():
         self.abs_total_energy_exchanged += abs(self.current_energy)
 
         # round up to the nearest 0.01 the current capacity
-        self.current_capacity = self.my_ceil(self.current_capacity, 2)
+        self.current_capacity = self.my_ceil(self.current_capacity, 4)
 
         self.active_steps.append(1 if self.actual_current != 0 else 0)
         return self.current_energy, self.actual_current
@@ -434,7 +434,7 @@ class EV():
             
         for _ in range(self.time_of_arrival, self.time_of_departure+1):
             self.max_energy_AFAP += max_power * charge_efficiency * self.timescale / 60
-            self.max_energy_AFAP = self.my_ceil(self.max_energy_AFAP, 2)
+            self.max_energy_AFAP = self.my_ceil(self.max_energy_AFAP, 4)
             if self.max_energy_AFAP > self.battery_capacity:
                 self.max_energy_AFAP = self.battery_capacity
                 break
