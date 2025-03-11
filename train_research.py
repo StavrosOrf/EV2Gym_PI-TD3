@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
     # DEVELOPMENT = True
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     # Physics loss #############################################
     parser.add_argument('--ph_coeff', type=float, default=10e-5)
 
-    parser.add_argument('--K', type=int, default=6)
+    parser.add_argument('--K', type=int, default=2)
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
     # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
@@ -557,7 +557,7 @@ if __name__ == "__main__":
         kwargs['loss_fn'] = loss_fn
         kwargs['ph_coeff'] = args.ph_coeff
         kwargs['transition_fn'] = transition_fn
-        kwargs['sequence_length'] = args.K
+        kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
 

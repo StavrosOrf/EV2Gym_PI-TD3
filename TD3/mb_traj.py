@@ -83,6 +83,7 @@ class MB_Traj(object):
             mlp_hidden_dim=256,
             loss_fn=None,
             transition_fn=None,
+            look_ahead=2,
             **kwargs
     ):
 
@@ -96,6 +97,9 @@ class MB_Traj(object):
         self.critic_target = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(
             self.critic.parameters(), lr=3e-4)
+
+        assert look_ahead >= 1, 'Look ahead should be greater than 1'
+        self.look_ahead = look_ahead
 
         self.max_action = max_action
         self.discount = discount
@@ -129,10 +133,10 @@ class MB_Traj(object):
 
         # state, dones, actions = replay_buffer.sample_new(batch_size)
 
-        print(f'State: {states.shape}')
-        print(f'Action: {actions.shape}')
-        print(f'Reward: {rewards.shape}')
-        print(f'Done: {dones.shape}')
+        # print(f'State: {states.shape}')
+        # print(f'Action: {actions.shape}')
+        # print(f'Reward: {rewards.shape}')
+        # print(f'Done: {dones.shape}')
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise
@@ -141,9 +145,8 @@ class MB_Traj(object):
             ).clamp(-self.noise_clip, self.noise_clip)
 
             next_state = states[:, 1, :]
-            dones = dones[:, 0, :]
-            not_done = 1 - dones
-            reward = rewards[:, 0, :]
+            not_done = 1 - dones[:, 0]
+            reward = rewards[:, 0]
 
             next_action = (
                 self.actor_target(next_state) + noise
@@ -152,15 +155,16 @@ class MB_Traj(object):
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
             target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + not_done * self.discount * target_Q
+
+            target_Q = reward + self.discount * not_done * target_Q.view(-1)
 
         # Get current Q estimates
         current_Q1, current_Q2 = self.critic(states[:, 0, :],
                                              actions[:, 0, :])
 
         # Compute critic loss
-        critic_loss = F.mse_loss(current_Q1, target_Q) + \
-            F.mse_loss(current_Q2, target_Q)
+        critic_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
+            F.mse_loss(current_Q2.view(-1), target_Q)
 
         # Optimize the critic
         self.critic_optimizer.zero_grad()
@@ -195,38 +199,45 @@ class MB_Traj(object):
                     print(f'State diff: {state_diff.mean()}')
                     input("Error in state transition")
 
-            look_ahead = 2
-            actor_loss = 0
+            state_pred = states[:, 0, :]
 
-            for i in range(0, look_ahead-1):
-                
-                print(f'Look ahead: {i}')
-                next_state_pred = states[:, i, :]
-                next_state = states[:, i+1, :]
-                done = dones[:, i, :]
+            for i in range(0, self.look_ahead):
+
+                done = dones[:, i]
 
                 discount = self.discount**i
 
-                action_vector = self.actor(next_state_pred)
+                action_vector = self.actor(state_pred)
 
-                next_state_pred = self.transition_fn(state,
-                                                     next_state,
-                                                     action_vector)
-
-                reward_pred = self.loss_fn.profit_maxV2(state=state,
+                reward_pred = self.loss_fn.profit_maxV2(state=state_pred,
                                                         action=action_vector)
 
-                # with torch.no_grad():
-                next_action = self.actor(next_state_pred)
+                state_pred = self.transition_fn(state=state_pred,
+                                                new_state=states[:, i+1, :],
+                                                action=action_vector)
 
-                actor_loss -= discount * reward_pred                 
-            
+                if i == 0:
+                    actor_loss = - reward_pred
+                else:
+                    # print(f'Actor Loss: {actor_loss.shape}')
+                    # print(f'Reward Pred: {reward_pred.shape}')
+                    # print(f'Done: {done.shape}')
+                    actor_loss += - discount * reward_pred * (torch.ones_like(done) - done)
+
             # add the critic loss
-            actor_loss -= discount * self.discount * self.critic.Q1(next_state_pred, next_action)
+            # with torch.no_grad():
+            # print(f'Actor Loss: {actor_loss.shape}')
+            # print(f'State Pred: {state_pred.shape}')
+            # print(f'Action Vector: {action_vector.shape}')
+            # print(f'Q: {(discount * self.discount * self.critic.Q1(state_pred, next_action).view(-1)).shape}')
+
+            next_action = self.actor(state_pred)
+            actor_loss += - discount * self.discount * \
+                self.critic.Q1(state_pred, next_action).view(-1)
 
             actor_loss = actor_loss.mean()
 
-            self.loss_dict['physics_loss'] = reward_pred.mean().item()
+            self.loss_dict['physics_loss'] = actor_loss.item()
             self.loss_dict['actor_loss'] = actor_loss.item()
             # print(f'Physics loss: {reward_pred.mean().item()}')
             # print(f'Actor loss: {actor_loss.item()}')
