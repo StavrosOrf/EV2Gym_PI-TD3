@@ -68,7 +68,7 @@ class Critic(nn.Module):
         return q1
 
 
-class TD3(object):
+class MB_Traj(object):
     def __init__(
             self,
             state_dim,
@@ -124,14 +124,26 @@ class TD3(object):
         self.total_it += 1
 
         # Sample replay buffer
-        state, action, next_state, reward, not_done = replay_buffer.sample(
+        states, dones, actions, rewards = replay_buffer.sample_new(
             batch_size)
+
+        # state, dones, actions = replay_buffer.sample_new(batch_size)
+
+        print(f'State: {states.shape}')
+        print(f'Action: {actions.shape}')
+        print(f'Reward: {rewards.shape}')
+        print(f'Done: {dones.shape}')
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise
             noise = (
-                torch.randn_like(action) * self.policy_noise
+                torch.randn_like(actions[:, 0, :]) * self.policy_noise
             ).clamp(-self.noise_clip, self.noise_clip)
+
+            next_state = states[:, 1, :]
+            dones = dones[:, 0, :]
+            not_done = 1 - dones
+            reward = rewards[:, 0, :]
 
             next_action = (
                 self.actor_target(next_state) + noise
@@ -143,7 +155,8 @@ class TD3(object):
             target_Q = reward + not_done * self.discount * target_Q
 
         # Get current Q estimates
-        current_Q1, current_Q2 = self.critic(state, action)
+        current_Q1, current_Q2 = self.critic(states[:, 0, :],
+                                             actions[:, 0, :])
 
         # Compute critic loss
         critic_loss = F.mse_loss(current_Q1, target_Q) + \
@@ -161,30 +174,41 @@ class TD3(object):
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
 
-            if self.transition_fn is not None:
+            if False:
+                # test if loss_fn is working properly
+                reward_test = self.loss_fn.profit_maxV2(state=state,
+                                                        action=action)
+                reward_diff = torch.abs(
+                    reward.view(-1) - reward_test.view(-1))
+                if reward_diff.mean() > 0.01:
 
-                if False:
-                    # test if loss_fn is working properly
-                    reward_test = self.loss_fn(state=state,
-                                               action=action)
-                    reward_diff = torch.abs(
-                        reward.view(-1) - reward_test.view(-1))
-                    if reward_diff.mean() > 0.01:
+                    print(f'Reward diff: {reward_diff.mean()}')
+                    print(f'Reward: {reward}')
+                    print(f'Reward Test: {reward_test}')
+                    input("Error in reward calculation")
 
-                        print(f'Reward diff: {reward_diff.mean()}')
-                        print(f'Reward: {reward}')
-                        print(f'Reward Test: {reward_test}')
-                        input("Error in reward calculation")
+                next_state_test = self.transition_fn(state,
+                                                     next_state,
+                                                     action)
+                state_diff = torch.abs(next_state - next_state_test)
+                if state_diff.mean() > 0.001:
+                    print(f'State diff: {state_diff.mean()}')
+                    input("Error in state transition")
 
-                    next_state_test = self.transition_fn(state,
-                                                         next_state,
-                                                         action)
-                    state_diff = torch.abs(next_state - next_state_test)
-                    if state_diff.mean() > 0.001:
-                        print(f'State diff: {state_diff.mean()}')
-                        input("Error in state transition")
+            look_ahead = 2
+            actor_loss = 0
 
-                action_vector = self.actor(state)
+            for i in range(0, look_ahead-1):
+                
+                print(f'Look ahead: {i}')
+                next_state_pred = states[:, i, :]
+                next_state = states[:, i+1, :]
+                done = dones[:, i, :]
+
+                discount = self.discount**i
+
+                action_vector = self.actor(next_state_pred)
+
                 next_state_pred = self.transition_fn(state,
                                                      next_state,
                                                      action_vector)
@@ -192,30 +216,20 @@ class TD3(object):
                 reward_pred = self.loss_fn.profit_maxV2(state=state,
                                                         action=action_vector)
 
-                with torch.no_grad():
-                    next_action = self.actor(next_state_pred)
+                # with torch.no_grad():
+                next_action = self.actor(next_state_pred)
 
-                actor_loss = - (reward_pred + self.discount *
-                                self.critic.Q1(next_state_pred, next_action)).mean()
+                actor_loss -= discount * reward_pred                 
+            
+            # add the critic loss
+            actor_loss -= discount * self.discount * self.critic.Q1(next_state_pred, next_action)
 
-                self.loss_dict['physics_loss'] = reward_pred.mean().item()
-                self.loss_dict['actor_loss'] = actor_loss.item()
-                # print(f'Physics loss: {reward_pred.mean().item()}')
-                # print(f'Actor loss: {actor_loss.item()}')
+            actor_loss = actor_loss.mean()
 
-            elif self.loss_fn is not None:
-
-                action_vector = self.actor(state)
-                physics_loss = self.loss_fn.smooth_profit_max(
-                    action=action_vector, state=state).mean()
-                actor_loss = -self.critic.Q1(state, action_vector).mean()
-
-                self.loss_dict['physics_loss'] = physics_loss.item()
-                self.loss_dict['actor_loss'] = actor_loss.item()
-                actor_loss -= self.ph_coeff * physics_loss
-
-            else:
-                actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+            self.loss_dict['physics_loss'] = reward_pred.mean().item()
+            self.loss_dict['actor_loss'] = actor_loss.item()
+            # print(f'Physics loss: {reward_pred.mean().item()}')
+            # print(f'Actor loss: {actor_loss.item()}')
 
             # Optimize the actor
             self.actor_optimizer.zero_grad()

@@ -25,6 +25,7 @@ from SAC.sac import SAC
 from TD3.TD3 import TD3
 from TD3.TD3_ActionGNN import TD3_ActionGNN
 from TD3.traj import Traj
+from TD3.mb_traj import MB_Traj
 from TD3.mb import MB
 
 from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBuffer
@@ -128,7 +129,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     # TD3, Traj, SAC, TD3_ActionGNN
-    parser.add_argument("--policy", default="TD3") # TD3, Traj, SAC, TD3_ActionGNN
+    # TD3, Traj, SAC, TD3_ActionGNN, MB
+    parser.add_argument("--policy", default="mb_traj")
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
@@ -144,7 +146,7 @@ if __name__ == "__main__":
 
     # DEVELOPMENT = True
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -455,6 +457,7 @@ if __name__ == "__main__":
 
         policy = MB(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
+
     # Initialize policy
     elif args.policy == "TD3_GNN" or args.policy == "TD3_ActionGNN":
         # Target policy smoothing is scaled wrt the action scale
@@ -540,6 +543,35 @@ if __name__ == "__main__":
                                                 action_dim,
                                                 max_episode_length=simulation_length,)
 
+    elif args.policy == "mb_traj":
+
+        state_dim = env.observation_space.shape[0]
+        # Target policy smoothing is scaled wrt the action scale
+        kwargs["policy_noise"] = args.policy_noise * max_action
+        kwargs["noise_clip"] = args.noise_clip * max_action
+        kwargs["policy_freq"] = args.policy_freq
+        kwargs["device"] = device
+        kwargs['state_dim'] = state_dim
+        kwargs['load_path'] = load_path
+
+        kwargs['loss_fn'] = loss_fn
+        kwargs['ph_coeff'] = args.ph_coeff
+        kwargs['transition_fn'] = transition_fn
+        kwargs['sequence_length'] = args.K
+        kwargs['lr'] = args.lr
+        kwargs['dropout'] = args.dropout
+
+        # Save kwargs to local path
+        with open(f'{save_path}/kwargs.yaml', 'w') as file:
+            yaml.dump(kwargs, file)
+
+        os.system(f'cp TD3/traj.py {save_path}')
+
+        policy = MB_Traj(**kwargs)
+        replay_buffer = Trajectory_ReplayBuffer(state_dim,
+                                                action_dim,
+                                                max_episode_length=simulation_length,)
+
     else:
         raise ValueError("Policy not recognized.")
 
@@ -587,10 +619,11 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    # action_traj = torch.zeros((simulation_length, action_dim)).to(device)
-    # state_traj = torch.zeros((simulation_length, state_dim)).to(device)
-    # done_traj = torch.zeros((simulation_length, 1)).to(device)
-    # reward_traj = torch.zeros((simulation_length, 1)).to(device)
+    if args.policy == "Traj" or args.policy == "mb_traj":
+        action_traj = torch.zeros((simulation_length, action_dim)).to(device)
+        state_traj = torch.zeros((simulation_length, state_dim)).to(device)
+        done_traj = torch.zeros((simulation_length, 1)).to(device)
+        reward_traj = torch.zeros((simulation_length, 1)).to(device)
 
     for t in range(start_timestep_training, int(args.max_timesteps)):
 
@@ -625,7 +658,8 @@ if __name__ == "__main__":
                 # Perform action
                 next_state, reward, done, _, stats = env.step(action)
 
-            elif args.policy == "TD3" or args.policy == "MB" or args.policy == "Traj":
+            elif args.policy == "TD3" or args.policy == "MB" or \
+                    args.policy == "Traj" or args.policy == "mb_traj":
                 # Select action randomly or according to policy + add noise
                 action = (
                     policy.select_action(state)
@@ -637,7 +671,7 @@ if __name__ == "__main__":
             else:
                 raise ValueError("Policy not recognized.")
 
-        if args.policy != "Traj":
+        if args.policy != "Traj" and args.policy != "mb_traj":
             # Store data in replay buffer
             # print(f"state: {state}, action: {action}, next_state: {next_state}, reward: {reward}, done: {done}")
             replay_buffer.add(state, action, next_state, reward, float(done))
@@ -695,9 +729,13 @@ if __name__ == "__main__":
             ep_start_time = time.time()
             done = False
 
-            if args.policy == "Traj":
+            if args.policy == "Traj" or args.policy == "mb_traj":
                 # Store trajectory in replay buffer
-                replay_buffer.add(state_traj, action_traj)
+                replay_buffer.add(state_traj,
+                                  action_traj,
+                                  reward_traj,
+                                  done_traj)
+                
                 action_traj = torch.zeros(
                     (simulation_length, action_dim)).to(device)
                 state_traj = torch.zeros(
@@ -716,7 +754,7 @@ if __name__ == "__main__":
             episode_timesteps = -1
 
         # Evaluate episode
-        if (t + 1) % args.eval_freq == 0:
+        if (t + 1) % args.eval_freq == 0 and t + 100 >= args.start_timesteps:
 
             avg_reward, eval_stats = eval_policy(policy=policy,
                                                  args=args,

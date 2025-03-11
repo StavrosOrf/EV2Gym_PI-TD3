@@ -12,7 +12,7 @@ import pickle
 import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward, V2G_profitmax
+from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward, V2G_profitmaxV2
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -122,18 +122,18 @@ if __name__ == "__main__":
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=96,
+        parser.add_argument("--start_timesteps", default=96*2,
                             type=int)
-        parser.add_argument('--eval_freq', default=10, type=int)
+        parser.add_argument('--eval_freq', default=96*5, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
         print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=96,
+        parser.add_argument("--start_timesteps", default=5000,
                             type=int)  # original 25e5
-        parser.add_argument("--eval_freq", default=10, #2250
+        parser.add_argument("--eval_freq", default=960,  # 2250
                             type=int)  # in episodes
         parser.add_argument("--batch_size", default=64, type=int)  # 256
 
@@ -208,7 +208,7 @@ if __name__ == "__main__":
 
     group_name = "50_tests"
     # reward_function = V2G_grid_full_reward
-    reward_function = V2G_profitmax
+    reward_function = V2G_profitmaxV2
     state_function = V2G_grid_state_ModelBasedRL
 
     config = yaml.load(open(config_file, 'r'),

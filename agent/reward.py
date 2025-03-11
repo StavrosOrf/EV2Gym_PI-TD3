@@ -65,7 +65,7 @@ def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
 
     reward = total_costs
     
-    verbose = True
+    verbose = False
     
     if verbose:
         print("\n=---- Reward Calculation V2G ProfitMax V2 ----=")

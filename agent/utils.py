@@ -164,13 +164,17 @@ class Trajectory_ReplayBuffer(object):
 
         self.state = torch.zeros((max_size, max_episode_length, state_dim))
         self.action = torch.zeros((max_size, max_episode_length, action_dim))
+        self.rewards = torch.zeros((max_size, max_episode_length))
+        self.dones = torch.zeros((max_size, max_episode_length))        
 
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
 
-    def add(self, state, action):
+    def add(self, state, action, reward, done):
         self.state[self.ptr, :, :] = state
         self.action[self.ptr, :, :] = action
+        self.rewards[self.ptr, :] = reward.squeeze()
+        self.dones[self.ptr, :] = done.squeeze()
 
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
@@ -191,6 +195,8 @@ class Trajectory_ReplayBuffer(object):
         states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
         actions = torch.FloatTensor(self.action[ind, :, :]).to(self.device)
         next_states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
+        rewards = torch.FloatTensor(self.rewards[ind, :]).to(self.device)
+        dones = torch.FloatTensor(self.dones[ind, :]).to(self.device)
 
         states = [states[i, start[i]:end[i], :]
                   for i in range(batch_size)]
@@ -198,12 +204,18 @@ class Trajectory_ReplayBuffer(object):
                        for i in range(batch_size)]
         actions = [actions[i, start[i]:end[i], :]
                    for i in range(batch_size)]
+        rewards = [rewards[i, start[i]:end[i]]
+                   for i in range(batch_size)]
+        dones = [dones[i, start[i]:end[i]]
+                 for i in range(batch_size)]
 
         states = torch.stack(states)
         next_states = torch.stack(next_states)
         actions = torch.stack(actions)
+        rewards = torch.stack(rewards)
+        dones = torch.stack(dones)
 
-        return states, actions, next_states
+        return states, actions, next_states, rewards, dones
     
         
     def sample_new(self, batch_size):
@@ -220,6 +232,8 @@ class Trajectory_ReplayBuffer(object):
         # Sample states and actions
         states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
         actions = torch.FloatTensor(self.action[ind, :, :]).to(self.device)
+        rewards = torch.FloatTensor(self.rewards[ind, :]).to(self.device)
+        dones = torch.FloatTensor(self.dones[ind, :]).to(self.device)
         
         states_new = torch.zeros_like(states, device=self.device)
         dones = torch.zeros((states.shape[0], self.max_length), device=self.device)
@@ -231,13 +245,14 @@ class Trajectory_ReplayBuffer(object):
             states_new[i, :self.max_length-start[i], :] = states[i, start[i]:, :]            
             actions[i, self.max_length-start[i]:, :] = 0
             dones[i, self.max_length-start[i]-1:] = 1    
+            rewards[i, self.max_length-start[i]:] = 0            
             
         # print(f'start: {start}')
         # print(f'dones: {dones}')
         # print(f'states: {states.shape}')
         # print(f'dones: {dones.shape}')
         # input(f'states: {states.shape}')
-        return states, dones, actions
+        return states, dones, actions, rewards
     
     
 

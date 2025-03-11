@@ -268,7 +268,7 @@ class Traj(object):
             discount = 0.99  # self.discount ** (i+1)
             # discount = 1  # self.discount ** (i+1)
 
-            if i <= 5:
+            if i <= 300:
                 noise = (
                     torch.randn_like(actions[:, 0, :]) * self.policy_noise
                 ).clamp(-self.noise_clip, self.noise_clip)
@@ -277,7 +277,7 @@ class Traj(object):
                     self.actor(state_new) + noise
                 ).clamp(-self.max_action, self.max_action)
 
-                reward = self.loss_fn.smooth_profit_max(state=state_new,
+                reward = self.loss_fn.profit_maxV2(state=state_new,
                                                     action=action_pred)
 
                 if i == 0:
@@ -318,7 +318,7 @@ class Traj(object):
 
             i += 1
 
-        total_reward = total_reward.mean()
+        total_reward = -total_reward.mean()
         self.loss_dict['physics_loss'] = total_reward.item()
 
         # Optimize the actor

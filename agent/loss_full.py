@@ -473,7 +473,7 @@ class V2GridLoss(nn.Module):
         )
 
         costs = prices * power_usage * timescale
-        costs = costs.sum(axis=1)
+        costs = costs.sum(axis=1)        
 
         user_cost_multiplier = 0.05
 
@@ -486,15 +486,16 @@ class V2GridLoss(nn.Module):
         min_steps_to_full = (self.ev_battery_capacity -
                              new_capacity) / ( self.max_ev_charge_power * timescale + eps)
 
-        ev_time_left -= 2
+        # ev_time_left -= 2
+        ev_dep_time = ev_time_left -2
         
         # Create a mask for EVs that cannot be fully charged within the remaining time
-        penalty_mask = (min_steps_to_full > ev_time_left).float()
+        penalty_mask = (min_steps_to_full > ev_dep_time).float()
         penalty_mask = penalty_mask*ev_connected_binary
 
         # Compute the minimum capacity achievable by departure (if charging at max power)
         min_capacity_at_time = self.ev_battery_capacity - \
-            ((ev_time_left + 1) *  self.max_ev_charge_power * timescale)
+            ((ev_dep_time + 1) *  self.max_ev_charge_power * timescale)
         # Calculate the penalty per EV (only applied where the mask is active)
 
         penalty = user_cost_multiplier * \
@@ -507,28 +508,14 @@ class V2GridLoss(nn.Module):
             print(f'energy_usage: {power_usage * timescale}')
             print(f'costs: {costs}')
             print('-- '*20)
-            print(f'ev_time_left: {ev_time_left}')
             print(f'new_capacity: {new_capacity}')
             print(f'penalty_mask: {penalty_mask}')
             print(f'min_capacity_at_time: {min_capacity_at_time}')
-            print(f'steps_left: {ev_time_left}')
+            print(f'steps_left: {ev_dep_time}')
             print(f'min_steps_to_full: {min_steps_to_full}')
             print(f'penalty: {penalty}')
             print(f'user_sat_at_departure: {user_sat_at_departure}')
 
-        # time_left_binary = torch.where(ev_time_left == 1, 1, 0)
-
-        # time_left_binary = (ev_time_left == 1).float()
-        # user_sat_at_departure = -100 * time_left_binary * (self.ev_battery_capacity-new_capacity)
-        # user_sat_at_departure = user_sat_at_departure.sum(dim=1)
-
-        # if self.verbose:
-        #     print(f'power_usage: {power_usage}')
-        #     print(f'energy_usage: {power_usage * timescale}')
-        #     print(f'costs: {costs}')
-        #     print(f'costs: {costs.sum(axis=1)}')
-
-        # return user_sat_at_departure
         return costs + user_sat_at_departure
 
 
