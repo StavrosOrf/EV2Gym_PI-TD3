@@ -128,7 +128,7 @@ class MB_Traj(object):
         self.total_it += 1
 
         # Sample replay buffer
-        states, dones, actions, rewards = replay_buffer.sample_new(
+        states, actions, rewards, dones = replay_buffer.sample_new(
             batch_size)
 
         # state, dones, actions = replay_buffer.sample_new(batch_size)
@@ -137,6 +137,7 @@ class MB_Traj(object):
         # print(f'Action: {actions.shape}')
         # print(f'Reward: {rewards.shape}')
         # print(f'Done: {dones.shape}')
+        # exit()
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise
@@ -233,7 +234,8 @@ class MB_Traj(object):
 
             next_action = self.actor(state_pred)
             actor_loss += - discount * self.discount * \
-                self.critic.Q1(state_pred, next_action).view(-1)
+                self.critic.Q1(state_pred, next_action).view(-1) *\
+                (torch.ones_like(done) - dones[:, self.look_ahead])
 
             actor_loss = actor_loss.mean()
 

@@ -236,23 +236,26 @@ class Trajectory_ReplayBuffer(object):
         dones = torch.FloatTensor(self.dones[ind, :]).to(self.device)
         
         states_new = torch.zeros_like(states, device=self.device)
-        dones = torch.zeros((states.shape[0], self.max_length), device=self.device)
-                
+        actions_new = torch.zeros_like(actions, device=self.device)
+        rewards_new = torch.zeros_like(rewards, device=self.device)
+        dones_new = torch.ones_like(dones, device=self.device)
+
         for i in range(batch_size):
             # print(f'self.max_length-start[i] {self.max_length-start[i]}')
             # print(f'states[i, start[i]:, :].shape {states[i, start[i]:, :].shape}')
             
             states_new[i, :self.max_length-start[i], :] = states[i, start[i]:, :]            
-            actions[i, self.max_length-start[i]:, :] = 0
-            dones[i, self.max_length-start[i]-1:] = 1    
-            rewards[i, self.max_length-start[i]:] = 0            
+            actions_new[i, :self.max_length-start[i], :] = actions[i, start[i]:, :]
+            rewards_new[i, :self.max_length-start[i]] = rewards[i, start[i]:]
+            dones_new[i, :self.max_length-start[i]] = dones[i, start[i]:]
+        
             
         # print(f'start: {start}')
         # print(f'dones: {dones}')
         # print(f'states: {states.shape}')
         # print(f'dones: {dones.shape}')
         # input(f'states: {states.shape}')
-        return states, dones, actions, rewards
+        return states_new.detach(), actions_new.detach(), rewards_new.detach(), dones_new.detach()
     
     
 

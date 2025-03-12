@@ -159,7 +159,7 @@ if __name__ == "__main__":
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
-        parser.add_argument("--eval_episodes", default=1, type=int)
+        parser.add_argument("--eval_episodes", default=50, type=int)
         parser.add_argument("--start_timesteps", default=5000,
                             type=int)  # original 25e5
         parser.add_argument("--eval_freq", default=960,  # 2250
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     if not os.path.exists("./results"):
         os.makedirs("./results")
 
-    group_name = "50_simple_tests"
+    group_name = "50_advanced_tests"
     # reward_function = V2G_grid_full_reward
     # reward_function = V2G_profitmax
     reward_function = V2G_profitmaxV2
@@ -255,12 +255,12 @@ if __name__ == "__main__":
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
 
-    replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
+    # replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
     gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,
                               'reward_function': reward_function,
                               'state_function': state_function,
-                              'load_from_replay_path': replay_path,
+                            #   'load_from_replay_path': replay_path,
                               })
 
     env = gym.make('evs-v1')
