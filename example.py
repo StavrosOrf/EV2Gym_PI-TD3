@@ -6,7 +6,7 @@ from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.baselines.heuristics import RoundRobin, RandomAgent, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward, V2G_profitmax, V2G_profitmaxV2
+from agent.reward import Grid_V2G_profitmaxV2, V2G_grid_simple_reward, V2G_profitmax, V2G_profitmaxV2
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -39,9 +39,9 @@ def eval():
                  load_from_replay_path=replay_path,
                  verbose=False,
                  save_replay=True,
-                 save_plots=False,
+                 save_plots=True,
                  state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=V2G_profitmaxV2,
+                 reward_function=Grid_V2G_profitmaxV2,
                  )
 
     print(env.action_space)
@@ -68,7 +68,7 @@ def eval():
                          ev_battery_capacity=ev_battery_capacity,
                          ev_min_battery_capacity=ev_min_battery_capacity,
                          device=device,
-                         verbose=True,
+                         verbose=False,
                          )
 
     state_transition = V2G_Grid_StateTransition(verbose=False,
@@ -82,7 +82,7 @@ def eval():
     results_df = None
     total_timer = 0
 
-    for i in range(100):
+    for i in range(1):
         state, _ = env.reset()
         for t in range(env.simulation_length):
             actions = agent.get_action(env)
@@ -124,7 +124,7 @@ def eval():
             # print("============================================================================")
             timer = time.time()
             
-            loss = loss_fn.profit_maxV2(action=torch.tensor(actions, device=device).reshape(1, -1),
+            loss = loss_fn.grid_profit_maxV2(action=torch.tensor(actions, device=device).reshape(1, -1),
                                         state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 

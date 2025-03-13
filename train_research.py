@@ -12,7 +12,7 @@ import pickle
 import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL, PST_V2G_ProfitMaxGNN_state
-from agent.reward import V2G_profitmax, V2G_profitmaxV2
+from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -248,7 +248,8 @@ if __name__ == "__main__":
     group_name = "50_advanced_tests"
     # reward_function = V2G_grid_full_reward
     # reward_function = V2G_profitmax
-    reward_function = V2G_profitmaxV2
+    # reward_function = V2G_profitmaxV2
+    reward_function = Grid_V2G_profitmaxV2
     state_function = V2G_grid_state_ModelBasedRL
     # state_function = PST_V2G_ProfitMaxGNN_state
 

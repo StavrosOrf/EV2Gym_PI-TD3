@@ -189,7 +189,7 @@ class MB(object):
                                                      next_state,
                                                      action_vector)
                                                      
-                reward_pred = self.loss_fn.profit_maxV2(state=state,
+                reward_pred = self.loss_fn.grid_profit_maxV2(state=state,
                                                              action=action_vector)
 
                 # with torch.no_grad():

@@ -189,8 +189,8 @@ class TD3(object):
                                                      next_state,
                                                      action_vector)
 
-                reward_pred = self.loss_fn.profit_maxV2(state=state,
-                                                        action=action_vector)
+                reward_pred = self.loss_fn.grid_profit_maxV2(state=state,
+                                                             action=action_vector)
 
                 with torch.no_grad():
                     next_action = self.actor(next_state_pred)
@@ -204,7 +204,7 @@ class TD3(object):
                 # print(f'Actor loss: {actor_loss.item()}')
 
             elif self.loss_fn is not None:
-
+                raise NotImplementedError
                 action_vector = self.actor(state)
                 physics_loss = self.loss_fn.smooth_profit_max(
                     action=action_vector, state=state).mean()

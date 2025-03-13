@@ -155,7 +155,7 @@ class Trajectory_ReplayBuffer(object):
                  state_dim,
                  action_dim,
                  max_episode_length,
-                 max_size=int(1e4)):
+                 max_size=int(1e5)):
         
         self.max_size = max_size
         self.ptr = 0

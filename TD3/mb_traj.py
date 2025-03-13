@@ -210,8 +210,8 @@ class MB_Traj(object):
 
                 action_vector = self.actor(state_pred)
 
-                reward_pred = self.loss_fn.profit_maxV2(state=state_pred,
-                                                        action=action_vector)
+                reward_pred = self.loss_fn.grid_profit_maxV2(state=state_pred,
+                                                             action=action_vector)
 
                 state_pred = self.transition_fn(state=state_pred,
                                                 new_state=states[:, i+1, :],
@@ -223,7 +223,8 @@ class MB_Traj(object):
                     # print(f'Actor Loss: {actor_loss.shape}')
                     # print(f'Reward Pred: {reward_pred.shape}')
                     # print(f'Done: {done.shape}')
-                    actor_loss += - discount * reward_pred * (torch.ones_like(done) - done)
+                    actor_loss += - discount * reward_pred * \
+                        (torch.ones_like(done) - done)
 
             # add the critic loss
             # with torch.no_grad():
