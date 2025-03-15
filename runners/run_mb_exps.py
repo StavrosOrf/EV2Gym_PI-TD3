@@ -8,11 +8,12 @@ import time
 learning_rate = 3e-5
 
 counter = 0
-for policy in ['TD3', 'mb_traj', 'SAC']: # MB
-# for policy in ['mb_traj']:
+# for policy in ['TD3', 'mb_traj', 'SAC']: # MB
+# for policy in ['mb_traj', 'SAC']: # MB
+for policy in ['mb_traj']:
     for batch_size in [256]:
         for expl_noise in [0.1]:
-            for K in [1, 2, 10,25]:  # 512
+            for K in [1, 2, 5, 10]:  # 512
                 for seed in [9]:
 
                     if policy != 'mb_traj' and K != 1:
@@ -26,11 +27,11 @@ for policy in ['TD3', 'mb_traj', 'SAC']: # MB
                         ' --policy ' + policy + \
                         ' --seed ' + str(seed) + \
                         ' --K ' + str(K) + \
-                        ' --group_name=50_grid_profitMax_tests' + \
-                        ' --name ' +\
+                        ' --group_name=150_FIXED_Length_grid_profitMax_tests' + \
+                        ' --name fixed_length' +\
                         f'{policy}' + \
                         '_K=' + str(K) + \
-                        '_batch_size=' + str(batch_size) + \
+                        'reward=x10e4_batch_size=' + str(batch_size) + \
                         '_seed=' + str(seed) + \
                         '" Enter'
                     os.system(command=command)

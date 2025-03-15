@@ -134,7 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid_50.yaml")
+    parser.add_argument("--config", default="v2g_grid_150.yaml")
     # parser.add_argument("--config", default="v2g_grid_3.yaml")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7

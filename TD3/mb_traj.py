@@ -233,7 +233,9 @@ class MB_Traj(object):
             # print(f'Action Vector: {action_vector.shape}')
             # print(f'Q: {(discount * self.discount * self.critic.Q1(state_pred, next_action).view(-1)).shape}')
 
+            # with torch.no_grad():
             next_action = self.actor(state_pred)
+            
             actor_loss += - discount * self.discount * \
                 self.critic.Q1(state_pred, next_action).view(-1) *\
                 (torch.ones_like(done) - dones[:, self.look_ahead])

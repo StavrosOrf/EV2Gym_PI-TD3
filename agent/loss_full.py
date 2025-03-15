@@ -678,11 +678,11 @@ class V2GridLoss(nn.Module):
                                  0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
 
         if self.verbose:
-            print(f'Voltage Loss: {100*voltage_loss}')
+            print(f'Voltage Loss: {voltage_loss}')
             print(f'voltage shape {v0_clamped.real.shape}')
 
 
-        return costs + user_sat_at_departure + 1000*voltage_loss
+        return costs + user_sat_at_departure + 5000 * voltage_loss
 
 
 def smooth_step(x, alpha=10.0):
