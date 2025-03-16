@@ -185,4 +185,4 @@ def Grid_V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
         
         
     
-    return reward + user_costs + 5000 * loss_v
+    return reward + user_costs + 15000 * loss_v

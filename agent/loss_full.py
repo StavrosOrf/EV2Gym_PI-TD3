@@ -464,7 +464,7 @@ class V2GridLoss(nn.Module):
         )
 
         costs = prices * power_usage * timescale
-        costs = costs.sum(axis=1)        
+        costs = costs.sum(axis=1)
 
         user_cost_multiplier = 0.05
 
@@ -475,18 +475,18 @@ class V2GridLoss(nn.Module):
         eps = 1e-6
         # Calculate the minimum number of steps required to fully charge the EV from its current state
         min_steps_to_full = (self.ev_battery_capacity -
-                             new_capacity) / ( self.max_ev_charge_power * timescale + eps)
+                             new_capacity) / (self.max_ev_charge_power * timescale + eps)
 
         # ev_time_left -= 2
-        ev_dep_time = ev_time_left -2
-        
+        ev_dep_time = ev_time_left - 2
+
         # Create a mask for EVs that cannot be fully charged within the remaining time
         penalty_mask = (min_steps_to_full > ev_dep_time).float()
         penalty_mask = penalty_mask*ev_connected_binary
 
         # Compute the minimum capacity achievable by departure (if charging at max power)
         min_capacity_at_time = self.ev_battery_capacity - \
-            ((ev_dep_time + 1) *  self.max_ev_charge_power * timescale)
+            ((ev_dep_time + 1) * self.max_ev_charge_power * timescale)
         # Calculate the penalty per EV (only applied where the mask is active)
 
         penalty = user_cost_multiplier * \
@@ -508,7 +508,7 @@ class V2GridLoss(nn.Module):
             print(f'user_sat_at_departure: {user_sat_at_departure}')
 
         return costs + user_sat_at_departure
-    
+
     def grid_profit_maxV2(self, action, state):
 
         if self.verbose:
@@ -577,7 +577,7 @@ class V2GridLoss(nn.Module):
         )
 
         costs = prices * power_usage * timescale
-        costs = costs.sum(axis=1)        
+        costs = costs.sum(axis=1)
 
         user_cost_multiplier = 0.05
 
@@ -588,18 +588,18 @@ class V2GridLoss(nn.Module):
         eps = 1e-6
         # Calculate the minimum number of steps required to fully charge the EV from its current state
         min_steps_to_full = (self.ev_battery_capacity -
-                             new_capacity) / ( self.max_ev_charge_power * timescale + eps)
+                             new_capacity) / (self.max_ev_charge_power * timescale + eps)
 
         # ev_time_left -= 2
-        ev_dep_time = ev_time_left -2
-        
+        ev_dep_time = ev_time_left - 2
+
         # Create a mask for EVs that cannot be fully charged within the remaining time
         penalty_mask = (min_steps_to_full > ev_dep_time).float()
         penalty_mask = penalty_mask*ev_connected_binary
 
         # Compute the minimum capacity achievable by departure (if charging at max power)
         min_capacity_at_time = self.ev_battery_capacity - \
-            ((ev_dep_time + 1) *  self.max_ev_charge_power * timescale)
+            ((ev_dep_time + 1) * self.max_ev_charge_power * timescale)
         # Calculate the penalty per EV (only applied where the mask is active)
 
         penalty = user_cost_multiplier * \
@@ -619,7 +619,7 @@ class V2GridLoss(nn.Module):
             print(f'min_steps_to_full: {min_steps_to_full}')
             print(f'penalty: {penalty}')
             print(f'user_sat_at_departure: {user_sat_at_departure}')
-            
+
         # go from power usage to EV_power_per_bus
         EV_power_per_bus = torch.zeros(
             (batch_size, self.num_buses-1),
@@ -657,13 +657,13 @@ class V2GridLoss(nn.Module):
 
         W = self.L.view(-1)
 
-        while iteration < self.iterations and tol >= self.tolerance:
+        while iteration <7:  # self.iterations and tol >= self.tolerance:
 
             L = torch.conj(S / v0)
             Z = torch.matmul(self.K, L.T)
             Z = Z.T
             v_k = Z + W
-            tol = torch.max(torch.abs(torch.abs(v_k) - torch.abs(v0)))
+            # tol = torch.max(torch.abs(torch.abs(v_k) - torch.abs(v0)))
             v0 = v_k
 
             iteration += 1
@@ -674,15 +674,19 @@ class V2GridLoss(nn.Module):
 
         # Compute the loss as a real number
         # For example, penalty on deviation from 1.0
-        voltage_loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
-                                 0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
+        # voltage_loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
+        #                          0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
+
+        voltage_loss = smooth_min_2(
+            torch.zeros_like(v0_clamped, device=self.device),
+            0.05 - smooth_abs(1 - v0_clamped)
+        ).sum(axis=1)
 
         if self.verbose:
             print(f'Voltage Loss: {voltage_loss}')
             print(f'voltage shape {v0_clamped.real.shape}')
 
-
-        return costs + user_sat_at_departure + 5000 * voltage_loss
+        return costs + user_sat_at_departure + 15000 * voltage_loss
 
 
 def smooth_step(x, alpha=10.0):
@@ -693,6 +697,14 @@ def smooth_step(x, alpha=10.0):
     for small alpha, it's more 'spread out'.
     """
     return 0.5 * (1.0 + torch.tanh(alpha * x))
+
+
+def smooth_abs(x, eps=1e-6):
+    return torch.sqrt(x**2 + eps)
+
+
+def smooth_min_2(a, b, beta=10):
+    return - (1/beta) * torch.log(torch.exp(-beta * a) + torch.exp(-beta * b))
 
 
 def smooth_min(a, b, alpha=10.0, eps=1e-6):
