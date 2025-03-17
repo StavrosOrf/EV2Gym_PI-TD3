@@ -11,14 +11,14 @@ import random
 # batch_size = 64
 num_steps_per_iter = 1000
 max_iters = 350
-num_eval_episodes = 1
+num_eval_episodes = 100
 seed = 42
 
 counter = 0
 for model_type in ["dt"]:
     for lr in [1e-4]:
-        for physics_loss_weight in [0, 0.1, 1, 10]:        
-            for K in [3,6,10]:
+        for physics_loss_weight in [0, 0.1, 100, 0.001]:        
+            for K in [3,10]:
                 for batch_size in [128]:
                     for dataset in ["random_1000"]:
                         for embed_dim in [128]:  # 128, 512
@@ -50,5 +50,5 @@ for model_type in ["dt"]:
                                 os.system(command=command)
                                 print(command)
                                 # wait for 20 seconds before starting the next experiment
-                                time.sleep(15)
+                                time.sleep(5)
                                 counter += 1
