@@ -17,7 +17,7 @@ seed = 42
 counter = 0
 for model_type in ["dt"]:
     for lr in [1e-4]:
-        for physics_loss_weight in [0]:        
+        for physics_loss_weight in [0, 0.1, 1, 10]:        
             for K in [3,6,10]:
                 for batch_size in [128]:
                     for dataset in ["random_1000"]:

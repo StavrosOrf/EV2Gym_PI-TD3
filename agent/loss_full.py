@@ -686,7 +686,7 @@ class V2GridLoss(nn.Module):
             print(f'Voltage Loss: {voltage_loss}')
             print(f'voltage shape {v0_clamped.real.shape}')
 
-        return costs + user_sat_at_departure + 15000 * voltage_loss
+        return costs + user_sat_at_departure + 50_000 * voltage_loss
 
 
 def smooth_step(x, alpha=10.0):

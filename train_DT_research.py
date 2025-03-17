@@ -20,7 +20,7 @@ from DT.training.traj_trainer import TrajectoryTrainer
 
 from ev2gym.models.ev2gym_env import EV2Gym
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_full_reward, V2G_grid_simple_reward
+from agent.reward import Grid_V2G_profitmaxV2, V2G_grid_simple_reward
 from agent.reward import V2G_profitmax
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
@@ -70,8 +70,7 @@ def experiment(vars):
     number_of_charging_stations = config["number_of_charging_stations"]
     steps = config["simulation_length"]
 
-    # reward_function = V2G_grid_full_reward
-    reward_function = V2G_profitmax
+    reward_function = Grid_V2G_profitmaxV2
     state_function = V2G_grid_state_ModelBasedRL
 
     env = EV2Gym(config_file=config_path,
@@ -89,8 +88,8 @@ def experiment(vars):
     #     dataset_path = 'trajectories/v2g_grid_150_random_150_1000.pkl.gz'
     # else:
     #     raise NotImplementedError("Dataset not found")
-    
-    dataset_path = 'trajectories/v2g_grid_50_random_50_100.pkl.gz'
+
+    dataset_path = 'trajectories/v2g_grid_150_random_150_1000.pkl.gz'
 
     max_ep_len = steps
     g_name = vars['group_name']
@@ -131,14 +130,13 @@ def experiment(vars):
 
     # Initialize eval_envs from replays
     eval_replay_path = vars['eval_replay_path']
-    # eval_replays = os.listdir(eval_replay_path)
-    eval_replays = ['replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl']
+    eval_replays = os.listdir(eval_replay_path)
+
     eval_envs = []
     print(f'Loading evaluation replays from {eval_replay_path}')
-    for i, replay in enumerate(eval_replays):
+    for i, replay in enumerate(eval_replays):        
         eval_env = EV2Gym(config_file=config_path,
-                        #   load_from_replay_path=eval_replay_path + replay,
-                          load_from_replay_path=replay,
+                            load_from_replay_path=eval_replay_path + replay,                        
                           state_function=state_function,
                           reward_function=reward_function,
                           )
@@ -328,7 +326,7 @@ def experiment(vars):
             resid_pdrop=vars['dropout'],
             attn_pdrop=vars['dropout'],
         )
-        
+
     else:
         raise NotImplementedError
 
@@ -372,8 +370,8 @@ def experiment(vars):
         def loss_fn(s_hat, a_hat, r_hat, s, a, r):
 
             action_loss = torch.mean((a_hat - a)**2)
-            physics_loss = -physics_loss_fn(action=a_hat,
-                                            state=s).mean()
+            physics_loss = -physics_loss_fn.grid_profit_maxV2(action=a_hat,
+                                                              state=s).mean()
 
             # print(f'a_hat: {a_hat.shape}')
             # print(f's: {s.shape}')
@@ -512,7 +510,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=3)
     # dt for decision transformer, bc for behavior cloning
     parser.add_argument('--model_type', type=str,
-                        default='dt')  # 
+                        default='dt')  #
     parser.add_argument('--embed_dim', type=int, default=128)
     parser.add_argument('--n_layer', type=int, default=3)
     parser.add_argument('--n_head', type=int, default=4)
@@ -526,11 +524,11 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
     parser.add_argument('--config_file', type=str,
-                        default="v2g_grid_50.yaml")
+                        default="v2g_grid_150.yaml")
 
-    parser.add_argument('--num_eval_episodes', type=int, default=1)
+    parser.add_argument('--num_eval_episodes', type=int, default=2)
     parser.add_argument('--eval_replay_path', type=str,
-                        default="./replay/v2g_grid_150_100evals/")
+                        default="./eval_replays/v2g_grid_150_random_150_100/")
 
     # New parameters
     parser.add_argument('--action_masking',
@@ -545,7 +543,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_act_gcn_layers', type=int, default=3)
 
     # GNN DT
-    parser.add_argument('--physics_loss_weight', type=float, default=0)
+    parser.add_argument('--physics_loss_weight', type=float, default=1)
     parser.add_argument('--trajectory_trainer', type=bool, default=False)
 
     args = parser.parse_args()

@@ -13,8 +13,8 @@ counter = 0
 for policy in ['mb_traj']:
     for batch_size in [64]:
         for expl_noise in [0.1]:
-            # for K in [1, 2, 10]:  # 512
-            for K in [5, 25]:
+            for K in [1, 2, 5, 10, 25]:  # 512
+            # for K in [5, 25]:
                 for seed in [9]:
 
                     if policy != 'mb_traj' and K != 1:

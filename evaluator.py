@@ -17,9 +17,9 @@ from TD3.traj import Traj
 from DT.load_model import load_DT_model
 from DT.evaluation.evaluate_episodes import evaluate_episode_rtg_from_replays
 
-from sb3_contrib import TQC, TRPO, ARS, RecurrentPPO
-from stable_baselines3 import PPO, A2C, DDPG, SAC
-from stable_baselines3 import TD3 as TD3_SB3
+# from sb3_contrib import TQC, TRPO, ARS, RecurrentPPO
+# from stable_baselines3 import PPO, A2C, DDPG, SAC
+# from stable_baselines3 import TD3 as TD3_SB3
 from ev2gym.baselines.mpc.V2GProfitMax import V2GProfitMaxOracle, V2GProfitMaxLoadsOracle
 from ev2gym.baselines.mpc.eMPC_v2 import eMPC_V2G_v2
 from ev2gym.baselines.mpc.eMPC import eMPC_V2G, eMPC_G2V
@@ -27,7 +27,7 @@ from ev2gym.baselines.mpc.ocmf_mpc import OCMF_V2G, OCMF_G2V
 from ev2gym.baselines.heuristics import RandomAgent, DoNothing, ChargeAsFastAsPossible
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import V2G_grid_simple_reward, V2G_profitmax
+from agent.reward import V2G_grid_simple_reward, Grid_V2G_profitmaxV2
 from agent.utils import ReplayBuffer, ModelBasedRL
 
 from ev2gym.models.ev2gym_env import EV2Gym
@@ -66,7 +66,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 100
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -78,8 +78,8 @@ def evaluator():
     # values in [0-1] probability of obs-delayed communication
     p_delay_list = [0]
 
-    # config_file = "./config_files/v2g_grid_150.yaml"
-    config_file = "./config_files/v2g_grid_50.yaml"
+    config_file = "./config_files/v2g_grid_150.yaml"
+    # config_file = "./config_files/v2g_grid_50.yaml"
 
     # config_file = "./config_files/V2G_ProfixMaxWithLoads_25.yaml"
     # config_file = "./config_files/V2G_ProfixMaxWithLoads_100.yaml"
@@ -89,7 +89,7 @@ def evaluator():
     state_function_Normal = V2G_grid_state_ModelBasedRL
     # state_function_GNN = V2G_ProfitMax_with_Loads_GNN
     # reward_function = V2G_grid_simple_reward, V2G_profitmax
-    reward_function = V2G_profitmax
+    reward_function = Grid_V2G_profitmaxV2
 
     # Algorithms to compare:
     # Use algorithm name or the saved RL model path as string
@@ -98,8 +98,8 @@ def evaluator():
         ChargeAsFastAsPossible,
         DoNothing,
         RandomAgent,
-        V2GProfitMaxOracleGB,
-        'Traj_K=6_batch_size64_noise=0.5-618003',
+        # V2GProfitMaxOracleGB,
+        # 'Traj_K=6_batch_size64_noise=0.5-618003',
         # "TD3_enhanced_test-547922",
         # 'TD3_FixedLoss_newForm_noRegularizer_noActorGrad_TargetCritic-253974',
 
@@ -189,7 +189,6 @@ def evaluator():
         eval_replay_files = [generate_replay(
             evaluation_name) for _ in range(n_test_cycles)]
 
-    eval_replay_files = ['replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl']
     # save the list of EV profiles to a pickle file
     if SAVE_EV_PROFILES:
         with open(save_path + 'ev_profiles.pkl', 'wb') as f:
@@ -667,6 +666,7 @@ def evaluator():
                            'total_energy_charged',
                            'total_energy_discharged',
                            'total_reward',
+                           'voltage_violation'
                            ]])
 
     with gzip.open(save_path + 'plot_results_dict.pkl.gz', 'wb') as f:

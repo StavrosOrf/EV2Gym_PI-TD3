@@ -172,3 +172,4 @@ saved_models/
 eval_models/
 model.ilp
 trajectories/
+eval_replays/

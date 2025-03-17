@@ -183,6 +183,4 @@ def Grid_V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
         print(f'!!! User Satisfaction Penalty: {user_costs}')
         print("=-"*25)
         
-        
-    
-    return reward + user_costs + 15000 * loss_v
+    return reward + user_costs + 50_000 * loss_v
