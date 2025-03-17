@@ -230,8 +230,7 @@ def evaluate_episode_rtg(
         'total_energy_discharged',
         'average_user_satisfaction',
         'min_user_satisfaction',
-        'power_tracker_violation',
-        'total_transformer_overload',
+        'voltage_violation',
 
     ]
 

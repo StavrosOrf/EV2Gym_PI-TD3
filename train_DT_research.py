@@ -383,12 +383,17 @@ def experiment(vars):
             # print(f'Action loss: {action_loss}')
 
             # input()
+            loss_dict = {
+                'physics_loss': physics_loss.item(),
+                'action_loss': action_loss.item(),
+            }
 
-            return action_loss + vars['physics_loss_weight'] * physics_loss
+            return action_loss + vars['physics_loss_weight'] * physics_loss, loss_dict
+                
 
     else:
         def loss_fn(s_hat, a_hat, r_hat, s, a, r):
-            return torch.mean((a_hat - a)**2)
+            return torch.mean((a_hat - a)**2), {}
 
     if model_type == 'dt':
 

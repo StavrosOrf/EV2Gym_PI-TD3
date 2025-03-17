@@ -23,6 +23,8 @@ class Trainer:
     def train_iteration(self, num_steps, iter_num=0, print_logs=False):
 
         train_losses = []
+        loss_dict_list = []
+
         logs = dict()
 
         train_start = time.time()
@@ -30,8 +32,9 @@ class Trainer:
         self.model.train()
         
         for _ in tqdm(range(num_steps)):
-            train_loss = self.train_step()
+            train_loss, loss_dict = self.train_step()
             train_losses.append(train_loss)
+            loss_dict_list.append(loss_dict)
             if self.scheduler is not None:
                 self.scheduler.step()
         
@@ -49,6 +52,12 @@ class Trainer:
         logs['time/evaluation'] = time.time() - eval_start
         logs['training/train_loss_mean'] = np.mean(train_losses)
         logs['training/train_loss_std'] = np.std(train_losses)
+
+        #find mean and std of each loss component
+        loss_dict_keys = loss_dict_list[0].keys()
+        for key in loss_dict_keys:
+            logs[f'training/{key}_mean'] = np.mean([loss_dict[key] for loss_dict in loss_dict_list])
+            logs[f'training/{key}_std'] = np.std([loss_dict[key] for loss_dict in loss_dict_list])            
 
         for k in self.diagnostics:
             logs[k] = self.diagnostics[k]

@@ -33,7 +33,7 @@ class SequenceTrainer(Trainer):
         state_target = state_target.reshape(-1, states.shape[2])[
             attention_mask.reshape(-1) > 0]
 
-        loss = self.loss_fn(
+        loss, loss_dict = self.loss_fn(
             None, action_preds, None,
             state_target, action_target, None
         )
@@ -48,4 +48,4 @@ class SequenceTrainer(Trainer):
         #     self.diagnostics['training/action_error'] = torch.mean(
         #         (action_preds-action_target)**2).detach().cpu().item()
 
-        return loss.detach().cpu().item()
+        return loss.detach().cpu().item(), loss_dict

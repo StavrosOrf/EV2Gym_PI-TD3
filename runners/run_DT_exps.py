@@ -9,7 +9,7 @@ import random
 # run train_DT.py in a tmux pane for each K and dataset
 
 # batch_size = 64
-num_steps_per_iter = 1000
+num_steps_per_iter = 500
 max_iters = 350
 num_eval_episodes = 100
 seed = 42
