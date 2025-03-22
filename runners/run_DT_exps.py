@@ -17,10 +17,11 @@ seed = 42
 counter = 0
 for model_type in ["dt"]:
     for lr in [1e-4]:
-        for physics_loss_weight in [0, 0.1, 100, 0.001]:        
-            for K in [3,10]:
+        for physics_loss_weight in [0.0000001,0.1, 100]:        
+        # for physics_loss_weight in [0, 0.1, 100, 0.001]:        
+            for K in [2, 10]:
                 for batch_size in [128]:
-                    for dataset in ["random_1000"]:
+                    for dataset in ["random_10000"]:
                         for embed_dim in [128]:  # 128, 512
                             #   ' --device cuda:0' + str(counter % 2) + \
                             for n_layer, n_head in [(3, 4)]:  # (3, 1),(3,4)
@@ -45,7 +46,7 @@ for model_type in ["dt"]:
                                     ' --log_to_wandb False' + \
                                     ' --group_name ' + 'phys' + \
                                     ' --physics_loss_weight ' + str(physics_loss_weight) + \
-                                    ' --name ' +  str(run_name) + \
+                                    ' --name UpdatedLossSign' +  str(run_name) + \
                                     '" Enter'
                                 os.system(command=command)
                                 print(command)

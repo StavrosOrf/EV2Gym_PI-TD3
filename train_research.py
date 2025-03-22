@@ -12,7 +12,7 @@ import pickle
 import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL, PST_V2G_ProfitMaxGNN_state
-from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2
+from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2, V2G_costs_simple
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
@@ -132,7 +132,9 @@ if __name__ == "__main__":
     # TD3, Traj, SAC, TD3_ActionGNN, MB
     parser.add_argument("--policy", default="mb_traj")
     parser.add_argument("--name", default="base")
-    parser.add_argument("--project_name", default="EVs4Grid")
+    parser.add_argument("--scenario", default="v2g")
+    
+    parser.add_argument("--project_name", default="EVs4Grid")            
     parser.add_argument("--env", default="EV2Gym")
     parser.add_argument("--config", default="v2g_grid_150.yaml")
     # parser.add_argument("--config", default="v2g_grid_3.yaml")
@@ -246,10 +248,22 @@ if __name__ == "__main__":
         os.makedirs("./results")
 
     group_name = "50_advanced_tests"
+    
+    if args.scenario == "v2g":
+        reward_function = V2G_costs_simple
+    elif args.scenario == "v2g_profitmax": 
+        reward_function = V2G_profitmaxV2    
+    elif args.scenario == "grid_v2g_profitmax": 
+        reward_function = Grid_V2G_profitmaxV2
+    else:
+        raise ValueError("Scenario not recognized.")
+        
     # reward_function = V2G_grid_full_reward
     # reward_function = V2G_profitmax
     # reward_function = V2G_profitmaxV2
-    reward_function = Grid_V2G_profitmaxV2
+    
+    
+    
     state_function = V2G_grid_state_ModelBasedRL
     # state_function = PST_V2G_ProfitMaxGNN_state
 
@@ -338,6 +352,13 @@ if __name__ == "__main__":
         device=device,
         verbose=False,
     )
+    
+    if args.scenario == "v2g":
+        loss_fn = loss_fn.V2G_simpleV2
+    elif args.scenario == "v2g_profitmax":
+        loss_fn = loss_fn.V2G_profit_maxV2
+    elif args.scenario == "grid_v2g_profitmax":
+        loss_fn = loss_fn.grid_profit_maxV2
 
     transition_fn = V2G_Grid_StateTransition(verbose=False,
                                              device=device,

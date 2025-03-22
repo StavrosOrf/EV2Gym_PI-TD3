@@ -61,6 +61,12 @@ def V2G_profitmax(env, total_costs, user_satisfaction_list, *args):
     # loss_v = np.minimum(np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
     return (reward + user_costs)
 
+
+def V2G_costs_simple(env, total_costs, user_satisfaction_list, *args):
+
+    reward = total_costs
+    return reward
+
 def V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
 
     reward = total_costs

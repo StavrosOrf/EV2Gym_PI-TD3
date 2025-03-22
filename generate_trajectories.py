@@ -208,7 +208,7 @@ if __name__ == "__main__":
         if trajecotries_type == "optimal":
             divident = 100
         else:
-            divident = 1000
+            divident = 10000
 
         if i % divident == 0 and not SAVE_EVAL_REPLAYS and i > 0:
             print(f'Saving trajectories to {save_folder_path+file_name}')

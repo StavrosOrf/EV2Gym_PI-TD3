@@ -89,7 +89,8 @@ def experiment(vars):
     # else:
     #     raise NotImplementedError("Dataset not found")
 
-    dataset_path = 'trajectories/v2g_grid_150_random_150_1000.pkl.gz'
+    # dataset_path = 'trajectories/v2g_grid_150_random_150_10000.pkl.gz'
+    dataset_path = 'trajectories/v2g_grid_150_random_150_1000000.pkl.gz'
 
     max_ep_len = steps
     g_name = vars['group_name']
