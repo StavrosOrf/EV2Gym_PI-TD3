@@ -257,13 +257,7 @@ if __name__ == "__main__":
         reward_function = Grid_V2G_profitmaxV2
     else:
         raise ValueError("Scenario not recognized.")
-        
-    # reward_function = V2G_grid_full_reward
-    # reward_function = V2G_profitmax
-    # reward_function = V2G_profitmaxV2
-    
-    
-    
+
     state_function = V2G_grid_state_ModelBasedRL
     # state_function = PST_V2G_ProfitMaxGNN_state
 
@@ -379,7 +373,7 @@ if __name__ == "__main__":
     n_transformers = config["number_of_transformers"]
     simulation_length = config["simulation_length"]
 
-    group_name = f'{args.group_name}_{number_of_charging_stations}cs_{n_transformers}tr'
+    group_name = f'{args.group_name}_{args.scenario}_{number_of_charging_stations}cs_{n_transformers}tr'
 
     if args.load_model == "":
         exp_prefix = f'{args.name}-{random.randint(int(1e5), int(1e6) - 1)}'

@@ -187,6 +187,8 @@ def Grid_V2G_profitmaxV2(env, total_costs, user_satisfaction_list, *args):
         
     if verbose:
         print(f'!!! User Satisfaction Penalty: {user_costs}')
+        print(f'!!! loss_v: {loss_v}')
+        print(f'!!! m*loss_v: {50_000*loss_v}')
         print("=-"*25)
         
     return reward + user_costs + 50_000 * loss_v

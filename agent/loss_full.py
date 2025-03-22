@@ -831,6 +831,7 @@ class V2GridLoss(nn.Module):
         W = self.L.view(-1)
 
         while iteration <7:  # self.iterations and tol >= self.tolerance:
+        # while iteration < self.iterations and tol >= self.tolerance:
 
             L = torch.conj(S / v0)
             Z = torch.matmul(self.K, L.T)
@@ -847,13 +848,13 @@ class V2GridLoss(nn.Module):
 
         # Compute the loss as a real number
         # For example, penalty on deviation from 1.0
-        # voltage_loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
-        #                          0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
+        voltage_loss = torch.min(torch.zeros_like(v0_clamped, device=self.device),
+                                 0.05 - torch.abs(1 - v0_clamped)).sum(axis=1)
 
-        voltage_loss = smooth_min_2(
-            torch.zeros_like(v0_clamped, device=self.device),
-            0.05 - smooth_abs(1 - v0_clamped)
-        ).sum(axis=1)
+        # voltage_loss = smooth_min_2(
+        #     torch.zeros_like(v0_clamped, device=self.device),
+        #     0.05 - smooth_abs(1 - v0_clamped)
+        # ).sum(axis=1)
 
         if self.verbose:
             print(f'Voltage Loss: {voltage_loss}')

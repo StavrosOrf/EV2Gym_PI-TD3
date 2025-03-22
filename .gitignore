@@ -173,3 +173,5 @@ eval_models/
 model.ilp
 trajectories/
 eval_replays/
+slurm_logs/
+run_tmp.sh

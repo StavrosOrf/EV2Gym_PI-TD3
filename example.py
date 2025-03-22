@@ -76,6 +76,8 @@ def eval():
                                                 num_buses=env.grid.net.nb
                                                 )
 
+    loss_fn = loss_fn.grid_profit_maxV2
+    
     succesful_runs = 0
     failed_runs = 0
 
@@ -124,7 +126,7 @@ def eval():
             # print("============================================================================")
             timer = time.time()
             
-            loss = loss_fn.grid_profit_maxV2(action=torch.tensor(actions, device=device).reshape(1, -1),
+            loss = loss_fn(action=torch.tensor(actions, device=device).reshape(1, -1),
                                         state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 

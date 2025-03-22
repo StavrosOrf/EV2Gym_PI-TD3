@@ -163,9 +163,9 @@ class MB(object):
 
             if self.transition_fn is not None:
 
-                if False:
+                if True:
                     # test if loss_fn is working properly
-                    reward_test = self.loss_fn.profit_maxV2(state=state,
+                    reward_test = self.loss_fn(state=state,
                                                action=action)
                     reward_diff = torch.abs(
                         reward.view(-1) - reward_test.view(-1))
@@ -188,9 +188,9 @@ class MB(object):
                 next_state_pred = self.transition_fn(state,
                                                      next_state,
                                                      action_vector)
-                                                     
-                reward_pred = self.loss_fn.grid_profit_maxV2(state=state,
-                                                             action=action_vector)
+
+                reward_pred = self.loss_fn(state=state,
+                                           action=action_vector)
 
                 # with torch.no_grad():
                 next_action = self.actor(next_state_pred)

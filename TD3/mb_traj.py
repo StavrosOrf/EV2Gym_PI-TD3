@@ -181,10 +181,10 @@ class MB_Traj(object):
 
             if False:
                 # test if loss_fn is working properly
-                reward_test = self.loss_fn.profit_maxV2(state=state,
-                                                        action=action)
+                reward_test = self.loss_fn(state=states[:, 0, :],
+                                           action=actions[:, 0, :])
                 reward_diff = torch.abs(
-                    reward.view(-1) - reward_test.view(-1))
+                    rewards[:, 0].view(-1) - reward_test.view(-1))
                 if reward_diff.mean() > 0.01:
 
                     print(f'Reward diff: {reward_diff.mean()}')
@@ -192,10 +192,10 @@ class MB_Traj(object):
                     print(f'Reward Test: {reward_test}')
                     input("Error in reward calculation")
 
-                next_state_test = self.transition_fn(state,
-                                                     next_state,
-                                                     action)
-                state_diff = torch.abs(next_state - next_state_test)
+                next_state_test = self.transition_fn(states[:, 0, :],
+                                                     states[:, 1, :],
+                                                     actions[:, 0, :])
+                state_diff = torch.abs(states[:, 1, :] - next_state_test)
                 if state_diff.mean() > 0.001:
                     print(f'State diff: {state_diff.mean()}')
                     input("Error in state transition")
@@ -210,8 +210,8 @@ class MB_Traj(object):
 
                 action_vector = self.actor(state_pred)
 
-                reward_pred = self.loss_fn.grid_profit_maxV2(state=state_pred,
-                                                             action=action_vector)
+                reward_pred = self.loss_fn(state=state_pred,
+                                           action=action_vector)
 
                 state_pred = self.transition_fn(state=state_pred,
                                                 new_state=states[:, i+1, :],
@@ -235,7 +235,7 @@ class MB_Traj(object):
 
             # with torch.no_grad():
             next_action = self.actor(state_pred)
-            
+
             actor_loss += - discount * self.discount * \
                 self.critic.Q1(state_pred, next_action).view(-1) *\
                 (torch.ones_like(done) - dones[:, self.look_ahead])
