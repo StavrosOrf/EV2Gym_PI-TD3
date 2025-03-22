@@ -28,13 +28,13 @@ for algo in ['TD3', 'SAC', 'mb_traj']:
 
                 memory = 10
                 if algo == 'TD3' or algo == 'SAC':
-                    time = 10
+                    time = 7
                 else:
                     if algo == 'mb_traj':
                         if K <= 5:
                             time = 10
                         else:
-                            time = 20
+                            time = 15
 
                 cpu_cores = 1
 
