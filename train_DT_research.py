@@ -465,6 +465,7 @@ def experiment(vars):
             entity='stavrosorf',
             project='EVs4Grid',
             save_code=True,
+            mode='offline',
             config=vars
         )
 

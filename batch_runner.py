@@ -2,12 +2,14 @@
 This script is used to run the batch of training sciprts for every algorithms evaluated
 #old command# srun --mpi=pmix --job-name=interactive-gpu --partition=gpu --gres=gpu:1 --qos=normal --time=01:00:00 --mem-per-cpu=4096 --pty /bin/bash -il
 srun --mpi=pmix --job-name=interactive-gpu --partition=gpu --gpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=4G --cpus-per-task=1 --ntasks=1 --pty /bin/bash -il
+srun --mpi=pmix --job-name=interactive-gpu --partition=gpu-a100-small --gpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=7000 --cpus-per-task=1 --ntasks=1 --pty /bin/bash -il
+srun --mpi=pmix --job-name=interactive-gpu --partition=gpu-a100 --gpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=7000 --cpus-per-task=1 --ntasks=1 --pty /bin/bash -il
 srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=4G--ntasks=1 --pty /bin/bash -il
 '''
 import os
 import random
 
-seeds = [0]
+seeds = [30]
 config = "v2g_grid_150.yaml"
 
 # if directory does not exist, create it
@@ -26,7 +28,7 @@ for algo in ['TD3', 'SAC', 'mb_traj']:
                 if K != 1 and algo != 'mb_traj':
                     continue
 
-                memory = 10
+                
                 if algo == 'TD3' or algo == 'SAC':
                     time = 7
                 else:
@@ -35,14 +37,20 @@ for algo in ['TD3', 'SAC', 'mb_traj']:
                             time = 10
                         else:
                             time = 15
-
-                cpu_cores = 1
+                
+                if K <=10:
+                    cpu_cores = 1
+                else:
+                    cpu_cores = 2
 
                 if time > 46:
                     time = 46
+                    
+                memory = 5300
 
                 run_name = f'{algo}_run_{seed}_K={K}_scenario={scenario}_'
                 run_name += str(random.randint(0, 100000))
+                
                 # gpu-a100, gpu
                 command = '''#!/bin/sh
 #!/bin/bash
@@ -57,7 +65,7 @@ for algo in ['TD3', 'SAC', 'mb_traj']:
                     f'#SBATCH --cpus-per-task={cpu_cores}' + \
                     '''
 ''' + \
-                    f'#SBATCH --mem-per-cpu={memory}G' + \
+                    f'#SBATCH --mem-per-cpu={memory}' + \
                     '''
 #SBATCH --account=research-eemcs-ese
 
