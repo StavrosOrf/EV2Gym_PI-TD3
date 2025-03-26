@@ -9,7 +9,7 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [100]
+seeds = [50,60,70]
 config = "v2g_grid_150.yaml"
 
 # if directory does not exist, create it
@@ -17,7 +17,7 @@ if not os.path.exists('./slurm_logs'):
     os.makedirs('./slurm_logs')
 
 # for algo in ['TD3', 'SAC', 'mb_traj']:
-for algo in ['mb_traj']:
+for algo in ['TD3']:
     for K in [1, 2, 5, 10, 25, 40]:
         for scenario in ['v2g',
                          'v2g_profitmax',
@@ -30,19 +30,17 @@ for algo in ['mb_traj']:
                     continue
 
                 
-                if algo == 'TD3' or algo == 'SAC':
-                    time = 7
+
+                
+                if K <= 5:
+                    time = 10
                 else:
-                    if algo == 'mb_traj':
-                        if K <= 5:
-                            time = 10
-                        else:
-                            time = 15
+                    time = 15
                 
                 if K <=10:
-                    cpu_cores = 1
-                else:
                     cpu_cores = 2
+                else:
+                    cpu_cores = 3
 
                 if time > 46:
                     time = 46
