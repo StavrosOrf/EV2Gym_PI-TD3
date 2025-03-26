@@ -9,14 +9,15 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [30]
+seeds = [100]
 config = "v2g_grid_150.yaml"
 
 # if directory does not exist, create it
 if not os.path.exists('./slurm_logs'):
     os.makedirs('./slurm_logs')
 
-for algo in ['TD3', 'SAC', 'mb_traj']:
+# for algo in ['TD3', 'SAC', 'mb_traj']:
+for algo in ['mb_traj']:
     for K in [1, 2, 5, 10, 25, 40]:
         for scenario in ['v2g',
                          'v2g_profitmax',
@@ -110,17 +111,18 @@ conda deactivate
 
                 os.system('sbatch run_tmp.sh')
 
-                # command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
-                #     ' --scenario ' + scenario + \
-                #     ' --K ' + str(K) + \
-                #     ' --device cuda:0' + \
-                #     ' --policy ' + algo + \
-                #     ' --group_name ' + '"ProofExps"' + \
-                #     ' --config_file ' + config + \
-                #     ' --name ' + str(run_name) + \
-                #     '" Enter'
+                command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
+                    ' --scenario ' + scenario + \
+                    ' --K ' + str(K) + \
+                    ' --device cuda:0' + \
+                    ' --policy ' + algo + \
+                    ' --group_name ' + '"ProofExps"' + \
+                    ' --project_name ' + '"EVs4Grid_Exps"' + \
+                    ' --config ' + config + \
+                    ' --name ' + str(run_name) + \
+                    '" Enter'
 
-                # os.system(command=command)
-                # print(command)
-                # import time as timer
-                # timer.sleep(5)
+                os.system(command=command)
+                print(command)
+                import time as timer
+                timer.sleep(5)
