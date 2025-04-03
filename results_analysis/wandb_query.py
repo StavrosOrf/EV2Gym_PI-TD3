@@ -77,10 +77,10 @@ for i, run in tqdm.tqdm(enumerate(runs), total=len(runs)):
 
     mean_rewards = history_df['eval_a/mean_reward'].dropna().tolist()
     best_rewards = history_df['eval_a/best_reward'].dropna().tolist()
-    # eval_profits = history_df['eval/total_profits'].dropna().tolist()
-    # eval_voltage_violation = history_df['eval/voltage_violation'].dropna().tolist()
-    # eval_user_satisfaction = history_df['eval/average_user_satisfaction'].dropna(
-    # ).tolist()
+    eval_profits = history_df['eval/total_profits'].dropna().tolist()
+    eval_voltage_violation = history_df['eval/voltage_violation'].dropna().tolist()
+    eval_user_satisfaction = history_df['eval/average_user_satisfaction'].dropna(
+    ).tolist()
 
     results = {
         "algorithm": algorithm,
@@ -91,9 +91,9 @@ for i, run in tqdm.tqdm(enumerate(runs), total=len(runs)):
         "best": np.array(best_rewards)[-1],
         "best_reward": np.array(best_rewards),
         "mean_rewards": np.array(mean_rewards),
-        # "eval_profits": np.array(eval_profits),
-        # "eval_voltage_violation": np.array(eval_voltage_violation),
-        # "eval_user_satisfaction": np.array(eval_user_satisfaction),
+        "eval_profits": np.array(eval_profits),
+        "eval_voltage_violation": np.array(eval_voltage_violation),
+        "eval_user_satisfaction": np.array(eval_user_satisfaction),
     }
     run_results.append(results)
     
@@ -112,6 +112,6 @@ print(df["K"].value_counts())
 print(df["seed"].value_counts())
 
 # Save the results to a CSV file
-df.to_csv("./results_analysis/results.csv",
+df.to_csv("./results_analysis/results_full.csv",
           index=False)
 print("Results saved to results.csv")
