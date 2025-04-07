@@ -67,9 +67,9 @@ for i, run in tqdm.tqdm(enumerate(runs), total=len(runs)):
         "_runtime",
         "eval_a/mean_reward",
         "eval_a/best_reward",
-        # "eval/total_profits",
-        # "eval/voltage_violation",
-        # "eval/average_user_satisfaction",
+        "eval/total_profits",
+        "eval/voltage_violation",
+        "eval/average_user_satisfaction",
     ])
     
     history_df = pd.DataFrame(history)
