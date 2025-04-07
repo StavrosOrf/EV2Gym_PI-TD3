@@ -3,7 +3,7 @@ import numpy as np
 def dataset_info(data):
     print("=====================================")
     print(f' data shape: {data.shape}')
-    print(data["dataset"].value_counts()) 
+    # print(data["dataset"].value_counts()) 
     print(data["K"].value_counts())
     print(data["algorithm"].value_counts())
     print(data["seed"].value_counts())

@@ -27,20 +27,8 @@ import numpy as np
 from res_utils import dataset_info, parse_string_to_list
 
 
-data = pd.read_csv("./results_analysis/results.csv")
+data = pd.read_csv("./results_analysis/results_full.csv")
 dataset_info(data)
-
-datasets_list = [
-    'random_100',
-    'random_1000',
-    'random_10000',
-    'optimal_100',
-    'optimal_1000',
-    'optimal_10000',
-    'bau_100',
-    'bau_1000',
-    'bau_10000',
-]
 
 dataset_info(data)
 
@@ -49,10 +37,14 @@ dataset_info(data)
 new_df = pd.DataFrame()
 
 for i, row in data.iterrows():    
-    rewards = parse_string_to_list(row["eval_reward"])
+    rewards = parse_string_to_list(row["mean_rewards"])
     profits = parse_string_to_list(row["eval_profits"])
     user_satisfaction = parse_string_to_list(row["eval_user_satisfaction"])
-    power_tracker_violation = parse_string_to_list(row["eval_power_tracker_violation"])
+    voltage_violation = parse_string_to_list(row["eval_voltage_violation"])
+    time_to_max = row["runtime"] * np.argmax(rewards) / len(rewards)
+    #convert to minutes from hours
+    time_to_max = time_to_max * 60
+
     # print(f'rewards: {rewards[:10]}')
     # print(f'profits: {profits[:10]}')
     # print(f'user_satisfaction: {user_satisfaction[:10]}')
@@ -64,23 +56,25 @@ for i, row in data.iterrows():
     
     new_df = pd.concat([new_df,
                         pd.DataFrame({
-                            "algorithm": row["algorithm"],
-                            "K": row["K"],
-                            "dataset": row["dataset"],
+                            "algorithm": row["algorithm"] + "_" + str(row["K"]),
+                            # "K": row["K"],
+                            "group": row["group"],
                             "seed": row["seed"],
-                            "max_reward": max_reward/100000,
+                            "max_reward": max_reward,
                             "profits": profits[max_reward_index],
                             "user_satisfaction": user_satisfaction[max_reward_index],
-                            "power_violation": power_tracker_violation[max_reward_index],
+                            "voltage_violation": voltage_violation[max_reward_index],
                             "runtime": row["runtime"],
+                            'time_to_max': time_to_max,
                             "epochs": len(rewards),
                             "max_reward_epoch": max_reward_index
-                        }, index=[0])], ignore_index=True)
+                        }, index=[0])], ignore_index=True)    
+
 print(new_df)
     # exit()
 # group the data by algorithm, K, and dataset and show the max max_reward for each group
 # grouped = new_df.groupby(["algorithm", "K", "dataset"]).max()
-grouped_max = new_df.loc[new_df.groupby(["algorithm", "K", "dataset"])["max_reward"].idxmax()]
+grouped_max = new_df.loc[new_df.groupby(["algorithm", "group"])["max_reward"].idxmax()]
 print(grouped_max)
 # print(grouped)
 #save the grouped data to a csv file
