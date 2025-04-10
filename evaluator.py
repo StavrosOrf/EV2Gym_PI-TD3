@@ -13,6 +13,7 @@ from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
 
 from TD3.TD3 import TD3
 from TD3.traj import Traj
+from TD3.mb_traj import MB_Traj
 
 from DT.load_model import load_DT_model
 from DT.evaluation.evaluate_episodes import evaluate_episode_rtg_from_replays
@@ -99,10 +100,8 @@ def evaluator():
         DoNothing,
         RandomAgent,
         # V2GProfitMaxOracleGB,
-        # 'Traj_K=6_batch_size64_noise=0.5-618003',
-        # "TD3_enhanced_test-547922",
-        # 'TD3_FixedLoss_newForm_noRegularizer_noActorGrad_TargetCritic-253974',
-
+        'mb_traj_run_70_K=70_scenario=grid_v2g_profitmax_47956-289507',
+        'TD3_run_50_K=1_scenario=grid_v2g_profitmax_36803-857049',
     ]
 
     # create a AnalysisReplayBuffer object for each algorithm
@@ -394,6 +393,29 @@ def evaluator():
                                 print(
                                     f'Actor model has {params} trainable parameters')
 
+                        elif "mb_traj" in algorithm:
+                            algorithm_path = algorithm.split('_noSL')[0]
+                            load_model_path = f'./eval_models/{algorithm_path}/'
+                            with open(f'{load_model_path}kwargs.yaml') as file:
+                                kwargs = yaml.load(
+                                    file, Loader=yaml.UnsafeLoader)
+
+                            # else:
+                            print("Loading TD3 model")
+                            model = MB_Traj(**kwargs)
+                            algorithm_name = "MB_TD3"
+                            model.load(
+                                filename=f'{load_model_path}model.best')
+
+                            if k == 0:
+                                actor_model = model.actor
+                                model_parameters = filter(
+                                    lambda p: p.requires_grad, actor_model.parameters())
+                                params = sum([np.prod(p.size())
+                                              for p in model_parameters])
+                                print(
+                                    f'Actor model has {params} trainable parameters')
+                        
                         elif "TD3" in algorithm:
                             algorithm_path = algorithm.split('_noSL')[0]
                             load_model_path = f'./eval_models/{algorithm_path}/'
@@ -416,7 +438,7 @@ def evaluator():
                                               for p in model_parameters])
                                 print(
                                     f'Actor model has {params} trainable parameters')
-                        
+
                         elif "Traj" in algorithm:
                             algorithm_path = algorithm.split('_noSL')[0]
                             load_model_path = f'./eval_models/{algorithm_path}/'
@@ -533,7 +555,7 @@ def evaluator():
 
                                     stats = stats[0]
                                 elif "SAC" in algorithm or "TD3" in algorithm or \
-                                        "Traj" in algorithm or "LSTM-ModelBasedRL" in algorithm:
+                                        "mb_traj" in algorithm or "LSTM-ModelBasedRL" in algorithm:
                                     action = model.select_action(state,
                                                                 return_mapped_action=True)
 
