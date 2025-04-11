@@ -67,7 +67,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 100
+    n_test_cycles = 500
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -609,6 +609,7 @@ def evaluator():
                                                     'battery_degradation_calendar': stats['battery_degradation_calendar'],
                                                     'battery_degradation_cycling': stats['battery_degradation_cycling'],
                                                     'voltage_violation': stats['voltage_violation'],
+                                                    'voltage_violation_counter': stats['voltage_violation_counter'],
                                                     'total_reward': sum(rewards),
                                                     'time': time.time() - timer,
                                                     }, index=[counter])
@@ -688,7 +689,8 @@ def evaluator():
                            'total_energy_charged',
                            'total_energy_discharged',
                            'total_reward',
-                           'voltage_violation'
+                           'voltage_violation',
+                           'voltage_violation_counter'
                            ]])
 
     with gzip.open(save_path + 'plot_results_dict.pkl.gz', 'wb') as f:

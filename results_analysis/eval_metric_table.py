@@ -20,6 +20,7 @@ columns_to_keep = ['Algorithm',
                    'run',                   
                    'total_profits',
                    'voltage_violation',
+                   'voltage_violation_counter',
                    'average_user_satisfaction',                                      
                    'total_energy_charged',
                    'total_energy_discharged',
@@ -56,6 +57,8 @@ data_grouped['total_profits'] = data_grouped['total_profits']\
     .apply(lambda x: f"${x['mean']:.0f}$ ±${x['std']:.0f}$", axis=1)
 data_grouped['voltage_violation'] = data_grouped['voltage_violation']\
     .apply(lambda x: f"${x['mean']:.3f}$ ±${x['std']:.3f}$", axis=1)
+data_grouped['voltage_violation_counter'] = data_grouped['voltage_violation_counter']\
+    .apply(lambda x: f"${x['mean']:.1f}$ ±${x['std']:.1f}$", axis=1)
 data_grouped['total_reward'] = data_grouped['total_reward']\
     .apply(lambda x: f"${x['mean']/100000:.3f}$ ±${x['std']/100000:.3f}$", axis=1)
 data_grouped['time'] = data_grouped['time']\
@@ -72,9 +75,10 @@ data_grouped = data_grouped.loc[:, ~data_grouped.columns.duplicated()]
 # rename columns
 data_grouped.columns = ['Costs [€]',
                         'Voltage Violation [p.u.]',
+                        'V. V. Counter [-]',
                         'User Satisfaction [\%]',
-                        'Energy Charged [MWh]',
-                        'Energy Discharged [MWh]',
+                        'Energy Ch. [MWh]',
+                        'Energy Dis. [MWh]',
                         'Reward [-]',
                         'Step time [sec/step]',
                         ]
