@@ -10,17 +10,17 @@ learning_rate = 3e-5
 counter = 0
 # for policy in ['TD3', 'mb_traj', 'SAC']: # MB
 # for policy in ['mb_traj', 'SAC']: # MB
-for policy in ['mb_traj','SAC', 'TD3']:
+for policy in ['mb_traj', 'TD3','SAC']:
     for batch_size in [64]:
         for expl_noise in [0.1]:
-            for K in [1, 2, 5, 10, 25, 50]:  # 512
+            for K in [1, 2, 10, 50, 100]:  # 512
             # for K in [5, 25]:
                 for seed in [9]:
 
                     if policy != 'mb_traj' and K != 1:
                         continue
 
-                    command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
+                    command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research_gym.py' + \
                         ' --device cuda:0' + \
                         ' --expl_noise ' + str(expl_noise) + \
                         ' --batch_size=' + str(batch_size) + \
@@ -28,8 +28,8 @@ for policy in ['mb_traj','SAC', 'TD3']:
                         ' --policy ' + policy + \
                         ' --seed ' + str(seed) + \
                         ' --K ' + str(K) + \
-                        ' --group_name=150_FIXED_Length_grid_profitMax_tests' + \
-                        ' --name fixed_length' +\
+                        ' --group_name=ToyGymEnvsMountainCar' + \
+                        ' --name ' +\
                         f'{policy}' + \
                         '_K=' + str(K) + \
                         'reward=x10e4_batch_size=' + str(batch_size) + \

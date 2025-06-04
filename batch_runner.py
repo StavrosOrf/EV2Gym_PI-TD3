@@ -9,7 +9,7 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [50,60,70]
+seeds = [50, 60, 70]
 config = "v2g_grid_150.yaml"
 
 # if directory does not exist, create it
@@ -29,27 +29,24 @@ for algo in ['TD3']:
                 if K != 1 and algo != 'mb_traj':
                     continue
 
-                
-
-                
                 if K <= 5:
                     time = 10
                 else:
                     time = 15
-                
-                if K <=10:
+
+                if K <= 10:
                     cpu_cores = 2
                 else:
                     cpu_cores = 3
 
                 if time > 46:
                     time = 46
-                    
+
                 memory = 5300
 
                 run_name = f'{algo}_run_{seed}_K={K}_scenario={scenario}_'
                 run_name += str(random.randint(0, 100000))
-                
+
                 # gpu-a100, gpu
                 command = '''#!/bin/sh
 #!/bin/bash

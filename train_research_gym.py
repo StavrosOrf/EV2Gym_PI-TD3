@@ -11,11 +11,10 @@ from tqdm import tqdm
 import pickle
 import pandas as pd
 
-
 from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Action
 
 from envs.gym_envs import cartpole_reward, cartpole_transition, cartpole_is_terminal
-
+from envs.gym_envs_continue import mountaincar_continuous_transition_batch, mountaincar_continuous_reward_batch, mountaincar_continuous_is_terminal_batch
 from SAC.sac import SAC
 
 from TD3.TD3 import TD3
@@ -28,77 +27,37 @@ from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBu
 from gymnasium import Space
 from torch_geometric.data import Data
 
+
 def eval_policy(policy,
                 args,
-                eval_config,
-                config_file=None,
-                ):
-
-    eval_episodes = len(eval_config['eval_replays'])
-
-    # policy.actor.eval()
-
+                ):    
     avg_reward = 0.
+    episode_duration = 0
     stats_list = []
-    eval_stats = {}
-    for replay in tqdm(eval_config['eval_replays']):
-        replay = f'{eval_config["eval_path"]}{replay}'
-        eval_env = EV2Gym(config_file=config_file,
-                          load_from_replay_path=replay,
-                          state_function=eval_config['state_function'],
-                          reward_function=eval_config['reward_function'],
-                          )
+    eval_env = gym.make(args.scenario)
 
-        if args.discrete_actions == 3:
-            eval_env = ThreeStep_Action(eval_env)
-        elif args.discrete_actions == 2:
-            eval_env = TwoStep_Action(eval_env)
+    for i in tqdm(range(args.eval_episodes), desc="Evaluating"):
 
         state, _ = eval_env.reset()
         done = False
-        while not done:
+        truncated = False
+        counter = 0
+        while not done and not truncated:
             action = policy.select_action(state, return_mapped_action=True)
-            state, reward, done, _, stats = eval_env.step(action)
+            state, reward, done, truncated, stats = eval_env.step(action)            
+            
             avg_reward += reward
+            counter += 1
 
         stats_list.append(stats)
-
-    # get the mean and std of the stats
-    # for key in stats.keys():
-    #     eval_stats['eval_metrics/'+key +
-    #                '_mean'] = np.mean([x[key] for x in stats_list])
-    #     eval_stats['eval_metrics/'+key +
-    #                '_std'] = np.std([x[key] for x in stats_list])
-
-    keys_to_keep = [
-        'total_reward',
-        'total_profits',
-        'total_energy_charged',
-        'total_energy_discharged',
-        'average_user_satisfaction',
-        'min_user_satisfaction',
-        'voltage_violation'
-    ]
-
-    stats = {}
-    for key in stats_list[0].keys():
-        if "opt" in key:
-            key_name = "opt/" + key.split("opt_")[1]
-            if key.split("opt_")[1] not in keys_to_keep:
-                continue
-        else:
-            if key not in keys_to_keep:
-                continue
-            key_name = "eval/" + key
-        stats[key_name] = np.mean([stats_list[i][key]
-                                   for i in range(len(stats_list))])
-
-    avg_reward /= eval_episodes
+    
+    episode_duration = counter
+    avg_reward /= args.eval_episodes
 
     print("---------------------------------------")
-    print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
+    print(f"Evaluation over {args.eval_episodes} episodes: {avg_reward:.3f} lasted {episode_duration} steps")
     print("---------------------------------------")
-    return avg_reward, stats
+    return avg_reward, episode_duration
 
 
 if __name__ == "__main__":
@@ -109,11 +68,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # TD3, Traj, SAC, TD3_ActionGNN
     # TD3, Traj, SAC, TD3_ActionGNN, MB
-    parser.add_argument("--policy", default="mb_traj")
+    parser.add_argument("--policy", default="mb_traj",)
     parser.add_argument("--name", default="base")
-    parser.add_argument("--scenario", default="cartpole")
-    
-    parser.add_argument("--project_name", default="EVs4Grid")            
+    parser.add_argument("--scenario", default="MountainCarContinuous")
+
+    parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
@@ -123,14 +82,12 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    # DEVELOPMENT = True
-
     DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=96*2,
+        parser.add_argument("--start_timesteps", default=1000,
                             type=int)
         parser.add_argument('--eval_freq', default=96*5, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
@@ -138,20 +95,20 @@ if __name__ == "__main__":
         print(f' Switch to production mode by setting DEVELOPMENT = False')
     else:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
-        parser.add_argument("--eval_episodes", default=50, type=int)
+        parser.add_argument("--eval_episodes", default=1, type=int)
         parser.add_argument("--start_timesteps", default=5000,
                             type=int)  # original 25e5
-        parser.add_argument("--eval_freq", default=960,  # 2250
+        parser.add_argument("--eval_freq", default=1000,  # 2250
                             type=int)  # in episodes
-        parser.add_argument("--batch_size", default=64, type=int)  # 256
+        parser.add_argument("--batch_size", default=256, type=int)  # 256
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor
     # Target network update rate
     parser.add_argument("--tau", default=0.005, type=float)
     # TD3 parameters #############################################
-    parser.add_argument("--expl_noise", default=0.1, type=float)  # 0.1
-    parser.add_argument("--policy_noise", default=0.2)  # 0.2
+    parser.add_argument("--expl_noise", default=0.5, type=float)  # 0.1
+    parser.add_argument("--policy_noise", default=0.5)  # 0.2
     # Range to clip target policy noise
     parser.add_argument("--noise_clip", default=0.5)
     # Frequency of delayed policy updates
@@ -186,7 +143,7 @@ if __name__ == "__main__":
     # Physics loss #############################################
     parser.add_argument('--ph_coeff', type=float, default=10e-5)
 
-    parser.add_argument('--K', type=int, default=2)
+    parser.add_argument('--K', type=int, default=300)
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
     # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
@@ -220,25 +177,25 @@ if __name__ == "__main__":
         os.makedirs("./results")
 
     group_name = "50_advanced_tests"
-    
+
     if args.scenario == "cartpole":
         args.scenario = 'CartPole-v1'
         reward_function = cartpole_reward
         state_function = cartpole_transition
         terminal_function = cartpole_is_terminal
         simulation_length = 500
+        
+    elif args.scenario == "MountainCarContinuous":
+        args.scenario = 'MountainCarContinuous-v0'
+        reward_function = mountaincar_continuous_reward_batch
+        state_function = mountaincar_continuous_transition_batch
+        terminal_function = mountaincar_continuous_is_terminal_batch
+        simulation_length = 999
+    
     else:
         raise ValueError("Scenario not recognized.")
 
     env = gym.make(args.scenario)
-
-    # eval_config = {
-    #     'eval_path': eval_replay_path,
-    #     'eval_replays': eval_replay_files,
-    #     'state_function': state_function,
-    #     'reward_function': reward_function,
-    # }
-    # =========================================================================
 
     exp_prefix = args.exp_prefix
     if exp_prefix != "":
@@ -322,7 +279,7 @@ if __name__ == "__main__":
 
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
-        
+
     elif "SAC" in args.policy:
 
         kwargs["device"] = device
@@ -378,7 +335,6 @@ if __name__ == "__main__":
     else:
         raise ValueError("Policy not recognized.")
 
-
     best_reward = -np.Inf
     start_timestep_training = 0
     episode_num = -1
@@ -422,43 +378,23 @@ if __name__ == "__main__":
 
         episode_timesteps += 1
 
-        # Select action randomly or according to policy
-        if t < args.start_timesteps and args.policy != "TD3_ActionGNN" and args.policy != "SAC_ActionGNN":
-            action = env.action_space.sample()
-            next_state, reward, done, _, stats = env.step(action)
+        if "SAC" in args.policy:
+            action = policy.select_action(state, evaluate=False)
+            # Perform action
+            next_state, reward, done, truncated, stats = env.step(action)
+
+        elif args.policy == "TD3" or args.policy == "MB" or \
+                args.policy == "Traj" or args.policy == "mb_traj":
+            # Select action randomly or according to policy + add noise
+            action = (
+                policy.select_action(state)
+                + np.random.normal(0, max_action *
+                                    args.expl_noise, size=action_dim)
+            ).clip(-max_action, max_action)
+            # Perform action
+            next_state, reward, done, truncated, stats = env.step(action)
         else:
-
-            if args.policy == "TD3_ActionGNN":
-                mapped_action, action = policy.select_action(
-                    state, expl_noise=args.expl_noise)
-
-                # Perform action
-                next_state, reward, done, _, stats = env.step(mapped_action)
-
-            elif args.policy == "SAC_ActionGNN":
-                mapped_action, action = policy.select_action(state,
-                                                             evaluate=False,
-                                                             return_mapped_action=True)
-
-                # Perform action
-                next_state, reward, done, _, stats = env.step(mapped_action)
-            elif "SAC" in args.policy:
-                action = policy.select_action(state, evaluate=False)
-                # Perform action
-                next_state, reward, done, _, stats = env.step(action)
-
-            elif args.policy == "TD3" or args.policy == "MB" or \
-                    args.policy == "Traj" or args.policy == "mb_traj":
-                # Select action randomly or according to policy + add noise
-                action = (
-                    policy.select_action(state)
-                    + np.random.normal(0, max_action *
-                                       args.expl_noise, size=action_dim)
-                ).clip(-max_action, max_action)
-                # Perform action
-                next_state, reward, done, _, stats = env.step(action)
-            else:
-                raise ValueError("Policy not recognized.")
+            raise ValueError("Policy not recognized.")
 
         if args.policy != "Traj" and args.policy != "mb_traj":
             # Store data in replay buffer
@@ -508,7 +444,7 @@ if __name__ == "__main__":
                         'train/time': time.time() - start_time, },
                         step=t)
 
-        if done:
+        if done or truncated:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             print(
                 f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}" +
@@ -524,7 +460,7 @@ if __name__ == "__main__":
                                   action_traj,
                                   reward_traj,
                                   done_traj)
-                
+
                 action_traj = torch.zeros(
                     (simulation_length, action_dim)).to(device)
                 state_traj = torch.zeros(
@@ -545,10 +481,8 @@ if __name__ == "__main__":
         # Evaluate episode
         if (t + 1) % args.eval_freq == 0 and t + 100 >= args.start_timesteps:
 
-            avg_reward, eval_stats = eval_policy(policy=policy,
+            avg_reward, episode_duration = eval_policy(policy=policy,
                                                  args=args,
-                                                 eval_config=eval_config,
-                                                 config_file=config_file,
                                                  )
             evaluations.append(avg_reward)
 
@@ -559,10 +493,8 @@ if __name__ == "__main__":
 
             if args.log_to_wandb:
                 wandb.log({'eval_a/mean_reward': evaluations[-1],
-                           'eval_a/best_reward': best_reward, },
-                          step=t)
-
-                wandb.log(eval_stats,
+                           'eval_a/best_reward': best_reward,
+                           'eval_a/episode_duration': episode_duration},
                           step=t)
 
     if args.log_to_wandb:
