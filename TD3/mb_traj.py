@@ -35,6 +35,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, mlp_hidden_dim):
+        
         super(Critic, self).__init__()
 
         # Q1 architecture

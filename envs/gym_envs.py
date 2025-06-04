@@ -6,8 +6,8 @@ class EnvName(Enum):
     CARTPOLE = "CartPole-v1"
     # PENDULUM = "Pendulum-v1"
     MOUNTAINCAR = "MountainCar-v0"
-    ACROBOT = "Acrobot-v1"
-    LUNARLANDER = "LunarLander-v2"
+    # ACROBOT = "Acrobot-v1"
+    # LUNARLANDER = "LunarLander-v2"
 
 # ---------------------
 # Transition, Reward, and Terminal Functions
@@ -98,17 +98,100 @@ def mountaincar_is_terminal(state):
     position, _ = state
     return position >= 0.5
 
-def acrobot_transition(state, action):
-    from gym.envs.classic_control.acrobot import AcrobotEnv
-    env = AcrobotEnv()
-    return env._step(state, action)[0]  # Returns new state directly
+def wrap_angle(x):
+    """
+    Wrap x into [-π, π].
+    """
+    return ((x + np.pi) % (2 * np.pi)) - np.pi
+
+def acrobot_transition(obs, action):
+    """
+    Input:
+      obs     6‐vector = [cos θ₁, sin θ₁, cos θ₂, sin θ₂, θ̇₁, θ̇₂]
+      action  integer in {0,1,2}  (→ torque = {−1,0,+1})
+    Output:
+      next_obs 6‐vector = [cos θ₁′, sin θ₁′, cos θ₂′, sin θ₂′, θ̇₁′, θ̇₂′]
+    
+    This uses exactly the same forward‐Euler dynamics (τ = 0.2 s, torque = ±1 Nm) as Gym’s AcrobotEnv.
+    """
+    print(f'state: {obs}')
+    # 1) Unpack incoming observation
+    c1, s1, c2, s2, θ1_dot, θ2_dot = np.asarray(obs, dtype=float).ravel()
+    # Recover the “raw” angles via atan2:
+    θ1 = np.arctan2(s1, c1)
+    θ2 = np.arctan2(s2, c2)
+
+    # 2) Physical constants (identical to Gym’s AcrobotEnv)
+    m1 = 1.0
+    m2 = 1.0
+    l1 = 1.0
+    l2 = 1.0
+    lc1 = 0.5
+    lc2 = 0.5
+    I1 = 1.0
+    I2 = 1.0
+    g = 9.8
+    torque_mag = 1.0
+    τ = 0.2
+
+    # 3) Map discrete action ∈ {0,1,2} to continuous torque ∈ {−1,0,+1}
+    torque = (int(action) - 1) * torque_mag
+
+    # 4) Compute common terms (exactly as in Gym’s source)
+    d1 = (
+        m1 * lc1**2
+        + m2 * (l1**2 + lc2**2 + 2 * l1 * lc2 * np.cos(θ2))
+        + I1
+        + I2
+    )
+    d2 = m2 * (lc2**2 + l1 * lc2 * np.cos(θ2)) + I2
+
+    phi2 = m2 * lc2 * g * np.cos(θ1 + θ2 - np.pi / 2.0)
+    phi1 = (
+        -m2 * l1 * lc2 * (θ2_dot**2) * np.sin(θ2)
+        - 2 * m2 * l1 * lc2 * θ1_dot * θ2_dot * np.sin(θ2)
+        + (m1 * lc1 + m2 * l1) * g * np.cos(θ1 - np.pi / 2.0)
+        + phi2
+    )
+
+    θ2_dd = (
+        torque + (d2 / d1) * phi1 - phi2
+    ) / (m2 * lc2**2 + I2 - d2**2 / d1)
+    θ1_dd = -(d2 * θ2_dd + phi1) / d1
+
+    # 5) Forward‐Euler integration
+    new_θ1_dot = θ1_dot + θ1_dd * τ
+    new_θ2_dot = θ2_dot + θ2_dd * τ
+    new_θ1 = wrap_angle(θ1 + new_θ1_dot * τ)
+    new_θ2 = wrap_angle(θ2 + new_θ2_dot * τ)
+
+    # 6) Build the next observation (cos/sin + velocities)
+    next_c1 = np.cos(new_θ1)
+    next_s1 = np.sin(new_θ1)
+    next_c2 = np.cos(new_θ2)
+    next_s2 = np.sin(new_θ2)
+
+    return np.array([next_c1, next_s1, next_c2, next_s2, new_θ1_dot, new_θ2_dot])
+
 
 def acrobot_reward(state, action):
+    """
+    Stateless reward: −1.0 per time step, matching Gym’s default.
+    """
     return -1.0
 
+
 def acrobot_is_terminal(state):
-    theta1, theta2, _, _ = state
-    return -np.cos(theta1) - np.cos(theta1 + theta2) > 1.0
+    """
+    Terminal condition when the “tip height” exceeds the threshold:
+      -cos(θ1) - cos(θ1 + θ2) > 1.0
+    This is exactly Gym’s test for “has the end-effector reached the goal?”
+    """
+    arr = np.asarray(state, dtype=float).ravel()
+   # Recover angles
+    θ1 = np.arctan2(arr[1], arr[0])  # atan2(sin θ₁, cos θ₁)
+    θ2 = np.arctan2(arr[3], arr[2])  # atan2(sin θ₂, cos θ₂)
+    return (-np.cos(θ1) - np.cos(θ1 + θ2)) > 1.0
 
 def lunarlander_transition(state, action):
     from gym.envs.box2d.lunar_lander import LunarLander
@@ -155,31 +238,31 @@ def test_environment(env_name: EnvName):
         EnvName.CARTPOLE: cartpole_transition,
         # EnvName.PENDULUM: pendulum_transition,
         EnvName.MOUNTAINCAR: mountaincar_transition,
-        EnvName.ACROBOT: acrobot_transition,
-        EnvName.LUNARLANDER: lunarlander_transition,
+        # EnvName.ACROBOT: acrobot_transition,
+        # EnvName.LUNARLANDER: lunarlander_transition,
     }[env_name]
 
     reward_fn = {
         EnvName.CARTPOLE: cartpole_reward,
         # EnvName.PENDULUM: pendulum_reward,
         EnvName.MOUNTAINCAR: mountaincar_reward,
-        EnvName.ACROBOT: acrobot_reward,
-        EnvName.LUNARLANDER: lunarlander_reward,
+        # EnvName.ACROBOT: acrobot_reward,
+        # EnvName.LUNARLANDER: lunarlander_reward,
     }[env_name]
 
     done_fn = {
         EnvName.CARTPOLE: cartpole_is_terminal,
         # EnvName.PENDULUM: pendulum_is_terminal,
         EnvName.MOUNTAINCAR: mountaincar_is_terminal,
-        EnvName.ACROBOT: acrobot_is_terminal,
-        EnvName.LUNARLANDER: lunarlander_is_terminal,
+        # EnvName.ACROBOT: acrobot_is_terminal,
+        # EnvName.LUNARLANDER: lunarlander_is_terminal,
     }[env_name]
 
-    for i in range(200):
+    for i in range(2000):
         print(f"\n{env_name.value}| Step: {i}")
         action = env.action_space.sample()
         next_obs, reward, terminated, truncated, _ = env.step(action)
-        done = terminated or truncated
+        done = terminated                
 
         # if env_name == EnvName.PENDULUM:
         #     next_state = np.array([np.arctan2(next_obs[1], next_obs[0]), next_obs[2]])            
@@ -208,6 +291,10 @@ def test_environment(env_name: EnvName):
         state = custom_next_state
         if done:
             print("Episode ended early due to terminal state.")
+            break
+        
+        if truncated:
+            print("Episode ended early due to truncated state.")
             break
 
 # ---------------------
