@@ -25,7 +25,8 @@ from SAC.sac import SAC
 from TD3.TD3 import TD3
 from TD3.TD3_ActionGNN import TD3_ActionGNN
 from TD3.traj import Traj
-from TD3.mb_traj import MB_Traj
+from TD3.mb_traj_TD3 import MB_Traj
+from TD3.mb_traj_DDPG import MB_Traj_DDPG
 from TD3.mb import MB
 
 from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBuffer
@@ -128,9 +129,11 @@ if __name__ == "__main__":
     run_timer = time.time()
 
     parser = argparse.ArgumentParser()
-    # TD3, Traj, SAC, TD3_ActionGNN
-    # TD3, Traj, SAC, TD3_ActionGNN, MB
-    parser.add_argument("--policy", default="mb_traj")
+    
+    # SAC
+    # REINFORCE
+    # mb_traj, mb_traj_DDPG
+    parser.add_argument("--policy", default="REINFORCE")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="v2g")
     
@@ -213,6 +216,10 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
     # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
+    #add bollean argument to enable/disable critic
+    parser.add_argument('--disable_critic', action='store_true', help='Enable critic in the policy.')
+
+    
 
     # GNN Feature Extractor Parameters #############################################
     parser.add_argument('--fx_dim', type=int, default=8)
@@ -576,6 +583,7 @@ if __name__ == "__main__":
         kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
+        kwargs['critic_enabled'] = not args.disable_critic
 
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
@@ -584,6 +592,35 @@ if __name__ == "__main__":
         os.system(f'cp TD3/traj.py {save_path}')
 
         policy = MB_Traj(**kwargs)
+        replay_buffer = Trajectory_ReplayBuffer(state_dim,
+                                                action_dim,
+                                                max_episode_length=simulation_length,)
+        
+    elif args.policy == "mb_traj_DDPG":
+
+        state_dim = env.observation_space.shape[0]
+        # Target policy smoothing is scaled wrt the action scale
+        kwargs["policy_noise"] = args.policy_noise * max_action
+        kwargs["noise_clip"] = args.noise_clip * max_action
+        kwargs["policy_freq"] = args.policy_freq
+        kwargs["device"] = device
+        kwargs['state_dim'] = state_dim
+        kwargs['load_path'] = load_path
+
+        kwargs['loss_fn'] = loss_fn
+        kwargs['ph_coeff'] = args.ph_coeff
+        kwargs['transition_fn'] = transition_fn
+        kwargs['look_ahead'] = args.K
+        kwargs['lr'] = args.lr
+        kwargs['dropout'] = args.dropout
+
+        # Save kwargs to local path
+        with open(f'{save_path}/kwargs.yaml', 'w') as file:
+            yaml.dump(kwargs, file)
+
+        os.system(f'cp TD3/mb_traj_DDPG.py {save_path}')
+
+        policy = MB_Traj_DDPG(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 max_episode_length=simulation_length,)
@@ -635,7 +672,7 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    if args.policy == "Traj" or args.policy == "mb_traj":
+    if args.policy == "Traj" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
         action_traj = torch.zeros((simulation_length, action_dim)).to(device)
         state_traj = torch.zeros((simulation_length, state_dim)).to(device)
         done_traj = torch.zeros((simulation_length, 1)).to(device)
@@ -675,7 +712,7 @@ if __name__ == "__main__":
                 next_state, reward, done, _, stats = env.step(action)
 
             elif args.policy == "TD3" or args.policy == "MB" or \
-                    args.policy == "Traj" or args.policy == "mb_traj":
+                    args.policy == "Traj" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
                 # Select action randomly or according to policy + add noise
                 action = (
                     policy.select_action(state)
@@ -687,7 +724,7 @@ if __name__ == "__main__":
             else:
                 raise ValueError("Policy not recognized.")
 
-        if args.policy != "Traj" and args.policy != "mb_traj":
+        if args.policy != "Traj" and args.policy != "mb_traj" and args.policy != "mb_traj_DDPG":
             # Store data in replay buffer
             # print(f"state: {state}, action: {action}, next_state: {next_state}, reward: {reward}, done: {done}")
             replay_buffer.add(state, action, next_state, reward, float(done))
@@ -745,7 +782,7 @@ if __name__ == "__main__":
             ep_start_time = time.time()
             done = False
 
-            if args.policy == "Traj" or args.policy == "mb_traj":
+            if args.policy == "Traj" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
                 # Store trajectory in replay buffer
                 replay_buffer.add(state_traj,
                                   action_traj,

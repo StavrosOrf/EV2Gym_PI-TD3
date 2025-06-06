@@ -13,7 +13,7 @@ from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
 
 from TD3.TD3 import TD3
 from TD3.traj import Traj
-from TD3.mb_traj import MB_Traj
+from TD3.mb_traj_TD3 import MB_Traj
 
 from DT.load_model import load_DT_model
 from DT.evaluation.evaluate_episodes import evaluate_episode_rtg_from_replays

@@ -19,7 +19,7 @@ from SAC.sac import SAC
 
 from TD3.TD3 import TD3
 from TD3.traj import Traj
-from TD3.mb_traj import MB_Traj
+from TD3.mb_traj_TD3 import MB_Traj
 from TD3.mb import MB
 
 from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBuffer
@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)

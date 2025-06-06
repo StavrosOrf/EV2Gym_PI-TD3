@@ -6,33 +6,48 @@ import os
 import time
 
 learning_rate = 3e-5
-
+# scenario = "grid_v2g_profitmax"
+scenario = "v2g_profitmax"
 counter = 0
-# for policy in ['TD3', 'mb_traj', 'SAC']: # MB
-# for policy in ['mb_traj', 'SAC']: # MB
-for policy in ['mb_traj','SAC', 'TD3']:
-    for batch_size in [64]:
-        for expl_noise in [0.1]:
-            for K in [1, 2, 5, 10, 25, 50]:  # 512
-            # for K in [5, 25]:
-                for seed in [9]:
 
-                    if policy != 'mb_traj' and K != 1:
+# for policy in ['TD3', 'mb_traj', 'SAC']: # MB mb_traj_DDPG
+# for policy in ['mb_traj', 'SAC']: # MB
+for policy in ['mb_traj', 'TD3', 'mb_traj_DDPG']:
+    for batch_size in [64]:
+        for critic in [True, False]:
+            for K in [1, 2, 10, 20]:  # 512
+                for seed in [9]:
+                    
+                    if not critic and policy != 'mb_traj':
                         continue
+
+                    if (policy != 'mb_traj' and policy != 'mb_traj_DDPG') and K != 1:
+                        continue
+                    
+                    if policy == 'mb_traj_DDPG' and K not in [2, 20]:
+                        continue
+
+                    extra_args = ''
+
+                    if not critic:
+
+                        extra_args = ' --disable_critic'
 
                     command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
                         ' --device cuda:0' + \
-                        ' --expl_noise ' + str(expl_noise) + \
-                        ' --batch_size=' + str(batch_size) + \
+                        ' --scenario ' + scenario + \
+                        ' --batch_size ' + str(batch_size) + \
                         ' --lr ' + str(learning_rate) + \
                         ' --policy ' + policy + \
                         ' --seed ' + str(seed) + \
                         ' --K ' + str(K) + \
-                        ' --group_name=150_FIXED_Length_grid_profitMax_tests' + \
-                        ' --name fixed_length' +\
+                        extra_args + \
+                        ' --group_name "AblationTests"' + \
+                        ' --name ' +\
+                        f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \
-                        'reward=x10e4_batch_size=' + str(batch_size) + \
+                        '_batch_size=' + str(batch_size) + \
                         '_seed=' + str(seed) + \
                         '" Enter'
                     os.system(command=command)
