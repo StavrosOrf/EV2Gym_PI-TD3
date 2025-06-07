@@ -221,7 +221,8 @@ class Trajectory_ReplayBuffer(object):
     def sample_new(self, batch_size):
         ind = np.random.randint(0, self.size, size=batch_size)
         start = np.random.randint(
-            2, self.max_length - 2, size=batch_size)
+            1, self.max_length - 1, size=batch_size)
+            # 2, self.max_length - 2, size=batch_size)
         
 
         # Ensure ind, start, and end are integers

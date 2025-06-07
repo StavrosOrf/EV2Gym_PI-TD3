@@ -6,13 +6,13 @@ import os
 import time
 
 learning_rate = 3e-5
-# scenario = "grid_v2g_profitmax"
-scenario = "v2g_profitmax"
+scenario = "grid_v2g_profitmax"
+# scenario = "v2g_profitmax"
 counter = 0
 
 # for policy in ['TD3', 'mb_traj', 'SAC']: # MB mb_traj_DDPG
 # for policy in ['mb_traj', 'SAC']: # MB
-for policy in ['mb_traj', 'TD3', 'mb_traj_DDPG']:
+for policy in ['mb_traj', 'TD3',]:
     for batch_size in [64]:
         for critic in [True, False]:
             for K in [1, 2, 10, 20]:  # 512
@@ -43,7 +43,7 @@ for policy in ['mb_traj', 'TD3', 'mb_traj_DDPG']:
                         ' --K ' + str(K) + \
                         extra_args + \
                         ' --group_name "AblationTests"' + \
-                        ' --name ' +\
+                        ' --name LookaheadReward_' +\
                         f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \

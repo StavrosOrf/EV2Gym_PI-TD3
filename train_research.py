@@ -129,15 +129,15 @@ if __name__ == "__main__":
     run_timer = time.time()
 
     parser = argparse.ArgumentParser()
-    
+
     # SAC
     # REINFORCE
     # mb_traj, mb_traj_DDPG
-    parser.add_argument("--policy", default="REINFORCE")
+    parser.add_argument("--policy", default="mb_traj")
     parser.add_argument("--name", default="base")
-    parser.add_argument("--scenario", default="v2g")
-    
-    parser.add_argument("--project_name", default="EVs4Grid")            
+    parser.add_argument("--scenario", default="v2g_profitmax")
+
+    parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
     parser.add_argument("--config", default="v2g_grid_150.yaml")
     # parser.add_argument("--config", default="v2g_grid_3.yaml")
@@ -212,14 +212,16 @@ if __name__ == "__main__":
     # Physics loss #############################################
     parser.add_argument('--ph_coeff', type=float, default=10e-5)
 
-    parser.add_argument('--K', type=int, default=2)
+    parser.add_argument('--K', type=int, default=10)
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
     # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
-    #add bollean argument to enable/disable critic
-    parser.add_argument('--disable_critic', action='store_true', help='Enable critic in the policy.')
+    # add bollean argument to enable/disable critic
+    parser.add_argument('--disable_critic', action='store_true',
+                        help='Enable critic in the policy.')
+    parser.add_argument('--disable_lookahead_critic_reward', action='store_true')
 
-    
+
 
     # GNN Feature Extractor Parameters #############################################
     parser.add_argument('--fx_dim', type=int, default=8)
@@ -255,12 +257,12 @@ if __name__ == "__main__":
         os.makedirs("./results")
 
     group_name = "50_advanced_tests"
-    
+
     if args.scenario == "v2g":
         reward_function = V2G_costs_simple
-    elif args.scenario == "v2g_profitmax": 
-        reward_function = V2G_profitmaxV2    
-    elif args.scenario == "grid_v2g_profitmax": 
+    elif args.scenario == "v2g_profitmax":
+        reward_function = V2G_profitmaxV2
+    elif args.scenario == "grid_v2g_profitmax":
         reward_function = Grid_V2G_profitmaxV2
     else:
         raise ValueError("Scenario not recognized.")
@@ -276,7 +278,7 @@ if __name__ == "__main__":
                       kwargs={'config_file': config_file,
                               'reward_function': reward_function,
                               'state_function': state_function,
-                            #   'load_from_replay_path': replay_path,
+                              #   'load_from_replay_path': replay_path,
                               })
 
     env = gym.make('evs-v1')
@@ -353,7 +355,7 @@ if __name__ == "__main__":
         device=device,
         verbose=False,
     )
-    
+
     if args.scenario == "v2g":
         loss_fn = loss_fn.V2G_simpleV2
     elif args.scenario == "v2g_profitmax":
@@ -584,6 +586,7 @@ if __name__ == "__main__":
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
         kwargs['critic_enabled'] = not args.disable_critic
+        kwargs['lookahead_critic_reward'] = not args.disable_lookahead_critic_reward
 
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
@@ -595,7 +598,7 @@ if __name__ == "__main__":
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 max_episode_length=simulation_length,)
-        
+
     elif args.policy == "mb_traj_DDPG":
 
         state_dim = env.observation_space.shape[0]
@@ -788,7 +791,7 @@ if __name__ == "__main__":
                                   action_traj,
                                   reward_traj,
                                   done_traj)
-                
+
                 action_traj = torch.zeros(
                     (simulation_length, action_dim)).to(device)
                 state_traj = torch.zeros(

@@ -35,7 +35,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, mlp_hidden_dim):
-        
+
         super(Critic, self).__init__()
 
         # Q1 architecture
@@ -86,6 +86,7 @@ class MB_Traj(object):
             transition_fn=None,
             look_ahead=2,
             critic_enabled=True,
+            lookahead_critic_reward=True,
             **kwargs
     ):
 
@@ -115,7 +116,8 @@ class MB_Traj(object):
         self.loss_fn = loss_fn
         self.transition_fn = transition_fn
         self.critic_enabled = critic_enabled
-        
+        self.lookahead_critic_reward = lookahead_critic_reward
+
         self.total_it = 0
         self.loss_dict = {
             'critic_loss': 0,
@@ -149,23 +151,32 @@ class MB_Traj(object):
                     torch.randn_like(actions[:, 0, :]) * self.policy_noise
                 ).clamp(-self.noise_clip, self.noise_clip)
 
-                next_state = states[:, 1, :]
-                not_done = 1 - dones[:, 0]
-                reward = rewards[:, 0]
+                if self.lookahead_critic_reward:
+                    next_state = states[:, self.look_ahead, :] # +1
+                    not_done = 1 - dones[:, self.look_ahead - 1] #wiothout -1
+                    # reward is the sum of rewards for the lookahead steps
+                    # / self.look_ahead
+                    reward = torch.sum(rewards[:, :self.look_ahead], dim=1)
+                else:
+                    next_state = states[:, 1, :]
+                    not_done = 1 - dones[:, 0]
+                    reward = rewards[:, 0]
 
                 next_action = (
                     self.actor_target(next_state) + noise
                 ).clamp(-self.max_action, self.max_action)
 
                 # Compute the target Q value
-                target_Q1, target_Q2 = self.critic_target(next_state, next_action)
+                target_Q1, target_Q2 = self.critic_target(
+                    next_state, next_action)
                 target_Q = torch.min(target_Q1, target_Q2)
 
-                target_Q = reward + self.discount * not_done * target_Q.view(-1)
+                target_Q = reward + self.discount * \
+                    not_done * target_Q.view(-1)
 
             # Get current Q estimates
             current_Q1, current_Q2 = self.critic(states[:, 0, :],
-                                                actions[:, 0, :])
+                                                 actions[:, 0, :])
 
             # Compute critic loss
             critic_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
