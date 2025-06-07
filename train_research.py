@@ -149,8 +149,6 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    # DEVELOPMENT = True
-
     DEVELOPMENT = True
 
     if DEVELOPMENT:
@@ -219,7 +217,7 @@ if __name__ == "__main__":
     # add bollean argument to enable/disable critic
     parser.add_argument('--disable_critic', action='store_true',
                         help='Enable critic in the policy.')
-    parser.add_argument('--disable_lookahead_critic_reward', action='store_true')
+    parser.add_argument('--lookahead_critic_reward',type=int, default=2)
 
 
 
@@ -586,7 +584,7 @@ if __name__ == "__main__":
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
         kwargs['critic_enabled'] = not args.disable_critic
-        kwargs['lookahead_critic_reward'] = not args.disable_lookahead_critic_reward
+        kwargs['lookahead_critic_reward'] = args.lookahead_critic_reward
 
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:

@@ -86,7 +86,7 @@ class MB_Traj(object):
             transition_fn=None,
             look_ahead=2,
             critic_enabled=True,
-            lookahead_critic_reward=True,
+            lookahead_critic_reward=1,
             **kwargs
     ):
 
@@ -151,17 +151,43 @@ class MB_Traj(object):
                     torch.randn_like(actions[:, 0, :]) * self.policy_noise
                 ).clamp(-self.noise_clip, self.noise_clip)
 
-                if self.lookahead_critic_reward:
-                    next_state = states[:, self.look_ahead, :] # +1
-                    not_done = 1 - dones[:, self.look_ahead - 1] #without -1
-                    # reward is the sum of rewards for the lookahead steps
-                    # / self.look_ahead
-                    # create a discount vector for the rewards
+                if self.lookahead_critic_reward == 0:
+                    next_state = states[:, self.look_ahead, :]  # +1
+                    not_done = 1 - dones[:, self.look_ahead - 1]  # without -1
                     discount_vector = torch.tensor(
                         [self.discount**(i-1) for i in range(self.look_ahead)],
                         device=states.device).view(1, -1)
                     rewards = rewards[:, :self.look_ahead] * discount_vector
                     reward = torch.sum(rewards[:, :self.look_ahead], dim=1)
+
+                elif self.lookahead_critic_reward == 1:
+
+                    state_pred = states[:, 0, :]
+                    total_reward = torch.zeros(
+                        states.shape[0], device=states.device)
+
+                    for i in range(0, self.look_ahead):
+
+                        done = dones[:, i]
+
+                        discount = self.discount**i
+
+                        action_vector = self.actor_target(state_pred)
+
+                        reward_pred = self.loss_fn(state=state_pred,
+                                                   action=action_vector)
+
+                        state_pred = self.transition_fn(state=state_pred,
+                                                        new_state=states[:,
+                                                                         i+1, :],
+                                                        action=action_vector)
+
+                        total_reward += discount * reward_pred * \
+                            (torch.ones_like(done) - done)
+                            
+                    next_state = state_pred
+                    not_done = 1 - dones[:, self.look_ahead - 1]
+
                 else:
                     next_state = states[:, 1, :]
                     not_done = 1 - dones[:, 0]
@@ -175,9 +201,14 @@ class MB_Traj(object):
                 target_Q1, target_Q2 = self.critic_target(
                     next_state, next_action)
                 target_Q = torch.min(target_Q1, target_Q2)
-                if self.lookahead_critic_reward:
+
+                if self.lookahead_critic_reward == 0:
                     target_Q = reward + self.discount**(self.look_ahead) * \
-                        not_done * target_Q.view(-1) 
+                        not_done * target_Q.view(-1)
+                        
+                elif self.lookahead_critic_reward == 1:
+                    target_Q = total_reward + self.discount**(self.look_ahead) * \
+                        not_done * target_Q.view(-1)
                 else:
                     target_Q = reward + self.discount * \
                         not_done * target_Q.view(-1)
