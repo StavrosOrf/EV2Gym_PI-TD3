@@ -155,20 +155,20 @@ class Trajectory_ReplayBuffer(object):
                  state_dim,
                  action_dim,
                  max_episode_length,
+                 device=None,
                  max_size=int(1e4)):
         
         self.max_size = max_size
         self.ptr = 0
         self.size = 0
-        self.max_length = max_episode_length
+        self.max_length = max_episode_length        
 
         self.state = torch.zeros((max_size, max_episode_length, state_dim))
         self.action = torch.zeros((max_size, max_episode_length, action_dim))
         self.rewards = torch.zeros((max_size, max_episode_length))
         self.dones = torch.zeros((max_size, max_episode_length))        
 
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device
 
     def add(self, state, action, reward, done):
         self.state[self.ptr, :, :] = state

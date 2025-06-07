@@ -12,10 +12,10 @@ counter = 0
 
 # for policy in ['TD3', 'mb_traj', 'SAC']: # MB mb_traj_DDPG
 # for policy in ['mb_traj', 'SAC']: # MB
-for policy in ['mb_traj', 'TD3',]:
+for policy in ['mb_traj']:
     for batch_size in [64]:
-        for critic in [True, False]:
-            for K in [1, 2, 10, 20]:  # 512
+        for critic in [True]:
+            for K in [1, 2, 10, 20, 40]:  # 512
                 for seed in [9]:
                     
                     if not critic and policy != 'mb_traj':
@@ -33,8 +33,9 @@ for policy in ['mb_traj', 'TD3',]:
 
                         extra_args = ' --disable_critic'
 
-                    command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
-                        ' --device cuda:0' + \
+                    # command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
+                    command = 'tmux new-session -d \; send-keys " /home/sorfanoudakis/.conda/envs/dt/bin/python train_research.py' + \
+                        ' --device cuda:1' + \
                         ' --scenario ' + scenario + \
                         ' --batch_size ' + str(batch_size) + \
                         ' --lr ' + str(learning_rate) + \
@@ -42,8 +43,9 @@ for policy in ['mb_traj', 'TD3',]:
                         ' --seed ' + str(seed) + \
                         ' --K ' + str(K) + \
                         extra_args + \
+                        ' --lookahead_critic_reward 1' + \
                         ' --group_name "AblationTests"' + \
-                        ' --name LookaheadReward_' +\
+                        ' --name VB_FullNoise_LookaheadReward_' +\
                         f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \

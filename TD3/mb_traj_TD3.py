@@ -72,6 +72,7 @@ class MB_Traj(object):
             state_dim,
             action_dim,
             max_action,
+            device,
             ph_coeff=1,
             discount=0.99,
             tau=0.005,
@@ -84,18 +85,17 @@ class MB_Traj(object):
             look_ahead=2,
             critic_enabled=True,
             lookahead_critic_reward=1,
-            device='cuda:0',
             **kwargs
     ):
 
         self.actor = Actor(state_dim, action_dim, max_action,
                            mlp_hidden_dim).to(device)
-        self.actor_target = copy.deepcopy(self.actor)
+        self.actor_target = copy.deepcopy(self.actor).to(device)
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=3e-4)
 
         self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
-        self.critic_target = copy.deepcopy(self.critic)
+        self.critic_target = copy.deepcopy(self.critic).to(device)
         self.critic_optimizer = torch.optim.Adam(
             self.critic.parameters(), lr=3e-4)
 
@@ -146,12 +146,14 @@ class MB_Traj(object):
         if self.critic_enabled:
             with torch.no_grad():
                 # Select action according to policy and add clipped noise
-                noise = (
-                    torch.randn_like(
-                        actions[:, 0, :], device=self.device) * self.policy_noise
-                ).clamp(-self.noise_clip, self.noise_clip)
 
                 if self.lookahead_critic_reward == 0:
+
+                    noise = (
+                        torch.randn_like(
+                            actions[:, 0, :], device=self.device) * self.policy_noise
+                    ).clamp(-self.noise_clip, self.noise_clip)
+
                     next_state = states[:, self.look_ahead, :]  # +1
                     not_done = 1 - dones[:, self.look_ahead - 1]  # without -1
                     discount_vector = torch.tensor(
@@ -161,6 +163,11 @@ class MB_Traj(object):
                     reward = torch.sum(rewards[:, :self.look_ahead], dim=1)
 
                 elif self.lookahead_critic_reward == 1:
+
+                    noise = (
+                        torch.randn_like(
+                            actions[:, :self.look_ahead, :], device=self.device) * self.policy_noise
+                    ).clamp(-self.noise_clip, self.noise_clip)
 
                     state_pred = states[:, 0, :]
                     total_reward = torch.zeros(
@@ -172,7 +179,10 @@ class MB_Traj(object):
 
                         discount = self.discount**i
 
-                        action_vector = self.actor_target(state_pred)
+                        # action_vector = self.actor_target(state_pred)
+                        action_vector = (
+                            self.actor_target(state_pred) + noise[:, i, :]
+                        ).clamp(-self.max_action, self.max_action)
 
                         reward_pred = self.loss_fn(state=state_pred,
                                                    action=action_vector)
@@ -187,8 +197,13 @@ class MB_Traj(object):
 
                     next_state = state_pred
                     not_done = 1 - dones[:, self.look_ahead - 1]
+                    noise = noise[:, -1, :]
 
                 else:
+                    noise = (
+                        torch.randn_like(
+                            actions[:, 0, :], device=self.device) * self.policy_noise
+                    ).clamp(-self.noise_clip, self.noise_clip)
                     next_state = states[:, 1, :]
                     not_done = 1 - dones[:, 0]
                     reward = rewards[:, 0]
@@ -294,7 +309,8 @@ class MB_Traj(object):
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \
                     self.critic.Q1(state_pred, next_action).view(-1) *\
-                    (torch.ones_like(done, device=self.device) - dones[:, self.look_ahead])
+                    (torch.ones_like(done, device=self.device) -
+                     dones[:, self.look_ahead])
 
             actor_loss = actor_loss.mean()
 

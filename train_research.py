@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     # add bollean argument to enable/disable critic
     parser.add_argument('--disable_critic', action='store_true',
                         help='Enable critic in the policy.')
-    parser.add_argument('--lookahead_critic_reward',type=int, default=2)
+    parser.add_argument('--lookahead_critic_reward',type=int, default=1)
 
 
 
@@ -236,8 +236,7 @@ if __name__ == "__main__":
     if args.discrete_actions > 1 and args.policy != "TD3_ActionGNN":
         raise ValueError(f"{args.policy} does not support discrete actions.")
 
-    device = args.device
-    device = device if torch.cuda.is_available() else 'cpu'
+    device = args.device    
     print(f'device: {device}')
 
     replay_buffer_size = int(args.replay_buffer_size)
@@ -590,11 +589,12 @@ if __name__ == "__main__":
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
 
-        os.system(f'cp TD3/traj.py {save_path}')
+        os.system(f'cp TD3/mb_traj_TD3.py {save_path}')
 
         policy = MB_Traj(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
+                                                device=device,
                                                 max_episode_length=simulation_length,)
 
     elif args.policy == "mb_traj_DDPG":
