@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     # DEVELOPMENT = True
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)

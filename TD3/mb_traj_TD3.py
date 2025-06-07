@@ -153,9 +153,14 @@ class MB_Traj(object):
 
                 if self.lookahead_critic_reward:
                     next_state = states[:, self.look_ahead, :] # +1
-                    not_done = 1 - dones[:, self.look_ahead - 1] #wiothout -1
+                    not_done = 1 - dones[:, self.look_ahead - 1] #without -1
                     # reward is the sum of rewards for the lookahead steps
                     # / self.look_ahead
+                    # create a discount vector for the rewards
+                    discount_vector = torch.tensor(
+                        [self.discount**(i-1) for i in range(self.look_ahead)],
+                        device=states.device).view(1, -1)
+                    rewards = rewards[:, :self.look_ahead] * discount_vector
                     reward = torch.sum(rewards[:, :self.look_ahead], dim=1)
                 else:
                     next_state = states[:, 1, :]
@@ -170,9 +175,12 @@ class MB_Traj(object):
                 target_Q1, target_Q2 = self.critic_target(
                     next_state, next_action)
                 target_Q = torch.min(target_Q1, target_Q2)
-
-                target_Q = reward + self.discount * \
-                    not_done * target_Q.view(-1)
+                if self.lookahead_critic_reward:
+                    target_Q = reward + self.discount**(self.look_ahead) * \
+                        not_done * target_Q.view(-1) 
+                else:
+                    target_Q = reward + self.discount * \
+                        not_done * target_Q.view(-1)
 
             # Get current Q estimates
             current_Q1, current_Q2 = self.critic(states[:, 0, :],
