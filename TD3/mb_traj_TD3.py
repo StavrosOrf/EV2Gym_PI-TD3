@@ -9,9 +9,6 @@ from torch_geometric.nn import GCNConv, GlobalAttention, GATConv
 
 import torch_geometric.transforms as T
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
 # Paper: https://arxiv.org/abs/1802.09477
 
@@ -87,6 +84,7 @@ class MB_Traj(object):
             look_ahead=2,
             critic_enabled=True,
             lookahead_critic_reward=1,
+            device='cuda:0',
             **kwargs
     ):
 
@@ -124,9 +122,10 @@ class MB_Traj(object):
             'physics_loss': 0,
             'actor_loss': 0
         }
+        self.device = device
 
     def select_action(self, state, **kwargs):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         return self.actor(state).cpu().data.numpy().flatten()
 
     def train(self, replay_buffer, batch_size=256):
@@ -148,7 +147,8 @@ class MB_Traj(object):
             with torch.no_grad():
                 # Select action according to policy and add clipped noise
                 noise = (
-                    torch.randn_like(actions[:, 0, :]) * self.policy_noise
+                    torch.randn_like(
+                        actions[:, 0, :], device=self.device) * self.policy_noise
                 ).clamp(-self.noise_clip, self.noise_clip)
 
                 if self.lookahead_critic_reward == 0:
@@ -183,8 +183,8 @@ class MB_Traj(object):
                                                         action=action_vector)
 
                         total_reward += discount * reward_pred * \
-                            (torch.ones_like(done) - done)
-                            
+                            (torch.ones_like(done, device=self.device) - done)
+
                     next_state = state_pred
                     not_done = 1 - dones[:, self.look_ahead - 1]
 
@@ -205,7 +205,7 @@ class MB_Traj(object):
                 if self.lookahead_critic_reward == 0:
                     target_Q = reward + self.discount**(self.look_ahead) * \
                         not_done * target_Q.view(-1)
-                        
+
                 elif self.lookahead_critic_reward == 1:
                     target_Q = total_reward + self.discount**(self.look_ahead) * \
                         not_done * target_Q.view(-1)
@@ -278,7 +278,8 @@ class MB_Traj(object):
                     # print(f'Reward Pred: {reward_pred.shape}')
                     # print(f'Done: {done.shape}')
                     actor_loss += - discount * reward_pred * \
-                        (torch.ones_like(done) - done)
+                        (torch.ones_like(done, device=self.device
+                                         ) - done)
 
             # add the critic loss
             # with torch.no_grad():
@@ -293,7 +294,7 @@ class MB_Traj(object):
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \
                     self.critic.Q1(state_pred, next_action).view(-1) *\
-                    (torch.ones_like(done) - dones[:, self.look_ahead])
+                    (torch.ones_like(done, device=self.device) - dones[:, self.look_ahead])
 
             actor_loss = actor_loss.mean()
 
