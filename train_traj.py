@@ -106,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="base")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid_50.yaml")
+    parser.add_argument("--config", default="v2g_grid_150_300.yaml")
     # parser.add_argument("--config", default="v2g_grid_150.yaml")
     
     parser.add_argument("--seed", default=9, type=int)
