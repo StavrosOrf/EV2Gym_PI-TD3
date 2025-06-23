@@ -22,15 +22,11 @@ from ev2gym.models.ev2gym_env import EV2Gym
 
 from algorithms.SAC.sac import SAC
 from algorithms.TD3.TD3 import TD3
-from algorithms.TD3.traj import Traj
 from algorithms.TD3.mb_traj_TD3 import MB_Traj
 from algorithms.TD3.mb_traj_DDPG import MB_Traj_DDPG
-from algorithms.TD3.mb import MB
+from algorithms.shac import SHAC
 
-from algorithms.TD3.replay_buffer import ReplayBuffer, ActionGNN_ReplayBuffer
-
-from gymnasium import Space
-from torch_geometric.data import Data
+from algorithms.TD3.replay_buffer import ReplayBuffer
 
 
 def eval_policy(policy,
@@ -116,7 +112,8 @@ if __name__ == "__main__":
     # REINFORCE
     # TD3
     # mb_traj, mb_traj_DDPG
-    parser.add_argument("--policy", default="mb_traj")
+    # shac
+    parser.add_argument("--policy", default="shac")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="v2g_profitmax")
 
@@ -137,7 +134,7 @@ if __name__ == "__main__":
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=96*2,
+        parser.add_argument("--start_timesteps", default=600,
                             type=int)
         parser.add_argument('--eval_freq', default=96*5, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
@@ -199,8 +196,9 @@ if __name__ == "__main__":
     # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
     # add bollean argument to enable/disable critic
     parser.add_argument('--disable_critic', action='store_true',
+                        default=False,
                         help='Enable critic in the policy.')
-    parser.add_argument('--lookahead_critic_reward',type=int, default=1)
+    parser.add_argument('--lookahead_critic_reward',type=int, default=2)
 
 
 
@@ -253,7 +251,6 @@ if __name__ == "__main__":
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
 
-    # replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
     gym.envs.register(id='evs-v1', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,
                               'reward_function': reward_function,
@@ -435,31 +432,6 @@ if __name__ == "__main__":
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
-    elif args.policy == "MB":
-        state_dim = env.observation_space.shape[0]
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
-        kwargs['load_path'] = load_path
-
-        kwargs['loss_fn'] = loss_fn
-        kwargs['ph_coeff'] = args.ph_coeff
-
-        kwargs['transition_fn'] = transition_fn
-
-        # kwargs['loss_fn'] = None
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
-        os.system(f'cp TD3/mb.py {save_path}')
-
-        policy = MB(**kwargs)
-        replay_buffer = ReplayBuffer(state_dim, action_dim)
-
     elif "SAC" in args.policy:
 
         kwargs["device"] = device
@@ -515,6 +487,30 @@ if __name__ == "__main__":
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
+        
+    elif args.policy == "shac":
+
+        state_dim = env.observation_space.shape[0]
+        kwargs["device"] = device
+        kwargs['state_dim'] = state_dim
+
+        kwargs['loss_fn'] = loss_fn
+        kwargs['transition_fn'] = transition_fn
+        kwargs['look_ahead'] = args.K
+        kwargs['lr'] = args.lr
+        kwargs['dropout'] = args.dropout
+
+        # Save kwargs to local path
+        with open(f'{save_path}/kwargs.yaml', 'w') as file:
+            yaml.dump(kwargs, file)
+
+        os.system(f'cp algorithm/shac.py {save_path}')
+
+        policy = SHAC(**kwargs)
+        replay_buffer = Trajectory_ReplayBuffer(state_dim,
+                                                action_dim,
+                                                device=device,
+                                                max_episode_length=simulation_length,)
 
     elif args.policy == "mb_traj_DDPG":
 
@@ -548,24 +544,24 @@ if __name__ == "__main__":
     else:
         raise ValueError("Policy not recognized.")
 
-    if args.load_model != "":
-        # load using pickle
-        with open(f'replay_buffers/{args.load_model}/replay_buffer.pkl', 'rb') as f:
-            replay_buffer = pickle.load(f)
-        print(f'Loaded replay buffer with {replay_buffer.size} samples.')
+    # if args.load_model != "":
+    #     # load using pickle
+    #     with open(f'replay_buffers/{args.load_model}/replay_buffer.pkl', 'rb') as f:
+    #         replay_buffer = pickle.load(f)
+    #     print(f'Loaded replay buffer with {replay_buffer.size} samples.')
 
-        # load the timestep
-        with open(f'replay_buffers/{args.load_model}/params.yaml', 'r') as file:
-            params = yaml.load(file, Loader=yaml.FullLoader)
-            start_timestep_training = params['timestep']
-            print(
-                f'Starting training from timestep: {start_timestep_training}')
-            best_reward = params['best_reward']
-            episode_num = params['episode_num']
-    else:
-        best_reward = -np.Inf
-        start_timestep_training = 0
-        episode_num = -1
+    #     # load the timestep
+    #     with open(f'replay_buffers/{args.load_model}/params.yaml', 'r') as file:
+    #         params = yaml.load(file, Loader=yaml.FullLoader)
+    #         start_timestep_training = params['timestep']
+    #         print(
+    #             f'Starting training from timestep: {start_timestep_training}')
+    #         best_reward = params['best_reward']
+    #         episode_num = params['episode_num']
+    # else:
+    best_reward = -np.Inf
+    start_timestep_training = 0
+    episode_num = -1
 
     # save kwargs to save_path
     with open(f'{save_path}/kwargs.yaml', 'w') as file:
@@ -577,8 +573,6 @@ if __name__ == "__main__":
     print(
         f'action_dim: {action_dim}, replay_buffer_size: {replay_buffer_size}')
     print(f'max_episode_length: {simulation_length}')
-
-    # Evaluate untrained policy
 
     evaluations = []
 
@@ -592,7 +586,7 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    if args.policy == "Traj" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
+    if args.policy == "shac" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
         action_traj = torch.zeros((simulation_length, action_dim)).to(device)
         state_traj = torch.zeros((simulation_length, state_dim)).to(device)
         done_traj = torch.zeros((simulation_length, 1)).to(device)
@@ -606,47 +600,29 @@ if __name__ == "__main__":
 
         episode_timesteps += 1
 
-        # Select action randomly or according to policy
-        if t < args.start_timesteps and args.policy != "TD3_ActionGNN" and args.policy != "SAC_ActionGNN":
-            action = env.action_space.sample()
+        # Select action randomly or according to poli
+
+        if args.policy in ["SAC", "shac"]:
+            action = policy.select_action(state, evaluate=False)
+            
+            # Perform action
+            next_state, reward, done, _, stats = env.step(action)
+
+        elif args.policy == "TD3" or \
+                args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
+            # Select action randomly or according to policy + add noise
+            action = (
+                policy.select_action(state)
+                + np.random.normal(0, max_action *
+                                    args.expl_noise, size=action_dim)
+            ).clip(-max_action, max_action)
+            # Perform action
             next_state, reward, done, _, stats = env.step(action)
         else:
+            raise ValueError("Policy not recognized.")
 
-            if args.policy == "TD3_ActionGNN":
-                mapped_action, action = policy.select_action(
-                    state, expl_noise=args.expl_noise)
-
-                # Perform action
-                next_state, reward, done, _, stats = env.step(mapped_action)
-
-            elif args.policy == "SAC_ActionGNN":
-                mapped_action, action = policy.select_action(state,
-                                                             evaluate=False,
-                                                             return_mapped_action=True)
-
-                # Perform action
-                next_state, reward, done, _, stats = env.step(mapped_action)
-            elif "SAC" in args.policy:
-                action = policy.select_action(state, evaluate=False)
-                # Perform action
-                next_state, reward, done, _, stats = env.step(action)
-
-            elif args.policy == "TD3" or args.policy == "MB" or \
-                    args.policy == "Traj" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
-                # Select action randomly or according to policy + add noise
-                action = (
-                    policy.select_action(state)
-                    + np.random.normal(0, max_action *
-                                       args.expl_noise, size=action_dim)
-                ).clip(-max_action, max_action)
-                # Perform action
-                next_state, reward, done, _, stats = env.step(action)
-            else:
-                raise ValueError("Policy not recognized.")
-
-        if args.policy != "Traj" and args.policy != "mb_traj" and args.policy != "mb_traj_DDPG":
-            # Store data in replay buffer
-            # print(f"state: {state}, action: {action}, next_state: {next_state}, reward: {reward}, done: {done}")
+        if args.policy not in ["mb_traj", "mb_traj_DDPG", "shac"]:
+            # Store data in replay buffer            
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
             action_traj[episode_timesteps] = torch.FloatTensor(
@@ -676,7 +652,6 @@ if __name__ == "__main__":
                                'train/alpha': alpha,
                                'train/time': time.time() - start_time, },
                               step=t)
-
             else:
                 loss_dict = policy.train(
                     replay_buffer, args.batch_size)
@@ -702,7 +677,7 @@ if __name__ == "__main__":
             ep_start_time = time.time()
             done = False
 
-            if args.policy == "Traj" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
+            if args.policy in ["mb_traj", "mb_traj_DDPG", "shac"]:
                 # Store trajectory in replay buffer
                 replay_buffer.add(state_traj,
                                   action_traj,

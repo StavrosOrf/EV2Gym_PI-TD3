@@ -15,10 +15,10 @@ batch_size = 64  # 256 # 512
 
 # for policy in ['TD3', 'mb_traj', 'SAC']: # MB mb_traj_DDPG
 # for policy in ['mb_traj', 'SAC']: # MB
-for policy in ['mb_traj']:  # MB mb_traj_DDPG
-    for lookahead_critic_reward in [1, 2]:
+for policy in ['shac']:  # MB mb_traj_DDPG
+    for lookahead_critic_reward in [2]:
         for critic in [True]:
-            for K in [1,5,10,20]:  # 512
+            for K in [10,20, 32]:  # 512
                 for seed in [9]:
                     
                     # if lookahead_critic_reward != 2 and not critic:
@@ -26,7 +26,7 @@ for policy in ['mb_traj']:  # MB mb_traj_DDPG
                     if not critic and policy != 'mb_traj':
                         continue
 
-                    if (policy != 'mb_traj' and policy != 'mb_traj_DDPG') and K != 1:
+                    if (policy != 'mb_traj' and policy != 'mb_traj_DDPG' and policy != 'shac') and K != 1:
                         continue
 
                     if policy == 'mb_traj_DDPG' and K not in [2, 20]:
