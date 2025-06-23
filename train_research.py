@@ -20,8 +20,7 @@ from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Actio
 
 from ev2gym.models.ev2gym_env import EV2Gym
 
-from SAC.sac import SAC
-
+from algorithms.SAC.sac import SAC
 from algorithms.TD3.TD3 import TD3
 from algorithms.TD3.traj import Traj
 from algorithms.TD3.mb_traj_TD3 import MB_Traj
@@ -34,21 +33,6 @@ from gymnasium import Space
 from torch_geometric.data import Data
 
 
-class PyGDataSpace(Space):
-    def __init__(self):
-        super().__init__((), None)
-
-    def sample(self):
-        # Implement this method to generate a random Data object
-        pass
-
-    def contains(self, x):
-        return isinstance(x, Data)
-
-# Runs policy for X episodes and returns average reward
-# A fixed seed is used for the eval environment
-
-
 def eval_policy(policy,
                 args,
                 eval_config,
@@ -57,7 +41,6 @@ def eval_policy(policy,
 
     eval_episodes = len(eval_config['eval_replays'])
 
-    # policy.actor.eval()
 
     avg_reward = 0.
     stats_list = []
@@ -500,34 +483,6 @@ if __name__ == "__main__":
         replay_buffer = ReplayBuffer(state_dim, action_dim)
         os.system(f'cp SAC/sac.py {save_path}')
 
-    elif args.policy == "Traj":
-
-        state_dim = env.observation_space.shape[0]
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
-        kwargs['load_path'] = load_path
-
-        kwargs['loss_fn'] = loss_fn
-        kwargs['ph_coeff'] = args.ph_coeff
-        kwargs['transition_fn'] = transition_fn
-        kwargs['sequence_length'] = args.K
-        kwargs['lr'] = args.lr
-        kwargs['dropout'] = args.dropout
-
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
-        os.system(f'cp TD3/traj.py {save_path}')
-
-        policy = Traj(**kwargs)
-        replay_buffer = Trajectory_ReplayBuffer(state_dim,
-                                                action_dim,
-                                                max_episode_length=simulation_length,)
 
     elif args.policy == "mb_traj":
 

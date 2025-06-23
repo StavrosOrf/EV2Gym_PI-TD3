@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
-# from TD3.TD3_GNN import GNN_Feature_Extractor
 import math
 from torch_geometric.nn import GCNConv, global_mean_pool, global_add_pool
 from torch_geometric.nn import global_mean_pool

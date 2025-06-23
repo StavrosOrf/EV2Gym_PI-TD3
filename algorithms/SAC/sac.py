@@ -3,9 +3,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
-from SAC.model import soft_update, hard_update
-from SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
-from SAC.model import GaussianPolicy_GNN_FX, QNetwork_GNN_FX
+from algorithms.SAC.model import soft_update, hard_update
+from algorithms.SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
+from algorithms.SAC.model import GaussianPolicy_GNN_FX, QNetwork_GNN_FX
 
 
 class SAC(object):
