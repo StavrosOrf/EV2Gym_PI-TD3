@@ -22,14 +22,13 @@ from ev2gym.models.ev2gym_env import EV2Gym
 
 from SAC.sac import SAC
 
-from TD3.TD3 import TD3
-from TD3.TD3_ActionGNN import TD3_ActionGNN
-from TD3.traj import Traj
-from TD3.mb_traj_TD3 import MB_Traj
-from TD3.mb_traj_DDPG import MB_Traj_DDPG
-from TD3.mb import MB
+from algorithms.TD3.TD3 import TD3
+from algorithms.TD3.traj import Traj
+from algorithms.TD3.mb_traj_TD3 import MB_Traj
+from algorithms.TD3.mb_traj_DDPG import MB_Traj_DDPG
+from algorithms.TD3.mb import MB
 
-from TD3.replay_buffer import GNN_ReplayBuffer, ReplayBuffer, ActionGNN_ReplayBuffer
+from algorithms.TD3.replay_buffer import ReplayBuffer, ActionGNN_ReplayBuffer
 
 from gymnasium import Space
 from torch_geometric.data import Data
@@ -132,6 +131,7 @@ if __name__ == "__main__":
 
     # SAC
     # REINFORCE
+    # TD3
     # mb_traj, mb_traj_DDPG
     parser.add_argument("--policy", default="mb_traj")
     parser.add_argument("--name", default="base")
@@ -396,9 +396,6 @@ if __name__ == "__main__":
     with open(f'{save_path}/config.yaml', 'w') as file:
         yaml.dump(config, file)
 
-    # np.save(f'{save_path}/state_mean.npy', state_mean.cpu().numpy())
-    # np.save(f'{save_path}/state_std.npy', state_std.cpu().numpy())
-
     if args.log_to_wandb:
 
         if args.load_model != "":
@@ -479,39 +476,6 @@ if __name__ == "__main__":
 
         policy = MB(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
-
-    # Initialize policy
-    elif args.policy == "TD3_GNN" or args.policy == "TD3_ActionGNN":
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs["lr"] = args.lr
-
-        kwargs['load_path'] = load_path
-        kwargs['discrete_actions'] = args.discrete_actions
-
-        # if statefunction has attribute node_sizes
-        if hasattr(state_function, 'node_sizes'):
-            kwargs['fx_node_sizes'] = state_function.node_sizes
-
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
-        if args.policy == "TD3_GNN":
-            # policy = TD3_GNN(**kwargs)
-            # replay_buffer = GNN_ReplayBuffer(action_dim=action_dim,
-            #                                  max_size=replay_buffer_size,)
-            # # save the TD3_GNN.py file using cp
-            os.system(f'cp TD3/TD3_GNN.py {save_path}')
-
-        elif args.policy == "TD3_ActionGNN":
-            policy = TD3_ActionGNN(**kwargs)
-            replay_buffer = ActionGNN_ReplayBuffer(action_dim=action_dim,
-                                                   max_size=replay_buffer_size,)
-            os.system(f'cp TD3/TD3_ActionGNN.py {save_path}')
 
     elif "SAC" in args.policy:
 
