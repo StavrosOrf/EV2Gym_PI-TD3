@@ -65,10 +65,10 @@ class Reinforce:
 
         self.actor_optimizer.zero_grad()
         loss.backward()
-        utils.clip_grad_norm_(self.actor.parameters(), 40)
+        # utils.clip_grad_norm_(self.actor.parameters(), 40)
         self.actor_optimizer.step()
         return {'policy_loss': loss.item()}
     
     def save(self, path):
-        torch.save(self.actor.state_dict(), path + '/reinforce_actor.pth')
-        print(f"Model saved to {path}/reinforce_actor.pth")
+        torch.save(self.actor.state_dict(), path + '_reinforce_actor.pth')
+        print(f"Model saved to {path}_reinforce_actor.pth")
