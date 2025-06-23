@@ -25,6 +25,7 @@ from algorithms.TD3.TD3 import TD3
 from algorithms.TD3.mb_traj_TD3 import MB_Traj
 from algorithms.TD3.mb_traj_DDPG import MB_Traj_DDPG
 from algorithms.shac import SHAC
+from algorithms.reinforce import Reinforce
 
 from algorithms.TD3.replay_buffer import ReplayBuffer
 
@@ -109,11 +110,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # SAC
-    # REINFORCE
+    # reinforce
     # TD3
     # mb_traj, mb_traj_DDPG
     # shac
-    parser.add_argument("--policy", default="shac")
+    parser.add_argument("--policy", default="reinforce")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="v2g_profitmax")
 
@@ -129,7 +130,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -504,9 +505,33 @@ if __name__ == "__main__":
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
 
-        os.system(f'cp algorithm/shac.py {save_path}')
+        os.system(f'cp algorithms/shac.py {save_path}')
 
         policy = SHAC(**kwargs)
+        replay_buffer = Trajectory_ReplayBuffer(state_dim,
+                                                action_dim,
+                                                device=device,
+                                                max_episode_length=simulation_length,)
+        
+    elif args.policy == "reinforce":
+
+        state_dim = env.observation_space.shape[0]
+        kwargs["device"] = device
+        kwargs['state_dim'] = state_dim
+
+        kwargs['loss_fn'] = loss_fn
+        kwargs['transition_fn'] = transition_fn
+        kwargs['look_ahead'] = args.K
+        kwargs['lr'] = args.lr
+    
+
+        # Save kwargs to local path
+        with open(f'{save_path}/kwargs.yaml', 'w') as file:
+            yaml.dump(kwargs, file)
+
+        os.system(f'cp algorithms/reinforce.py {save_path}')
+
+        policy = Reinforce(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 device=device,
@@ -586,11 +611,17 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    if args.policy == "shac" or args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
+    if args.policy in ["mb_traj", "mb_traj_DDPG", "shac", 'reinforce']:
         action_traj = torch.zeros((simulation_length, action_dim)).to(device)
         state_traj = torch.zeros((simulation_length, state_dim)).to(device)
         done_traj = torch.zeros((simulation_length, 1)).to(device)
         reward_traj = torch.zeros((simulation_length, 1)).to(device)
+        
+        if args.policy == "reinforce":
+            log_probs_traj = torch.zeros(
+                (simulation_length, 1)).to(device)
+            entropy_traj = torch.zeros(
+                (simulation_length, 1)).to(device)
 
     for t in range(start_timestep_training, int(args.max_timesteps)):
 
@@ -604,7 +635,10 @@ if __name__ == "__main__":
 
         if args.policy in ["SAC", "shac"]:
             action = policy.select_action(state, evaluate=False)
+            next_state, reward, done, _, stats = env.step(action)
             
+        elif args.policy == "reinforce":
+            action, log_prob, entropy = policy.select_action(state)
             # Perform action
             next_state, reward, done, _, stats = env.step(action)
 
@@ -621,7 +655,7 @@ if __name__ == "__main__":
         else:
             raise ValueError("Policy not recognized.")
 
-        if args.policy not in ["mb_traj", "mb_traj_DDPG", "shac"]:
+        if args.policy not in ["mb_traj", "mb_traj_DDPG", "shac", 'reinforce']:
             # Store data in replay buffer            
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
@@ -631,6 +665,10 @@ if __name__ == "__main__":
             done_traj[episode_timesteps] = torch.FloatTensor([done]).to(device)
             reward_traj[episode_timesteps] = torch.FloatTensor(
                 [reward]).to(device)
+            
+            if args.policy == "reinforce":
+                log_probs_traj[episode_timesteps] = log_prob.to(device)
+                entropy_traj[episode_timesteps] = entropy.to(device)
 
         state = next_state
         episode_reward += reward
@@ -652,6 +690,8 @@ if __name__ == "__main__":
                                'train/alpha': alpha,
                                'train/time': time.time() - start_time, },
                               step=t)
+            elif args.policy == "reinforce":
+                pass
             else:
                 loss_dict = policy.train(
                     replay_buffer, args.batch_size)
@@ -668,16 +708,8 @@ if __name__ == "__main__":
                         step=t)
 
         if done:
-            # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
-            print(
-                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}" +
-                f" Time: {time.time() - ep_start_time:.3f}")
-            # Reset environment
-            state, _ = env.reset()
-            ep_start_time = time.time()
-            done = False
-
-            if args.policy in ["mb_traj", "mb_traj_DDPG", "shac"]:
+                
+            if args.policy in ["mb_traj", "mb_traj_DDPG", "shac", 'reinforce']:
                 # Store trajectory in replay buffer
                 replay_buffer.add(state_traj,
                                   action_traj,
@@ -690,6 +722,31 @@ if __name__ == "__main__":
                     (simulation_length, state_dim)).to(device)
                 done_traj = torch.zeros((simulation_length, 1)).to(device)
                 reward_traj = torch.zeros((simulation_length, 1)).to(device)
+
+            if args.policy == "reinforce":
+                loss_dict = policy.train(rewards=reward_traj,
+                                         log_probs=log_probs_traj,
+                                         entropy=entropy_traj)
+                if args.log_to_wandb:
+
+                    # log all loss_dict keys, but add train/ in front of their name
+                    for key in loss_dict.keys():
+                        wandb.log({f'train/{key}': loss_dict[key]},
+                                  step=t)
+                    wandb.log({
+                        #    'train/physics_loss': loss_dict['physics_loss'],
+                        'train/time': time.time() - start_time, },
+                        step=t)
+
+            
+            print(
+                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}" +
+                f" Time: {time.time() - ep_start_time:.3f}")
+            # Reset environment
+            state, _ = env.reset()
+            ep_start_time = time.time()
+            done = False
+
 
             episode_num += 1
 

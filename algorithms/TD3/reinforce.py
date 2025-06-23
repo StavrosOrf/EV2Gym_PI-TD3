@@ -68,5 +68,5 @@ class REINFORCE:
         
         self.optimizer.zero_grad()
         loss.backward()
-        utils.clip_grad_norm(self.model.parameters(), 40)
+        # utils.clip_grad_norm(self.model.parameters(), 40)
         self.optimizer.step()
