@@ -20,7 +20,9 @@ class PI_SAC(object):
         self.gamma = args['discount']
         self.tau = args['tau']
         self.alpha = args['alpha']
-        
+
+        self.sequence_length = args['look_ahead']
+
         self.loss_fn = args['loss_fn']
         self.transition_fn = args['transition_fn']
 
@@ -72,10 +74,19 @@ class PI_SAC(object):
             _, _, action = self.policy.sample(state)
         return action.detach().cpu().numpy()[0]
 
-    def train(self, memory, batch_size, updates):
+    def train(self, memory, batch_size, updates, **kwargs):
         # Sample a batch from memory
-        state_batch, action_batch, next_state_batch, reward_batch, not_dones = memory.sample(
-            batch_size=batch_size)
+        # state_batch, action_batch, next_state_batch, reward_batch, not_dones = memory.sample(
+        #     batch_size=batch_size)
+        
+        states, actions, rewards, dones = memory.sample_new(
+            batch_size)
+        
+        state_batch = states[:, 0, :]
+        action_batch = actions[:, 0, :]
+        next_state_batch = states[:, 1, :]
+        reward_batch = rewards[:, 0]
+        not_dones = torch.ones_like(dones[:, 0], device=self.device) - dones[:, 0]
 
         with torch.no_grad():
             next_state_action, next_state_log_pi, _ = self.policy.sample(
@@ -127,8 +138,14 @@ class PI_SAC(object):
 
         if updates % self.target_update_interval == 0:
             soft_update(self.critic_target, self.critic, self.tau)
-
-        return qf1_loss.item(), qf2_loss.item(), policy_loss.item(), alpha_loss.item(), alpha_tlogs.item()
+        loss_dict = {
+            'critic_loss': qf1_loss.item(),
+            'critic_loss2': qf2_loss.item(),
+            'actor_loss': policy_loss.item(),
+            'alpha_loss': alpha_loss.item(),
+            'alpha_tlogs': alpha_tlogs.item()
+        }
+        return loss_dict
 
     # Save model parameters
     def save(self, save_path):

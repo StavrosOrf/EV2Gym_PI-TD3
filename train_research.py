@@ -389,9 +389,15 @@ if __name__ == "__main__":
         "discount": args.discount,
         "tau": args.tau,
         "mlp_hidden_dim": args.mlp_hidden_dim,
+        "device": device,
+        "seed": args.seed,
+        "loss_fn": loss_fn,
+        "transition_fn": transition_fn,
+        "alpha": args.alpha,
+        "look_ahead": args.K,
     }
 
-    if args.policy == "TD3":
+    if args.policy == "td3":
         state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale
         kwargs["policy_noise"] = args.policy_noise * max_action
@@ -400,20 +406,16 @@ if __name__ == "__main__":
         kwargs["device"] = device
         kwargs['state_dim'] = state_dim
         kwargs['load_path'] = load_path
-
-        kwargs['loss_fn'] = None
-        kwargs['transition_fn'] = None
-
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
 
-        os.system(f'cp TD3/TD3.py {save_path}')
+        os.system(f'cp algorithms/TD3.py {save_path}')
 
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
-    elif "SAC" in args.policy:
+    elif args.policy == 'sac':
 
         kwargs["device"] = device
         kwargs["alpha"] = args.alpha
@@ -432,9 +434,9 @@ if __name__ == "__main__":
                      args=kwargs)
 
         replay_buffer = ReplayBuffer(state_dim, action_dim)
-        os.system(f'cp SAC/sac.py {save_path}')
+        os.system(f'cp algorithms/SAC/sac.py {save_path}')
 
-    elif "pi_sac" in args.policy:
+    elif args.policy == 'pi_sac':
 
         kwargs["device"] = device
         kwargs["alpha"] = args.alpha
@@ -446,8 +448,6 @@ if __name__ == "__main__":
         kwargs['policy'] = args.policy_SAC
         kwargs['lr'] = args.lr
         kwargs['hidden_size'] = args.mlp_hidden_dim
-        kwargs['loss_fn'] = loss_fn
-        kwargs['transition_fn'] = transition_fn
 
         state_dim = env.observation_space.shape[0]
         policy = PI_SAC(num_inputs=state_dim,
@@ -458,7 +458,7 @@ if __name__ == "__main__":
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
-        os.system(f'cp algorithms/pi_SAC.py {save_path}')
+        os.system(f'cp algorithms/SAC/pi_SAC.py {save_path}')
 
     elif args.policy == "pi_td3":
 
@@ -470,10 +470,6 @@ if __name__ == "__main__":
         kwargs["device"] = device
         kwargs['state_dim'] = state_dim
         kwargs['load_path'] = load_path
-
-        kwargs['loss_fn'] = loss_fn
-        kwargs['transition_fn'] = transition_fn
-        kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
         kwargs['critic_enabled'] = not args.disable_critic
@@ -496,10 +492,6 @@ if __name__ == "__main__":
         state_dim = env.observation_space.shape[0]
         kwargs["device"] = device
         kwargs['state_dim'] = state_dim
-
-        kwargs['loss_fn'] = loss_fn
-        kwargs['transition_fn'] = transition_fn
-        kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
 
@@ -519,11 +511,6 @@ if __name__ == "__main__":
 
         state_dim = env.observation_space.shape[0]
         kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
-
-        kwargs['loss_fn'] = loss_fn
-        kwargs['transition_fn'] = transition_fn
-        kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
 
         # Save kwargs to local path
@@ -538,7 +525,7 @@ if __name__ == "__main__":
                                                 device=device,
                                                 max_episode_length=simulation_length,)
 
-    elif args.policy == "mb_traj_DDPG":
+    elif args.policy == "pi_DDPG":
 
         state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale
@@ -549,9 +536,6 @@ if __name__ == "__main__":
         kwargs['state_dim'] = state_dim
         kwargs['load_path'] = load_path
 
-        kwargs['loss_fn'] = loss_fn
-        kwargs['transition_fn'] = transition_fn
-        kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
 
@@ -559,9 +543,9 @@ if __name__ == "__main__":
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
 
-        os.system(f'cp TD3/mb_traj_DDPG.py {save_path}')
+        os.system(f'cp algorithms/pi_DDPG.py {save_path}')
 
-        policy = MB_Traj_DDPG(**kwargs)
+        policy = PI_DDPG(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 max_episode_length=simulation_length,)
@@ -569,21 +553,6 @@ if __name__ == "__main__":
     else:
         raise ValueError("Policy not recognized.")
 
-    # if args.load_model != "":
-    #     # load using pickle
-    #     with open(f'replay_buffers/{args.load_model}/replay_buffer.pkl', 'rb') as f:
-    #         replay_buffer = pickle.load(f)
-    #     print(f'Loaded replay buffer with {replay_buffer.size} samples.')
-
-    #     # load the timestep
-    #     with open(f'replay_buffers/{args.load_model}/params.yaml', 'r') as file:
-    #         params = yaml.load(file, Loader=yaml.FullLoader)
-    #         start_timestep_training = params['timestep']
-    #         print(
-    #             f'Starting training from timestep: {start_timestep_training}')
-    #         best_reward = params['best_reward']
-    #         episode_num = params['episode_num']
-    # else:
     best_reward = -np.Inf
     start_timestep_training = 0
     episode_num = -1
@@ -611,7 +580,7 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    if args.policy in ["pi_td3", "mb_traj_DDPG", "shac", 'reinforce']:
+    if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
         action_traj = torch.zeros((simulation_length, action_dim)).to(device)
         state_traj = torch.zeros((simulation_length, state_dim)).to(device)
         done_traj = torch.zeros((simulation_length, 1)).to(device)
@@ -633,7 +602,7 @@ if __name__ == "__main__":
 
         # Select action randomly or according to poli
 
-        if args.policy in ["SAC", "shac"]:
+        if args.policy in ["sac", "shac", "pi_sac"]:
             action = policy.select_action(state, evaluate=False)
             next_state, reward, done, _, stats = env.step(action)
 
@@ -642,8 +611,7 @@ if __name__ == "__main__":
             # Perform action
             next_state, reward, done, _, stats = env.step(action)
 
-        elif args.policy == "TD3" or \
-                args.policy == "pi_td3" or args.policy == "mb_traj_DDPG":
+        elif args.policy in ['TD3', 'pi_td3', 'pi_DDPG']:
             # Select action randomly or according to policy + add noise
             action = (
                 policy.select_action(state)
@@ -655,7 +623,7 @@ if __name__ == "__main__":
         else:
             raise ValueError("Policy not recognized.")
 
-        if args.policy not in ["pi_td3", "mb_traj_DDPG", "shac", 'reinforce']:
+        if args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
             # Store data in replay buffer
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
@@ -678,7 +646,7 @@ if __name__ == "__main__":
         if t >= args.start_timesteps:
 
             start_time = time.time()
-            if 'SAC' in args.policy:
+            if args.policy == 'sac':
                 critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = policy.train(
                     replay_buffer, args.batch_size, updates)
                 updates += 1
@@ -694,8 +662,14 @@ if __name__ == "__main__":
             elif args.policy == "reinforce":
                 pass
             else:
-                loss_dict = policy.train(
-                    replay_buffer, args.batch_size)
+                
+                if args.policy == "pi_sac":
+                    loss_dict = policy.train(
+                        replay_buffer, args.batch_size, updates)
+                    updates += 1
+                else:
+                    loss_dict = policy.train(
+                        replay_buffer, args.batch_size)
 
                 if args.log_to_wandb:
 
@@ -710,7 +684,7 @@ if __name__ == "__main__":
 
         if done:
 
-            if args.policy in ["pi_td3", "mb_traj_DDPG", "shac", 'reinforce']:
+            if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
                 # Store trajectory in replay buffer
                 replay_buffer.add(state_traj,
                                   action_traj,
