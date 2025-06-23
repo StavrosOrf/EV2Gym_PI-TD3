@@ -58,7 +58,9 @@ def eval_policy(policy,
         state, _ = eval_env.reset()
         done = False
         while not done:
-            action = policy.select_action(state, return_mapped_action=True)
+            action = policy.select_action(state)
+            if len(action) == 3:
+                action = action[0]
             state, reward, done, _, stats = eval_env.step(action)
             avg_reward += reward
 
@@ -619,9 +621,9 @@ if __name__ == "__main__":
         
         if args.policy == "reinforce":
             log_probs_traj = torch.zeros(
-                (simulation_length, 1)).to(device)
+                (simulation_length, action_dim)).to(device)
             entropy_traj = torch.zeros(
-                (simulation_length, 1)).to(device)
+                (simulation_length, action_dim)).to(device)
 
     for t in range(start_timestep_training, int(args.max_timesteps)):
 
@@ -667,6 +669,7 @@ if __name__ == "__main__":
                 [reward]).to(device)
             
             if args.policy == "reinforce":
+                # print(f'log_prob: {log_prob}, entropy: {entropy} step: {episode_timesteps}')
                 log_probs_traj[episode_timesteps] = log_prob.to(device)
                 entropy_traj[episode_timesteps] = entropy.to(device)
 
@@ -726,7 +729,18 @@ if __name__ == "__main__":
             if args.policy == "reinforce":
                 loss_dict = policy.train(rewards=reward_traj,
                                          log_probs=log_probs_traj,
-                                         entropy=entropy_traj)
+                                         entropies=entropy_traj)
+                
+                action_traj.zero_()
+                state_traj.zero_()
+                reward_traj.zero_()
+                done_traj.zero_()
+                # detach the tensors to allow differentiation
+                log_probs_traj.detach_()
+                entropy_traj.detach_()
+                log_probs_traj.zero_()
+                entropy_traj.zero_()
+        
                 if args.log_to_wandb:
 
                     # log all loss_dict keys, but add train/ in front of their name

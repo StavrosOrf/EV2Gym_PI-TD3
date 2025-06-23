@@ -43,7 +43,7 @@ class Reinforce:
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.actor.train()
 
-    def select_action(self, state):
+    def select_action(self, state, **kwargs):
         pi = Variable(torch.FloatTensor([math.pi])).to(self.device)
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         mu, sigma_sq = self.actor(state)
@@ -55,6 +55,7 @@ class Reinforce:
         return action.detach().cpu().numpy().flatten(), log_prob, entropy
 
     def train(self, rewards, log_probs, entropies):
+        print("Training Reinforce with {} rewards".format(len(rewards)))
         R = torch.zeros(1).to(self.device)
         loss = 0
         for i in reversed(range(len(rewards))):
@@ -67,3 +68,7 @@ class Reinforce:
         utils.clip_grad_norm_(self.actor.parameters(), 40)
         self.actor_optimizer.step()
         return {'policy_loss': loss.item()}
+    
+    def save(self, path):
+        torch.save(self.actor.state_dict(), path + '/reinforce_actor.pth')
+        print(f"Model saved to {path}/reinforce_actor.pth")
