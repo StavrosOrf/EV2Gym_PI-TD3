@@ -16,18 +16,17 @@ from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2, V2G_costs_simple
 from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_full import V2GridLoss
 
-from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Action
+from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Action, ReplayBuffer
 
 from ev2gym.models.ev2gym_env import EV2Gym
 
 from algorithms.SAC.sac import SAC
-from algorithms.TD3.TD3 import TD3
-from algorithms.TD3.mb_traj_TD3 import MB_Traj
-from algorithms.TD3.mb_traj_DDPG import MB_Traj_DDPG
+from algorithms.SAC.pi_SAC import PI_SAC
+from algorithms.TD3 import TD3
+from algorithms.pi_TD3 import PI_TD3
+from algorithms.pi_DDPG import PI_DDPG
 from algorithms.shac import SHAC
 from algorithms.reinforce import Reinforce
-
-from algorithms.TD3.replay_buffer import ReplayBuffer
 
 
 def eval_policy(policy,
@@ -37,7 +36,6 @@ def eval_policy(policy,
                 ):
 
     eval_episodes = len(eval_config['eval_replays'])
-
 
     avg_reward = 0.
     stats_list = []
@@ -114,9 +112,9 @@ if __name__ == "__main__":
     # SAC
     # reinforce
     # TD3
-    # mb_traj, mb_traj_DDPG
+    # pi_td3, mb_traj_DDPG
     # shac
-    parser.add_argument("--policy", default="reinforce")
+    parser.add_argument("--policy", default="pi_sac")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="v2g_profitmax")
 
@@ -132,7 +130,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -196,31 +194,20 @@ if __name__ == "__main__":
     parser.add_argument('--K', type=int, default=10)
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
-    # parser.add_argument('--mlp_hidden_dim', type=int, default=512)
     # add bollean argument to enable/disable critic
     parser.add_argument('--disable_critic', action='store_true',
                         default=False,
                         help='Enable critic in the policy.')
-    parser.add_argument('--lookahead_critic_reward',type=int, default=2)
-
-
+    parser.add_argument('--lookahead_critic_reward', type=int, default=2)
 
     # GNN Feature Extractor Parameters #############################################
-    parser.add_argument('--fx_dim', type=int, default=8)
-    parser.add_argument('--fx_GNN_hidden_dim', type=int, default=32)
-    parser.add_argument('--fx_num_heads', type=int, default=2)
     parser.add_argument('--mlp_hidden_dim', type=int, default=128)
     parser.add_argument('--discrete_actions', type=int, default=1)
-    parser.add_argument('--actor_num_gcn_layers', type=int, default=3)
-    parser.add_argument('--critic_num_gcn_layers', type=int, default=3)
 
     scale = 1
     args = parser.parse_args()
 
-    if args.discrete_actions > 1 and args.policy != "TD3_ActionGNN":
-        raise ValueError(f"{args.policy} does not support discrete actions.")
-
-    device = args.device    
+    device = args.device
     print(f'device: {device}')
 
     replay_buffer_size = int(args.replay_buffer_size)
@@ -236,8 +223,6 @@ if __name__ == "__main__":
 
     if not os.path.exists("./results"):
         os.makedirs("./results")
-
-    group_name = "50_advanced_tests"
 
     if args.scenario == "v2g":
         reward_function = V2G_costs_simple
@@ -350,7 +335,6 @@ if __name__ == "__main__":
                                              )
 
     # Set seeds
-    # env.seed(args.seed)
     env.action_space.seed(args.seed)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -417,15 +401,9 @@ if __name__ == "__main__":
         kwargs['state_dim'] = state_dim
         kwargs['load_path'] = load_path
 
-        kwargs['loss_fn'] = loss_fn
-        kwargs['ph_coeff'] = args.ph_coeff
-
-        kwargs['transition_fn'] = transition_fn
-
         kwargs['loss_fn'] = None
         kwargs['transition_fn'] = None
 
-        # kwargs['loss_fn'] = None
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
@@ -448,18 +426,41 @@ if __name__ == "__main__":
         kwargs['lr'] = args.lr
         kwargs['hidden_size'] = args.mlp_hidden_dim
 
-        if hasattr(state_function, 'node_sizes'):
-            fx_node_sizes = state_function.node_sizes
-
         state_dim = env.observation_space.shape[0]
         policy = SAC(num_inputs=state_dim,
                      action_space=env.action_space,
                      args=kwargs)
+
         replay_buffer = ReplayBuffer(state_dim, action_dim)
         os.system(f'cp SAC/sac.py {save_path}')
 
+    elif "pi_sac" in args.policy:
 
-    elif args.policy == "mb_traj":
+        kwargs["device"] = device
+        kwargs["alpha"] = args.alpha
+        kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
+        kwargs["updates_per_step"] = args.updates_per_step
+        kwargs["target_update_interval"] = args.target_update_interval
+        kwargs["discount"] = args.discount
+        kwargs["tau"] = args.tau
+        kwargs['policy'] = args.policy_SAC
+        kwargs['lr'] = args.lr
+        kwargs['hidden_size'] = args.mlp_hidden_dim
+        kwargs['loss_fn'] = loss_fn
+        kwargs['transition_fn'] = transition_fn
+
+        state_dim = env.observation_space.shape[0]
+        policy = PI_SAC(num_inputs=state_dim,
+                        action_space=env.action_space,
+                        args=kwargs)
+
+        replay_buffer = Trajectory_ReplayBuffer(state_dim,
+                                                action_dim,
+                                                device=device,
+                                                max_episode_length=simulation_length,)
+        os.system(f'cp algorithms/pi_SAC.py {save_path}')
+
+    elif args.policy == "pi_td3":
 
         state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale
@@ -471,7 +472,6 @@ if __name__ == "__main__":
         kwargs['load_path'] = load_path
 
         kwargs['loss_fn'] = loss_fn
-        kwargs['ph_coeff'] = args.ph_coeff
         kwargs['transition_fn'] = transition_fn
         kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
@@ -483,14 +483,14 @@ if __name__ == "__main__":
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
 
-        os.system(f'cp TD3/mb_traj_TD3.py {save_path}')
+        os.system(f'cp algorithms/pi_TD3.py {save_path}')
 
-        policy = MB_Traj(**kwargs)
+        policy = PI_TD3(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
-        
+
     elif args.policy == "shac":
 
         state_dim = env.observation_space.shape[0]
@@ -514,7 +514,7 @@ if __name__ == "__main__":
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
-        
+
     elif args.policy == "reinforce":
 
         state_dim = env.observation_space.shape[0]
@@ -525,7 +525,6 @@ if __name__ == "__main__":
         kwargs['transition_fn'] = transition_fn
         kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
-    
 
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
@@ -551,7 +550,6 @@ if __name__ == "__main__":
         kwargs['load_path'] = load_path
 
         kwargs['loss_fn'] = loss_fn
-        kwargs['ph_coeff'] = args.ph_coeff
         kwargs['transition_fn'] = transition_fn
         kwargs['look_ahead'] = args.K
         kwargs['lr'] = args.lr
@@ -613,12 +611,12 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    if args.policy in ["mb_traj", "mb_traj_DDPG", "shac", 'reinforce']:
+    if args.policy in ["pi_td3", "mb_traj_DDPG", "shac", 'reinforce']:
         action_traj = torch.zeros((simulation_length, action_dim)).to(device)
         state_traj = torch.zeros((simulation_length, state_dim)).to(device)
         done_traj = torch.zeros((simulation_length, 1)).to(device)
         reward_traj = torch.zeros((simulation_length, 1)).to(device)
-        
+
         if args.policy == "reinforce":
             log_probs_traj = torch.zeros(
                 (simulation_length, action_dim)).to(device)
@@ -638,27 +636,27 @@ if __name__ == "__main__":
         if args.policy in ["SAC", "shac"]:
             action = policy.select_action(state, evaluate=False)
             next_state, reward, done, _, stats = env.step(action)
-            
+
         elif args.policy == "reinforce":
             action, log_prob, entropy = policy.select_action(state)
             # Perform action
             next_state, reward, done, _, stats = env.step(action)
 
         elif args.policy == "TD3" or \
-                args.policy == "mb_traj" or args.policy == "mb_traj_DDPG":
+                args.policy == "pi_td3" or args.policy == "mb_traj_DDPG":
             # Select action randomly or according to policy + add noise
             action = (
                 policy.select_action(state)
                 + np.random.normal(0, max_action *
-                                    args.expl_noise, size=action_dim)
+                                   args.expl_noise, size=action_dim)
             ).clip(-max_action, max_action)
             # Perform action
             next_state, reward, done, _, stats = env.step(action)
         else:
             raise ValueError("Policy not recognized.")
 
-        if args.policy not in ["mb_traj", "mb_traj_DDPG", "shac", 'reinforce']:
-            # Store data in replay buffer            
+        if args.policy not in ["pi_td3", "mb_traj_DDPG", "shac", 'reinforce']:
+            # Store data in replay buffer
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
             action_traj[episode_timesteps] = torch.FloatTensor(
@@ -667,7 +665,7 @@ if __name__ == "__main__":
             done_traj[episode_timesteps] = torch.FloatTensor([done]).to(device)
             reward_traj[episode_timesteps] = torch.FloatTensor(
                 [reward]).to(device)
-            
+
             if args.policy == "reinforce":
                 # print(f'log_prob: {log_prob}, entropy: {entropy} step: {episode_timesteps}')
                 log_probs_traj[episode_timesteps] = log_prob.to(device)
@@ -711,8 +709,8 @@ if __name__ == "__main__":
                         step=t)
 
         if done:
-                
-            if args.policy in ["mb_traj", "mb_traj_DDPG", "shac", 'reinforce']:
+
+            if args.policy in ["pi_td3", "mb_traj_DDPG", "shac", 'reinforce']:
                 # Store trajectory in replay buffer
                 replay_buffer.add(state_traj,
                                   action_traj,
@@ -731,7 +729,7 @@ if __name__ == "__main__":
                 loss_dict = policy.train(rewards=reward_traj,
                                          log_probs=log_probs_traj,
                                          entropies=entropy_traj)
-                
+
                 action_traj.zero_()
                 state_traj.zero_()
                 reward_traj.zero_()
@@ -741,7 +739,7 @@ if __name__ == "__main__":
                 entropy_traj.detach_()
                 log_probs_traj.zero_()
                 entropy_traj.zero_()
-        
+
                 if args.log_to_wandb:
 
                     # log all loss_dict keys, but add train/ in front of their name
@@ -753,7 +751,6 @@ if __name__ == "__main__":
                         'train/time': time.time() - start_time, },
                         step=t)
 
-            
             print(
                 f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}" +
                 f" Time: {time.time() - ep_start_time:.3f}")
@@ -761,7 +758,6 @@ if __name__ == "__main__":
             state, _ = env.reset()
             ep_start_time = time.time()
             done = False
-
 
             episode_num += 1
 

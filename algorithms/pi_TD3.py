@@ -62,7 +62,7 @@ class Critic(nn.Module):
         return q1
 
 
-class MB_Traj(object):
+class PI_TD3(object):
     def __init__(
             self,
             state_dim,

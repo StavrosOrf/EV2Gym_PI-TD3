@@ -7,18 +7,22 @@ from algorithms.SAC.model import soft_update, hard_update
 from algorithms.SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
 
 
-class SAC(object):
+class PI_SAC(object):
 
     def __name__(self):
-        return "SAC"
+        return "PI_SAC"
 
-    def __init__(self, num_inputs,
+    def __init__(self,
+                 num_inputs,
                  action_space,
                  args):
 
         self.gamma = args['discount']
         self.tau = args['tau']
         self.alpha = args['alpha']
+        
+        self.loss_fn = args['loss_fn']
+        self.transition_fn = args['transition_fn']
 
         self.policy_type = args['policy']
         self.target_update_interval = args['target_update_interval']
