@@ -135,7 +135,7 @@ if __name__ == "__main__":
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
         parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=600,
+        parser.add_argument("--start_timesteps", default=301,
                             type=int)
         parser.add_argument('--eval_freq', default=96*5, type=int)
         parser.add_argument("--batch_size", default=3, type=int)  # 256
@@ -383,8 +383,10 @@ if __name__ == "__main__":
 
         wandb.run.log_code(".")
 
+    state_dim = env.observation_space.shape[0]
     kwargs = {
         "action_dim": action_dim,
+        "state_dim": state_dim,
         "max_action": max_action,
         "discount": args.discount,
         "tau": args.tau,
@@ -395,17 +397,15 @@ if __name__ == "__main__":
         "transition_fn": transition_fn,
         "alpha": args.alpha,
         "look_ahead": args.K,
+        "critic_enabled": not args.disable_critic,
+        "lookahead_critic_reward": args.lookahead_critic_reward,
     }
 
     if args.policy == "td3":
-        state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale
         kwargs["policy_noise"] = args.policy_noise * max_action
         kwargs["noise_clip"] = args.noise_clip * max_action
         kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
-        kwargs['load_path'] = load_path
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
@@ -417,7 +417,6 @@ if __name__ == "__main__":
 
     elif args.policy == 'sac':
 
-        kwargs["device"] = device
         kwargs["alpha"] = args.alpha
         kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
         kwargs["updates_per_step"] = args.updates_per_step
@@ -438,7 +437,6 @@ if __name__ == "__main__":
 
     elif args.policy == 'pi_sac':
 
-        kwargs["device"] = device
         kwargs["alpha"] = args.alpha
         kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
         kwargs["updates_per_step"] = args.updates_per_step
@@ -461,19 +459,13 @@ if __name__ == "__main__":
         os.system(f'cp algorithms/SAC/pi_SAC.py {save_path}')
 
     elif args.policy == "pi_td3":
-
-        state_dim = env.observation_space.shape[0]
         # Target policy smoothing is scaled wrt the action scale
         kwargs["policy_noise"] = args.policy_noise * max_action
         kwargs["noise_clip"] = args.noise_clip * max_action
         kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
         kwargs['load_path'] = load_path
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
-        kwargs['critic_enabled'] = not args.disable_critic
-        kwargs['lookahead_critic_reward'] = args.lookahead_critic_reward
 
         # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
@@ -489,9 +481,6 @@ if __name__ == "__main__":
 
     elif args.policy == "shac":
 
-        state_dim = env.observation_space.shape[0]
-        kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
         kwargs['lr'] = args.lr
         kwargs['dropout'] = args.dropout
 
@@ -509,11 +498,6 @@ if __name__ == "__main__":
 
     elif args.policy == "reinforce":
 
-        state_dim = env.observation_space.shape[0]
-        kwargs["device"] = device
-        kwargs['lr'] = args.lr
-
-        # Save kwargs to local path
         with open(f'{save_path}/kwargs.yaml', 'w') as file:
             yaml.dump(kwargs, file)
 

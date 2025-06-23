@@ -21,7 +21,8 @@ class PI_SAC(object):
         self.tau = args['tau']
         self.alpha = args['alpha']
 
-        self.sequence_length = args['look_ahead']
+        self.look_ahead = args['look_ahead']
+        self.critic_enabled = args['critic_enabled']
 
         self.loss_fn = args['loss_fn']
         self.transition_fn = args['transition_fn']
@@ -78,15 +79,16 @@ class PI_SAC(object):
         # Sample a batch from memory
         # state_batch, action_batch, next_state_batch, reward_batch, not_dones = memory.sample(
         #     batch_size=batch_size)
-        
+
         states, actions, rewards, dones = memory.sample_new(
             batch_size)
-        
+
         state_batch = states[:, 0, :]
         action_batch = actions[:, 0, :]
         next_state_batch = states[:, 1, :]
-        reward_batch = rewards[:, 0]
-        not_dones = torch.ones_like(dones[:, 0], device=self.device) - dones[:, 0]
+        reward_batch = rewards[:, 0].view(-1, 1)
+        not_dones = (torch.ones_like(
+            dones[:, 0], device=self.device) - dones[:, 0]).view(-1, 1)
 
         with torch.no_grad():
             next_state_action, next_state_log_pi, _ = self.policy.sample(
@@ -112,11 +114,56 @@ class PI_SAC(object):
 
         pi, log_pi, _ = self.policy.sample(state_batch)
 
-        qf1_pi, qf2_pi = self.critic(state_batch, pi)
-        min_qf_pi = torch.min(qf1_pi, qf2_pi)
+        # replace min_qf_pi with the rolled out value
+        state_pred = states[:, 0, :]
+
+        for i in range(0, self.look_ahead):
+
+            done = dones[:, i]
+
+            discount = self.gamma**i
+
+            # action_vector = self.actor(state_pred)
+            action_vector, log_pi_vec, _ = self.policy.sample(state_pred)
+
+            reward_pred = self.loss_fn(state=state_pred,
+                                       action=action_vector)
+
+            state_pred = self.transition_fn(state=state_pred,
+                                            new_state=states[:, i+1, :],
+                                            action=action_vector)
+
+            if i == 0:
+                actor_loss = - reward_pred
+                log_pi = log_pi_vec
+            else:
+                actor_loss += - discount * reward_pred * \
+                    (torch.ones_like(done, device=self.device
+                                     ) - done)
+                log_pi += log_pi_vec
+
+        # with torch.no_grad():
+        # next_action = self.actor(state_pred)
+        next_action, _, _ = self.policy.sample(state_pred)
+
+        if self.critic_enabled:
+            qf1_pi, _ = self.critic(state_batch, next_action)
+
+            actor_loss += - discount * self.gamma * \
+                qf1_pi.view(-1) *\
+                (torch.ones_like(done, device=self.device) -
+                    dones[:, self.look_ahead])
+
+            # min_qf_pi = torch.min(qf1_pi, qf2_pi)
+
+        # actor_loss = actor_loss.mean()
+        # print("Actor loss: ", actor_loss.shape)
+        # print(f'alpha: {self.alpha}, log_pi: {log_pi.shape}')
+        
+        log_pi = log_pi / self.look_ahead
 
         # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
-        policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        policy_loss = ((self.alpha * log_pi) + actor_loss).mean()
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
