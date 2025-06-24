@@ -95,6 +95,10 @@ def get_statistics(env) -> Dict:
         stats['saved_grid_energy'] = saved_grid_energy,
         stats['voltage_violation'] = voltage_violation,
         stats['voltage_violation_counter'] = voltage_violation_counter
+    else:
+        stats['saved_grid_energy'] = 0
+        stats['voltage_violation'] = 0
+        stats['voltage_violation_counter'] = 0
 
     if env.eval_mode != "optimal" and env.replay is not None:
         if env.replay.optimal_stats is not None:

@@ -11,8 +11,8 @@ from tqdm import tqdm
 import pickle
 import pandas as pd
 
-from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL, PST_V2G_ProfitMaxGNN_state
-from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2, V2G_costs_simple
+from agent.state import V2G_grid_state_ModelBasedRL
+from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2, V2G_costs_simple, pst_V2G_profitmaxV2
 from agent.transition_fn import V2G_Grid_StateTransition
 from agent.loss_fn import V2GridLoss
 

@@ -58,7 +58,7 @@ class V2GridLoss(nn.Module):
             prices.view(-1, 1), number_of_cs, dim=1)
 
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -213,7 +213,7 @@ class V2GridLoss(nn.Module):
             prices.view(-1, 1), number_of_cs, dim=1)
 
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -314,7 +314,7 @@ class V2GridLoss(nn.Module):
             prices.view(-1, 1), number_of_cs, dim=1)
 
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -409,7 +409,7 @@ class V2GridLoss(nn.Module):
             prices.view(-1, 1), number_of_cs, dim=1)
 
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -522,7 +522,7 @@ class V2GridLoss(nn.Module):
             prices.view(-1, 1), number_of_cs, dim=1)
 
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -594,7 +594,7 @@ class V2GridLoss(nn.Module):
             prices.view(-1, 1), number_of_cs, dim=1)
 
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -695,7 +695,7 @@ class V2GridLoss(nn.Module):
             prices.view(-1, 1), number_of_cs, dim=1)
 
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         # timesscale is a vactor of size number_of_cs with the varaible timescale
@@ -861,6 +861,119 @@ class V2GridLoss(nn.Module):
             print(f'voltage shape {v0_clamped.real.shape}')
 
         return costs + user_sat_at_departure + 50_000 * voltage_loss
+
+    def pst_V2G_profit_maxV2(self, action, state):
+
+            if self.verbose:
+                print("==================================================")
+                print(f'action: {action.shape}')
+                print(f'state: {state.shape}')
+            
+            number_of_cs = action.shape[1]
+            prices = state[:, 3]
+            prices = torch.repeat_interleave(
+                prices.view(-1, 1), number_of_cs, dim=1)
+            
+            setpoint = state[:, 4]
+
+            step_size = 3
+            ev_state_start = 6 + 2*(self.num_buses-1)
+            batch_size = state.shape[0]
+
+            # timesscale is a vactor of size number_of_cs with the varaible timescale
+            timescale = torch.ones((batch_size, number_of_cs),
+                                device=self.device) * self.timescale / 60
+
+            current_capacity = state[:, ev_state_start:(
+                ev_state_start + step_size*number_of_cs):step_size]
+            ev_time_left = state[:, ev_state_start+1:(
+                ev_state_start + 1 + step_size*number_of_cs):step_size]
+            connected_bus = state[:, ev_state_start+2:(
+                ev_state_start + 2 + step_size*number_of_cs):step_size]
+            ev_connected_binary = current_capacity > 0
+
+            max_ev_charge_power = self.max_ev_charge_power * torch.ones(
+                (batch_size, number_of_cs), device=self.device)
+            max_ev_discharge_power = self.max_ev_discharge_power * torch.ones(
+                (batch_size, number_of_cs), device=self.device)
+            battery_capacity = self.ev_battery_capacity * torch.ones(
+                (batch_size, number_of_cs), device=self.device)
+            ev_min_battery_capacity = self.ev_min_battery_capacity * torch.ones(
+                (batch_size, number_of_cs), device=self.device)
+
+            max_ev_charge_power = torch.min(
+                max_ev_charge_power,
+                ev_connected_binary * (battery_capacity - current_capacity)/timescale)
+            max_ev_discharge_power = torch.max(
+                max_ev_discharge_power,
+                ev_connected_binary * (ev_min_battery_capacity - current_capacity)/timescale)
+
+            if self.verbose:
+                print("--------------------------------------------------")
+                print(f'actions: {action}')
+                print(f'ev_connected_binary: {ev_connected_binary}')
+                print(f'current_capacity: {current_capacity}')
+                print(f'time_left: {ev_time_left}')
+                print(f'connected_bus: {connected_bus}')
+                print(f'prices: {prices}')
+                print(f'timescale: {timescale}')
+
+            power_usage = torch.where(
+                action >= 0,
+                action * self.max_cs_power,
+                -action * self.min_cs_power
+            )
+
+            # Clamp between discharge and charge limits
+            power_usage = torch.clamp(
+                power_usage,
+                min=max_ev_discharge_power,
+                max=max_ev_charge_power
+            )
+
+            costs = prices * power_usage * timescale
+            costs = costs.sum(axis=1)
+
+            user_cost_multiplier = 0.05
+
+            new_capacity = (current_capacity + power_usage * timescale)
+            # new_capacity = torch.true_divide(
+            #     torch.ceil(new_capacity * 10**2), 10**2)
+
+            eps = 1e-6
+            # Calculate the minimum number of steps required to fully charge the EV from its current state
+            min_steps_to_full = (self.ev_battery_capacity -
+                                new_capacity) / (self.max_ev_charge_power * timescale + eps)
+
+            # ev_time_left -= 2
+            ev_dep_time = ev_time_left - 2
+
+            # Create a mask for EVs that cannot be fully charged within the remaining time
+            penalty_mask = (min_steps_to_full > ev_dep_time).float()
+            penalty_mask = penalty_mask*ev_connected_binary
+
+            # Compute the minimum capacity achievable by departure (if charging at max power)
+            min_capacity_at_time = self.ev_battery_capacity - \
+                ((ev_dep_time + 1) * self.max_ev_charge_power * timescale)
+            # Calculate the penalty per EV (only applied where the mask is active)
+
+            penalty = user_cost_multiplier * \
+                (min_capacity_at_time - new_capacity)**2
+            penalty = - penalty * penalty_mask
+            user_sat_at_departure = penalty.sum(dim=1)
+                                    
+            total_power_usage = power_usage.sum(axis=1)        
+            pst_violation = torch.where(
+                setpoint < total_power_usage,
+                (setpoint - total_power_usage),
+                torch.zeros_like(total_power_usage, device=self.device)
+            )
+            
+            # print(f'\n-------\nsetpoint: {setpoint}')
+            # print(f'total_power_usage: {total_power_usage}')
+            # print(f'pst_violation: {pst_violation}')
+
+            return costs + user_sat_at_departure + 1000 * pst_violation
 
 
 def smooth_step(x, alpha=10.0):

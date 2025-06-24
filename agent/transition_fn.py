@@ -409,7 +409,7 @@ class V2G_Grid_StateTransition(nn.Module):
         number_of_cs = action.shape[1]
         prices = state[:, 4]
         step_size = 3
-        ev_state_start = 4 + 2*(self.num_buses-1)
+        ev_state_start = 6 + 2*(self.num_buses-1)
         batch_size = state.shape[0]
 
         timescale = torch.ones((batch_size, number_of_cs),

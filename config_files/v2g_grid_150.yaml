@@ -63,7 +63,7 @@ pf_solver: 'Laurent' # 'Laurent' or 'PandaPower'
 ##############################################################################
 # How much the power setpoints can vary in percentage compared to the nominal power
 # The higher the number the easier it is to meet the power setpoints, the opposite for negative numbers
-power_setpoint_enabled: False # True or False
+power_setpoint_enabled: True # True or False
 power_setpoint_flexiblity: 80 # (in percentage +/- %)
 
 ##############################################################################

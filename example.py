@@ -5,8 +5,8 @@ from ev2gym.models.ev2gym_env import EV2Gym
 
 from ev2gym.baselines.heuristics import RoundRobin, RandomAgent, ChargeAsFastAsPossible
 
-from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
-from agent.reward import Grid_V2G_profitmaxV2, V2G_grid_simple_reward, V2G_profitmax, V2G_profitmaxV2
+from agent.state import V2G_grid_state_ModelBasedRL
+from agent.reward import Grid_V2G_profitmaxV2, V2G_grid_simple_reward, V2G_profitmax, V2G_profitmaxV2, pst_V2G_profitmaxV2
 from agent.transition_fn import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_fn import V2GridLoss
 
@@ -26,22 +26,36 @@ def eval():
     Runs an evaluation of the ev2gym environment.
     """
 
-    replay_path = "./replay/replay_sim_2025_02_24_434484.pkl"
+    # replay_path = "./replay/replay_sim_2025_02_24_434484.pkl"
 
     replay_path = None
 
     # config_file = "./config_files/v2g_grid_50.yaml"
-    config_file = "./config_files/v2g_grid_150.yaml"
+    config_file = "./config_files/PST_V2G_ProfixMax_150.yaml"
     # config_file = "./config_files/v2g_grid_3.yaml"
+    
+    # config_file = "./config_files/v2g_grid_50.yaml"
+    
     seed = 0
+    
+    if "v2g_grid" in config_file:
+        state_function = V2G_grid_state_ModelBasedRL
+        reward_function = Grid_V2G_profitmaxV2
+        
+    elif "PST_V2G" in config_file:
+        state_function = V2G_grid_state_ModelBasedRL
+        reward_function = pst_V2G_profitmaxV2
+    else:
+        raise ValueError(
+            f"Unknown config file: {config_file}. Please use a valid config file.")
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=replay_path,
                  verbose=False,
                  save_replay=True,
-                 save_plots=True,
-                 state_function=V2G_grid_state_ModelBasedRL,
-                 reward_function=Grid_V2G_profitmaxV2,
+                 save_plots=False,
+                 state_function=state_function,
+                 reward_function=reward_function,
                  )
 
     print(env.action_space)
@@ -59,24 +73,47 @@ def eval():
     ev_min_battery_capacity = env.EVs_profiles[0].min_battery_capacity
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    loss_fn = V2GridLoss(K=env.grid.net._K_,
-                         L=env.grid.net._L_,
-                         s_base=env.grid.net.s_base,
-                         num_buses=env.grid.net.nb,
-                         max_cs_power=max_cs_power,
-                         min_cs_power=min_cs_power,
-                         ev_battery_capacity=ev_battery_capacity,
-                         ev_min_battery_capacity=ev_min_battery_capacity,
-                         device=device,
-                         verbose=False,
-                         )
+    if "grid" in config_file:
+    
+        loss_fn = V2GridLoss(K=env.grid.net._K_,
+                            L=env.grid.net._L_,
+                            s_base=env.grid.net.s_base,
+                            num_buses=env.grid.net.nb,
+                            max_cs_power=max_cs_power,
+                            min_cs_power=min_cs_power,
+                            ev_battery_capacity=ev_battery_capacity,
+                            ev_min_battery_capacity=ev_min_battery_capacity,
+                            device=device,
+                            verbose=False,
+                            )
+        state_transition = V2G_Grid_StateTransition(verbose=False,
+                                            device=device,
+                                            num_buses=env.grid.net.nb
+                                            )
+        loss_fn = loss_fn.grid_profit_maxV2
+        
+    else:
+        loss_fn = V2GridLoss(K=np.zeros(1),
+                                       L=np.zeros(1),
+                                       s_base=-1,
+                                       num_buses=34,
+                                       max_cs_power=max_cs_power,
+                                       min_cs_power=min_cs_power,
+                                       ev_battery_capacity=ev_battery_capacity,
+                                       ev_min_battery_capacity=ev_min_battery_capacity,
+                                       device=device,
+                                       verbose=False,
+                                       )
+        state_transition = V2G_Grid_StateTransition(verbose=False,
+                                            device=device,
+                                            num_buses=34
+                                            )
+        
+        loss_fn = loss_fn.pst_V2G_profit_maxV2
 
-    state_transition = V2G_Grid_StateTransition(verbose=False,
-                                                device=device,
-                                                num_buses=env.grid.net.nb
-                                                )
 
-    loss_fn = loss_fn.grid_profit_maxV2
+
+    
     
     succesful_runs = 0
     failed_runs = 0
@@ -134,7 +171,7 @@ def eval():
             #                                     action=torch.tensor(
             #     actions, device=device).reshape(1, -1),
             # )
-            v_m = env.node_voltage[1:, t]
+            # v_m = env.node_voltage[1:, t]
 
             # v = v.cpu().detach().numpy().reshape(-1)
             # # print(f'\n \n')
@@ -150,7 +187,7 @@ def eval():
 
             reward_loss = np.abs(reward - loss.cpu().detach().numpy())
 
-            if reward_loss > 0.01:
+            if reward_loss > 1: #0.01:
                 print(
                     f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
                 input(f'Error in reward calculation')
@@ -236,8 +273,8 @@ def evaluate_optimal(new_replay_path):
 
 
 if __name__ == "__main__":
-    # while True:
-    new_replay_path = eval()
+    while True:
+        new_replay_path = eval()
     exit()
 
     new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'

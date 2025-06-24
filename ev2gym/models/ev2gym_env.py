@@ -293,10 +293,10 @@ class EV2Gym(gym.Env):
                     self.sim_date += datetime.timedelta(days=1)
 
         self.sim_starting_date = self.sim_date
-        self.EVs_profiles = load_ev_profiles(self)
-        self.power_setpoints = load_power_setpoints(self)
+        self.EVs_profiles = load_ev_profiles(self)        
         self.charge_prices, self.discharge_prices = load_electricity_prices(
             self)
+        self.power_setpoints = load_power_setpoints(self)
 
         self.EVs = []
         init_statistic_variables(self)
@@ -316,7 +316,11 @@ class EV2Gym(gym.Env):
 
             self.node_active_power[1:, self.current_step] = active_power
             self.node_reactive_power[1:, self.current_step] = reactive_power
-            # self.node_voltage[:, self.current_step] = vm
+        else:
+            self.node_active_power = np.zeros(
+                (34, self.simulation_length))
+            self.node_reactive_power = np.zeros(
+                (34, self.simulation_length))            
 
         state = self._get_observation()
 

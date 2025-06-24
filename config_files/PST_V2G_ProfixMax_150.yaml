@@ -39,7 +39,7 @@ discharge_price_factor: 1 # how many times more abs(expensive/cheaper) it is to 
 ##############################################################################
 v2g_enabled: True # True or False
 number_of_charging_stations: 150 # Play somewhere 5-20
-number_of_transformers: -1
+number_of_transformers: 1
 number_of_ports_per_cs: 1
 # Provide path if you want to load a specific charging topology
 # *(where chargers are located and what are their characteristics),
@@ -64,7 +64,7 @@ pf_solver: 'Laurent' # 'Laurent' or 'PandaPower'
 # How much the power setpoints can vary in percentage compared to the nominal power
 # The higher the number the easier it is to meet the power setpoints, the opposite for negative numbers
 power_setpoint_enabled: True # True or False
-power_setpoint_flexiblity: 80 # (in percentage +/- %)
+power_setpoint_flexiblity: 50 # (in percentage +/- %)
 
 ##############################################################################
 # Inflexible Loads, Solar Generation, and Demand Response (Not compatible with simulate_grid = True)
