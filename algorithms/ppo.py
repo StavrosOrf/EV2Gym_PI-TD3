@@ -281,6 +281,13 @@ class PPO:
 
         # clear buffer
         self.buffer.clear()
+        
+        loss_dict = {
+            'policy_loss': loss.mean().item(),
+            'value_loss': self.MseLoss(state_values, rewards).mean().item(),
+            'dist_entropy': dist_entropy.mean().item()
+        }
+        return loss_dict
 
     def save(self, filename):
         torch.save(self.policy_old.state_dict(), filename + "_actor")
