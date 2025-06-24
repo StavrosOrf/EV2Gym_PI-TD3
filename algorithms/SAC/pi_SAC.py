@@ -147,7 +147,7 @@ class PI_SAC(object):
         next_action, _, _ = self.policy.sample(state_pred)
 
         if self.critic_enabled:
-            qf1_pi, _ = self.critic(state_batch, next_action)
+            qf1_pi, _ = self.critic(state_pred, next_action)
 
             actor_loss += - discount * self.gamma * \
                 qf1_pi.view(-1) *\

@@ -12,45 +12,53 @@ import random
 seeds = [50, 60, 70]
 config = "v2g_grid_150.yaml"
 
+batch_size = 64
+
 # if directory does not exist, create it
 if not os.path.exists('./slurm_logs'):
     os.makedirs('./slurm_logs')
 
-# for algo in ['TD3', 'SAC', 'mb_traj']:
-for algo in ['TD3']:
+# td3, sac, pi_sac, pi_td3, shac
+for algo in ['td3']:
     for K in [1, 2, 5, 10, 25, 40]:
         for scenario in ['v2g',
                          'v2g_profitmax',
                          'grid_v2g_profitmax',
                          ]:
+            
+            for lookahead_critic_reward in [0, 1, 2]: # 2 is the default value
+                for critic_enabled in [True, False]:
+                    for counter, seed in enumerate(seeds):
 
-            for counter, seed in enumerate(seeds):
+                        if K != 1 and algo != 'mb_traj':
+                            continue
 
-                if K != 1 and algo != 'mb_traj':
-                    continue
+                        if K <= 5:
+                            time = 10
+                        else:
+                            time = 15
 
-                if K <= 5:
-                    time = 10
-                else:
-                    time = 15
+                        if K <= 10:
+                            cpu_cores = 2
+                        else:
+                            cpu_cores = 3
 
-                if K <= 10:
-                    cpu_cores = 2
-                else:
-                    cpu_cores = 3
+                        if time > 46:
+                            time = 46
 
-                if time > 46:
-                    time = 46
+                        memory = 5300
 
-                memory = 5300
+                        run_name = f'{algo}_run_{seed}_K={K}_scenario={scenario}_'
+                        run_name += str(random.randint(0, 100000))
+                        
+                        if not critic_enabled:
 
-                run_name = f'{algo}_run_{seed}_K={K}_scenario={scenario}_'
-                run_name += str(random.randint(0, 100000))
+                            extra_args = ' --disable_critic'
 
-                # gpu-a100, gpu
-                command = '''#!/bin/sh
+                        # gpu-a100, gpu
+                        command = '''#!/bin/sh
 #!/bin/bash
-#SBATCH --job-name="m_dt"
+#SBATCH --job-name="pi_rl"
 #SBATCH --partition=gpu
 ''' + \
                     f'#SBATCH --time={time}:00:00' + \
@@ -86,10 +94,14 @@ previous=$(/usr/bin/nvidia-smi --query-accounted-apps='gpu_utilization,mem_utili
                     ' --K ' + str(K) + \
                     ' --device cuda:0' + \
                     ' --policy ' + algo + \
-                    ' --group_name ' + '"ProofExps"' + \
-                    ' --project_name ' + '"EVs4Grid_Exps"' + \
+                    ' --group_name ' + '"final_"' + \
+                    ' --seed ' + str(seed) + \
+                    ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
+                    ' --batch_size ' + str(batch_size) + \
+                    ' --project_name ' + '"EVs4Grid_PaperExps"' + \
                     ' --config ' + config + \
                     ' --name ' + str(run_name) + \
+                    extra_args + \
                     '' + \
                     '''
             
@@ -98,26 +110,26 @@ previous=$(/usr/bin/nvidia-smi --query-accounted-apps='gpu_utilization,mem_utili
 conda deactivate
 '''
 
-                with open(f'run_tmp.sh', 'w') as f:
-                    f.write(command)
+                        with open(f'run_tmp.sh', 'w') as f:
+                            f.write(command)
 
-                with open(f'./slurm_logs/{run_name}.sh', 'w') as f:
-                    f.write(command)
+                        with open(f'./slurm_logs/{run_name}.sh', 'w') as f:
+                            f.write(command)
 
-                os.system('sbatch run_tmp.sh')
+                        os.system('sbatch run_tmp.sh')
 
-                command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
-                    ' --scenario ' + scenario + \
-                    ' --K ' + str(K) + \
-                    ' --device cuda:0' + \
-                    ' --policy ' + algo + \
-                    ' --group_name ' + '"ProofExps"' + \
-                    ' --project_name ' + '"EVs4Grid_Exps"' + \
-                    ' --config ' + config + \
-                    ' --name ' + str(run_name) + \
-                    '" Enter'
+                        # command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
+                        #     ' --scenario ' + scenario + \
+                        #     ' --K ' + str(K) + \
+                        #     ' --device cuda:0' + \
+                        #     ' --policy ' + algo + \
+                        #     ' --group_name ' + '"F_"' + \
+                        #     ' --project_name ' + '"EVs4Grid_PaperExps"' + \
+                        #     ' --config ' + config + \
+                        #     ' --name ' + str(run_name) + \
+                        #     '" Enter'
 
-                os.system(command=command)
-                print(command)
-                import time as timer
-                timer.sleep(5)
+                        # os.system(command=command)
+                        # print(command)
+                        # import time as timer
+                        # timer.sleep(5)

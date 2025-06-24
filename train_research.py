@@ -13,8 +13,8 @@ import pandas as pd
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL, PST_V2G_ProfitMaxGNN_state
 from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2, V2G_costs_simple
-from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
-from agent.loss_full import V2GridLoss
+from agent.transition_fn import V2G_Grid_StateTransition
+from agent.loss_fn import V2GridLoss
 
 from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Action, ReplayBuffer
 
@@ -160,13 +160,6 @@ if __name__ == "__main__":
     # Model load file name, "" doesn't load, "default" uses file_name
     parser.add_argument("--replay_buffer_size", default=1e6, type=int)
 
-    # DT parameters #############################################
-    parser.add_argument('--mode', type=str, default='normal')
-    parser.add_argument('--embed_dim', type=int, default=128)
-    parser.add_argument('--n_layer', type=int, default=3)
-    parser.add_argument('--n_head', type=int, default=1)
-    parser.add_argument('--activation_function', type=str, default='relu')
-
     # SAC parameters #############################################
     parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
                         help='Temperature parameter α determines the relative importance of the entropy\
@@ -201,7 +194,7 @@ if __name__ == "__main__":
                         help='Enable critic in the policy.')
     parser.add_argument('--lookahead_critic_reward', type=int, default=2)
 
-    # GNN Feature Extractor Parameters #############################################
+    # Parameters #############################################
     parser.add_argument('--mlp_hidden_dim', type=int, default=128)
     parser.add_argument('--discrete_actions', type=int, default=1)
 
@@ -699,65 +692,65 @@ if __name__ == "__main__":
 
     # open as dataframe
 
-    runs_logger = pd.read_csv('runs_logger.csv', index_col=0)
-    runs_logger.index = runs_logger.index.astype(str)
-    # update field complete of row with index [run_name] to True
+    # runs_logger = pd.read_csv('runs_logger.csv', index_col=0)
+    # runs_logger.index = runs_logger.index.astype(str)
+    # # update field complete of row with index [run_name] to True
 
-    if exp_prefix in runs_logger.index:
-        run_name = exp_prefix
-        print(f'Updating run {run_name} to complete...')
-        runs_logger.loc[runs_logger.index ==
-                        run_name, 'finished_training'] = True
+    # if exp_prefix in runs_logger.index:
+    #     run_name = exp_prefix
+    #     print(f'Updating run {run_name} to complete...')
+    #     runs_logger.loc[runs_logger.index ==
+    #                     run_name, 'finished_training'] = True
 
-        already_done = runs_logger.loc[runs_logger.index ==
-                                       run_name, 'train_hours_done'].values
-        runs_logger.loc[runs_logger.index == run_name,
-                        'train_hours_done'] = already_done + args.time_limit_hours
-    else:
-        run_name = exp_prefix.split('-')[0]
-        if run_name in runs_logger.index:
+    #     already_done = runs_logger.loc[runs_logger.index ==
+    #                                    run_name, 'train_hours_done'].values
+    #     runs_logger.loc[runs_logger.index == run_name,
+    #                     'train_hours_done'] = already_done + args.time_limit_hours
+    # else:
+    #     run_name = exp_prefix.split('-')[0]
+    #     if run_name in runs_logger.index:
 
-            print(f'Updating run {run_name} to complete...')
-            runs_logger.loc[runs_logger.index ==
-                            run_name, 'finished_training'] = True
+    #         print(f'Updating run {run_name} to complete...')
+    #         runs_logger.loc[runs_logger.index ==
+    #                         run_name, 'finished_training'] = True
 
-            already_done = runs_logger.loc[runs_logger.index ==
-                                           run_name, 'train_hours_done'].values
-            runs_logger.loc[runs_logger.index == run_name,
-                            'train_hours_done'] = already_done + args.time_limit_hours
+    #         already_done = runs_logger.loc[runs_logger.index ==
+    #                                        run_name, 'train_hours_done'].values
+    #         runs_logger.loc[runs_logger.index == run_name,
+    #                         'train_hours_done'] = already_done + args.time_limit_hours
 
-            # create a new row with index name run_name and the other columns from the old row
-            runs_logger.loc[exp_prefix] = runs_logger.loc[runs_logger.index ==
-                                                          run_name].values[0]
-            # drop the old row
-            runs_logger.drop(
-                runs_logger.index[runs_logger.index == run_name], inplace=True)
+    #         # create a new row with index name run_name and the other columns from the old row
+    #         runs_logger.loc[exp_prefix] = runs_logger.loc[runs_logger.index ==
+    #                                                       run_name].values[0]
+    #         # drop the old row
+    #         runs_logger.drop(
+    #             runs_logger.index[runs_logger.index == run_name], inplace=True)
 
     # save the dataframe
-    runs_logger.to_csv('runs_logger.csv')
+    # runs_logger.to_csv('runs_logger.csv')
 
-    if args.save_replay_buffer:
-        print("Saving replay buffer for future training...")
-        if not os.path.exists(f'replay_buffers/{exp_prefix}'):
-            os.makedirs(f'replay_buffers/{exp_prefix}')
+    # if args.save_replay_buffer:
+    #     print("Saving replay buffer for future training...")
+    #     if not os.path.exists(f'replay_buffers/{exp_prefix}'):
+    #         os.makedirs(f'replay_buffers/{exp_prefix}')
 
-        with open(f'replay_buffers/{exp_prefix}/replay_buffer.pkl', 'wb') as f:
-            pickle.dump(replay_buffer, f)
+    #     with open(f'replay_buffers/{exp_prefix}/replay_buffer.pkl', 'wb') as f:
+    #         pickle.dump(replay_buffer, f)
 
-        # save a yaml file with timestep size
-        with open(f'replay_buffers/{exp_prefix}/params.yaml', 'w') as file:
-            yaml.dump({'timestep': t,
-                       'best_reward': float(best_reward),
-                       'episode_num': episode_num}, file)
+    #     # save a yaml file with timestep size
+    #     with open(f'replay_buffers/{exp_prefix}/params.yaml', 'w') as file:
+    #         yaml.dump({'timestep': t,
+    #                    'best_reward': float(best_reward),
+    #                    'episode_num': episode_num}, file)
 
-    if args.delete_replay_buffer:
-        print("Deleting replay buffer...")
-        if os.path.exists(f'replay_buffers/{exp_prefix}'):
-            os.system(f'rm -r replay_buffers/{exp_prefix}')
+    # if args.delete_replay_buffer:
+    #     print("Deleting replay buffer...")
+    #     if os.path.exists(f'replay_buffers/{exp_prefix}'):
+    #         os.system(f'rm -r replay_buffers/{exp_prefix}')
 
-    print(f'Best reward: {best_reward}')
-    print(
-        f'Total run-time: {time.strftime("%H:%M:%S", time.gmtime(time.time() - run_timer))}')
+    # print(f'Best reward: {best_reward}')
+    # print(
+    #     f'Total run-time: {time.strftime("%H:%M:%S", time.gmtime(time.time() - run_timer))}')
 
-    # run the batch_runer_continue.py script through os.system
-    os.system('python batch_runer_continue.py')
+    # # run the batch_runer_continue.py script through os.system
+    # os.system('python batch_runer_continue.py')

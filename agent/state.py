@@ -4,60 +4,6 @@ import math
 
 from torch_geometric.data import Data
 
-
-def V2G_grid_state(env, *args):
-    '''
-    This is the state function for the PST_V2GProfitMax scenario.
-    '''
-
-    state = [
-        env.sim_date.weekday() / 7,
-        math.sin(env.sim_date.hour/24*2*math.pi),
-        math.cos(env.sim_date.hour/24*2*math.pi),
-    ]
-
-    # state.append(env.current_power_usage[env.current_step-1])
-
-    if env.current_step < env.simulation_length:
-        charge_prices = abs(env.charge_prices[0, env.current_step])
-    else:
-        charge_prices = 0
-
-    state.append(charge_prices)
-
-    state.append(env.node_voltage[:, env.current_step-1])
-    state.append(env.node_active_power[:, env.current_step-1])
-
-    # For every transformer
-    for tr in env.transformers:
-
-        # state.append(tr.get_power_limits(env.current_step,horizon=1))
-
-        # For every charging station connected to the transformer
-        for cs in env.charging_stations:
-            if cs.connected_transformer == tr.id:
-                # state.append(cs.min_charge_current)
-                # state.append(cs.max_charge_current)
-                # state.append(cs.n_ports)
-
-                # For every EV connected to the charging station
-                for EV in cs.evs_connected:
-                    # If there is an EV connected
-                    if EV is not None:
-                        state.append([
-                            EV.get_soc(),
-                            EV.time_of_departure - env.current_step,
-                        ])
-
-                    # else if there is no EV connected put zeros
-                    else:
-                        state.append(np.zeros(2))
-
-    state = np.array(np.hstack(state))
-
-    return state
-
-
 def V2G_grid_state_ModelBasedRL(env, *args):
     '''
     This is the state function for the V2GProfitMax scenario with loads
@@ -112,6 +58,8 @@ def V2G_grid_state_ModelBasedRL(env, *args):
 
     return state
 
+
+############################## -- XXXXXXXXXXXXXXXXX ---##############################
 
 def PST_V2G_ProfitMaxGNN_state(env, *args):
     ''' 

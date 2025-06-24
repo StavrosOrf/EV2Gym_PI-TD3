@@ -7,8 +7,8 @@ from ev2gym.baselines.heuristics import RoundRobin, RandomAgent, ChargeAsFastAsP
 
 from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
 from agent.reward import Grid_V2G_profitmaxV2, V2G_grid_simple_reward, V2G_profitmax, V2G_profitmaxV2
-from agent.loss import VoltageViolationLoss, V2G_Grid_StateTransition
-from agent.loss_full import V2GridLoss
+from agent.transition_fn import VoltageViolationLoss, V2G_Grid_StateTransition
+from agent.loss_fn import V2GridLoss
 
 from ev2gym.baselines.gurobi_models.v2g_grid import V2GProfitMax_Grid_OracleGB
 from ev2gym.baselines.gurobi_models.profit_max import V2GProfitMaxOracleGB

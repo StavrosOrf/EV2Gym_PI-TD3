@@ -15,15 +15,15 @@ batch_size = 64  # 256 # 512
 
 # for policy in ['TD3', 'pi_td3', 'SAC']: # MB pi_DDPG
 # for policy in ['pi_td3', 'SAC']: # MB, shac, reinforce
-for policy in ['ppo']:
+for policy in ['pi_sac']:
     for lookahead_critic_reward in [2]:
-        for critic in [True]:
-            for K in [1]:  # 512
+        for critic in [ False]:
+            for K in [10,20]:  # 512
                 for seed in [9]:
                     
                     # if lookahead_critic_reward != 2 and not critic:
 
-                    if not critic and policy != 'pi_td3':
+                    if not critic and policy != 'pi_td3' and policy != 'pi_sac':
                         continue
                     
                     if policy not in ['pi_td3', 'pi_DDPG', 'pi_sac','shac'] and K != 1:

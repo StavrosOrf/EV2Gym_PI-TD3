@@ -175,3 +175,5 @@ trajectories/
 eval_replays/
 slurm_logs/
 run_tmp.sh
+checkpoints/
+.lprof/
