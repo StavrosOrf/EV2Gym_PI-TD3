@@ -115,6 +115,7 @@ class ActorCritic(nn.Module):
         else:
             action_probs = self.actor(state)
             dist = Categorical(action_probs)
+            
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
         state_values = self.critic(state)
@@ -163,36 +164,36 @@ class PPO:
 
         self.MseLoss = nn.MSELoss()
 
-    def set_action_std(self, new_action_std):
-        if self.has_continuous_action_space:
-            self.action_std = new_action_std
-            self.policy.set_action_std(new_action_std)
-            self.policy_old.set_action_std(new_action_std)
-        else:
-            print(
-                "--------------------------------------------------------------------------------------------")
-            print(
-                "WARNING : Calling PPO::set_action_std() on discrete action space policy")
-            print(
-                "--------------------------------------------------------------------------------------------")
+    # def set_action_std(self, new_action_std):
+    #     if self.has_continuous_action_space:
+    #         self.action_std = new_action_std
+    #         self.policy.set_action_std(new_action_std)
+    #         self.policy_old.set_action_std(new_action_std)
+    #     else:
+    #         print(
+    #             "--------------------------------------------------------------------------------------------")
+    #         print(
+    #             "WARNING : Calling PPO::set_action_std() on discrete action space policy")
+    #         print(
+    #             "--------------------------------------------------------------------------------------------")
 
-    def decay_action_std(self, action_std_decay_rate, min_action_std):
-        print("--------------------------------------------------------------------------------------------")
-        if self.has_continuous_action_space:
-            self.action_std = self.action_std - action_std_decay_rate
-            self.action_std = round(self.action_std, 4)
-            if (self.action_std <= min_action_std):
-                self.action_std = min_action_std
-                print(
-                    "setting actor output action_std to min_action_std : ", self.action_std)
-            else:
-                print("setting actor output action_std to : ", self.action_std)
-            self.set_action_std(self.action_std)
+    # def decay_action_std(self, action_std_decay_rate, min_action_std):
+    #     print("--------------------------------------------------------------------------------------------")
+    #     if self.has_continuous_action_space:
+    #         self.action_std = self.action_std - action_std_decay_rate
+    #         self.action_std = round(self.action_std, 4)
+    #         if (self.action_std <= min_action_std):
+    #             self.action_std = min_action_std
+    #             print(
+    #                 "setting actor output action_std to min_action_std : ", self.action_std)
+    #         else:
+    #             print("setting actor output action_std to : ", self.action_std)
+    #         self.set_action_std(self.action_std)
 
-        else:
-            print(
-                "WARNING : Calling PPO::decay_action_std() on discrete action space policy")
-        print("--------------------------------------------------------------------------------------------")
+    #     else:
+    #         print(
+    #             "WARNING : Calling PPO::decay_action_std() on discrete action space policy")
+    #     print("--------------------------------------------------------------------------------------------")
 
     def select_action(self, state, evaluate=False):
 
@@ -234,7 +235,7 @@ class PPO:
 
         # Normalizing the rewards
         rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
 
         # convert list to tensor
         old_states = torch.squeeze(torch.stack(

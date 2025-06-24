@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -248,7 +248,6 @@ if __name__ == "__main__":
                               })
 
     env = gym.make('evs-v1')
-
     if args.discrete_actions == 3:
         env = ThreeStep_Action(env)
     elif args.discrete_actions == 2:
@@ -592,12 +591,14 @@ if __name__ == "__main__":
             elif args.policy == "ppo":
                 if t % (args.update_freq_PPO * simulation_length) == 0:
                     loss_dict = policy.train()
+                else:
+                    loss_dict = None
 
             else:
                 loss_dict = policy.train(
                     replay_buffer, args.batch_size)
 
-            if args.log_to_wandb and policy != "reinforce":
+            if args.log_to_wandb and policy != "reinforce" and loss_dict is not None:
 
                 for key in loss_dict.keys():
                     wandb.log({f'train/{key}': loss_dict[key]},
