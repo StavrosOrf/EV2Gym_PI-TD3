@@ -124,7 +124,14 @@ class SAC(object):
         if updates % self.target_update_interval == 0:
             soft_update(self.critic_target, self.critic, self.tau)
 
-        return qf1_loss.item(), qf2_loss.item(), policy_loss.item(), alpha_loss.item(), alpha_tlogs.item()
+        loss_dict = {
+            'critic_loss': qf1_loss.item(),
+            'critic_loss2': qf2_loss.item(),
+            'actor_loss': policy_loss.item(),
+            'alpha_loss': alpha_loss.item(),
+            'alpha_tlogs': alpha_tlogs.item()
+        }
+        return loss_dict
 
     # Save model parameters
     def save(self, save_path):

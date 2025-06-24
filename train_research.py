@@ -22,6 +22,7 @@ from ev2gym.models.ev2gym_env import EV2Gym
 
 from algorithms.SAC.sac import SAC
 from algorithms.SAC.pi_SAC import PI_SAC
+from algorithms.ppo import PPO
 from algorithms.TD3 import TD3
 from algorithms.pi_TD3 import PI_TD3
 from algorithms.pi_DDPG import PI_DDPG
@@ -56,20 +57,13 @@ def eval_policy(policy,
         state, _ = eval_env.reset()
         done = False
         while not done:
-            action = policy.select_action(state)
+            action = policy.select_action(state, evaluate=True)
             if len(action) == 3:
                 action = action[0]
             state, reward, done, _, stats = eval_env.step(action)
             avg_reward += reward
 
         stats_list.append(stats)
-
-    # get the mean and std of the stats
-    # for key in stats.keys():
-    #     eval_stats['eval_metrics/'+key +
-    #                '_mean'] = np.mean([x[key] for x in stats_list])
-    #     eval_stats['eval_metrics/'+key +
-    #                '_std'] = np.std([x[key] for x in stats_list])
 
     keys_to_keep = [
         'total_reward',
@@ -112,12 +106,11 @@ if __name__ == "__main__":
     # SAC
     # reinforce
     # TD3
-    # pi_td3, mb_traj_DDPG
+    # pi_td3, pi_DDPG
     # shac
-    parser.add_argument("--policy", default="pi_sac")
+    parser.add_argument("--policy", default="ppo")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="v2g_profitmax")
-
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
     parser.add_argument("--config", default="v2g_grid_150_300.yaml")
@@ -130,7 +123,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -152,7 +145,6 @@ if __name__ == "__main__":
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor
-    # Target network update rate
     parser.add_argument("--tau", default=0.005, type=float)
     # TD3 parameters #############################################
     parser.add_argument("--expl_noise", default=0.1, type=float)  # 0.1
@@ -179,7 +171,7 @@ if __name__ == "__main__":
     parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
                         help='Temperature parameter α determines the relative importance of the entropy\
                             term against the reward (default: 0.2)')
-    parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
+    parser.add_argument('--automatic_entropy_tuning', type=bool, default=True, metavar='G',
                         help='Automaically adjust α (default: False)')
     parser.add_argument('--updates_per_step', type=int, default=1, metavar='N',
                         help='model updates per simulator step (default: 1)')
@@ -188,12 +180,21 @@ if __name__ == "__main__":
     parser.add_argument('--policy_SAC', default="Gaussian",
                         help='Policy Type: Gaussian | Deterministic (default: Gaussian)')
 
-    # Physics loss #############################################
-    parser.add_argument('--ph_coeff', type=float, default=10e-5)
+    # PPO parameters #############################################
+    parser.add_argument('--eps_clip', type=float, default=0.2)
+    parser.add_argument('--update_freq_PPO', type=int, default=4)  # in epochs
+    parser.add_argument('--action_std', type=float, default=0.6)
+    parser.add_argument('--train_updates_PPO', type=float, default=80)
+    parser.add_argument('--action_std_decay_rate', type=float, default=0.05)
+    parser.add_argument('--min_action_std', type=float, default=0.1)
+    parser.add_argument('--action_std_decay_freq',
+                        type=int, default=int(2.5e5))
 
+    # Physics loss #############################################
     parser.add_argument('--K', type=int, default=10)
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
+    parser.add_argument('--lr_critic', type=float, default=3e-4)
     # add bollean argument to enable/disable critic
     parser.add_argument('--disable_critic', action='store_true',
                         default=False,
@@ -391,6 +392,7 @@ if __name__ == "__main__":
         "discount": args.discount,
         "tau": args.tau,
         "mlp_hidden_dim": args.mlp_hidden_dim,
+        "hidden_size": args.mlp_hidden_dim,
         "device": device,
         "seed": args.seed,
         "loss_fn": loss_fn,
@@ -399,59 +401,46 @@ if __name__ == "__main__":
         "look_ahead": args.K,
         "critic_enabled": not args.disable_critic,
         "lookahead_critic_reward": args.lookahead_critic_reward,
+        "lr": args.lr,
+        "lr_critic": args.lr_critic,
+        "alpha": args.alpha,
+        "automatic_entropy_tuning": args.automatic_entropy_tuning,
+        "updates_per_step": args.updates_per_step,
+        "target_update_interval": args.target_update_interval,
+        "policy_freq": args.policy_freq,
+        "policy_noise": args.policy_noise * max_action,
+        "noise_clip": args.noise_clip * max_action,
+        "has_continuous_action_space": True if args.discrete_actions == 1 else False,
+        "eps_clip": args.eps_clip,
+        "action_std": args.action_std,
+        "action_std_decay_rate": args.action_std_decay_rate,
+        "min_action_std": args.min_action_std,
+        "train_updates_PPO": args.train_updates_PPO,
     }
 
+    # Save kwargs to local path
+    with open(f'{save_path}/kwargs.yaml', 'w') as file:
+        yaml.dump(kwargs, file)
+
     if args.policy == "td3":
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
         os.system(f'cp algorithms/TD3.py {save_path}')
-
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
     elif args.policy == 'sac':
-
-        kwargs["alpha"] = args.alpha
-        kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
-        kwargs["updates_per_step"] = args.updates_per_step
-        kwargs["target_update_interval"] = args.target_update_interval
-        kwargs["discount"] = args.discount
-        kwargs["tau"] = args.tau
         kwargs['policy'] = args.policy_SAC
-        kwargs['lr'] = args.lr
-        kwargs['hidden_size'] = args.mlp_hidden_dim
-
-        state_dim = env.observation_space.shape[0]
         policy = SAC(num_inputs=state_dim,
                      action_space=env.action_space,
                      args=kwargs)
-
         replay_buffer = ReplayBuffer(state_dim, action_dim)
         os.system(f'cp algorithms/SAC/sac.py {save_path}')
 
     elif args.policy == 'pi_sac':
 
-        kwargs["alpha"] = args.alpha
-        kwargs["automatic_entropy_tuning"] = args.automatic_entropy_tuning
-        kwargs["updates_per_step"] = args.updates_per_step
-        kwargs["target_update_interval"] = args.target_update_interval
-        kwargs["discount"] = args.discount
-        kwargs["tau"] = args.tau
         kwargs['policy'] = args.policy_SAC
-        kwargs['lr'] = args.lr
-        kwargs['hidden_size'] = args.mlp_hidden_dim
-
-        state_dim = env.observation_space.shape[0]
         policy = PI_SAC(num_inputs=state_dim,
                         action_space=env.action_space,
                         args=kwargs)
-
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 device=device,
@@ -459,20 +448,7 @@ if __name__ == "__main__":
         os.system(f'cp algorithms/SAC/pi_SAC.py {save_path}')
 
     elif args.policy == "pi_td3":
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        kwargs['load_path'] = load_path
-        kwargs['lr'] = args.lr
-        kwargs['dropout'] = args.dropout
-
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
         os.system(f'cp algorithms/pi_TD3.py {save_path}')
-
         policy = PI_TD3(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -481,15 +457,7 @@ if __name__ == "__main__":
 
     elif args.policy == "shac":
 
-        kwargs['lr'] = args.lr
-        kwargs['dropout'] = args.dropout
-
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
         os.system(f'cp algorithms/shac.py {save_path}')
-
         policy = SHAC(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -498,37 +466,19 @@ if __name__ == "__main__":
 
     elif args.policy == "reinforce":
 
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
         os.system(f'cp algorithms/reinforce.py {save_path}')
-
         policy = Reinforce(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
 
+    elif args.policy == "ppo":
+        os.system(f'cp algorithms/ppo.py {save_path}')
+        policy = PPO(**kwargs)
+
     elif args.policy == "pi_DDPG":
-
-        state_dim = env.observation_space.shape[0]
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        kwargs["device"] = device
-        kwargs['state_dim'] = state_dim
-        kwargs['load_path'] = load_path
-
-        kwargs['lr'] = args.lr
-        kwargs['dropout'] = args.dropout
-
-        # Save kwargs to local path
-        with open(f'{save_path}/kwargs.yaml', 'w') as file:
-            yaml.dump(kwargs, file)
-
         os.system(f'cp algorithms/pi_DDPG.py {save_path}')
-
         policy = PI_DDPG(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -578,13 +528,7 @@ if __name__ == "__main__":
 
     for t in range(start_timestep_training, int(args.max_timesteps)):
 
-        if time.time() - run_timer > time_limit_minutes * 60:
-            print(f"Time limit reached. Exiting...")
-            break
-
         episode_timesteps += 1
-
-        # Select action randomly or according to poli
 
         if args.policy in ["sac", "shac", "pi_sac"]:
             action = policy.select_action(state, evaluate=False)
@@ -592,7 +536,10 @@ if __name__ == "__main__":
 
         elif args.policy == "reinforce":
             action, log_prob, entropy = policy.select_action(state)
-            # Perform action
+            next_state, reward, done, _, stats = env.step(action)
+
+        elif args.policy == "ppo":
+            action = policy.select_action(state, evaluate=False)
             next_state, reward, done, _, stats = env.step(action)
 
         elif args.policy in ['TD3', 'pi_td3', 'pi_DDPG']:
@@ -607,7 +554,11 @@ if __name__ == "__main__":
         else:
             raise ValueError("Policy not recognized.")
 
-        if args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
+        if args.policy == "ppo":
+            policy.buffer.rewards.append(reward)
+            policy.buffer.is_terminals.append(done)
+
+        elif args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
             # Store data in replay buffer
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
@@ -630,41 +581,30 @@ if __name__ == "__main__":
         if t >= args.start_timesteps:
 
             start_time = time.time()
-            if args.policy == 'sac':
-                critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = policy.train(
+            if args.policy == 'sac' or args.policy == 'pi_sac':
+                loss_dict = policy.train(
                     replay_buffer, args.batch_size, updates)
                 updates += 1
 
-                if args.log_to_wandb:
-                    wandb.log({'train/critic_loss': critic_1_loss,
-                               'train/critic2_loss': critic_2_loss,
-                               'train/actor_loss': policy_loss,
-                               'train/ent_loss': ent_loss,
-                               'train/alpha': alpha,
-                               'train/time': time.time() - start_time, },
-                              step=t)
             elif args.policy == "reinforce":
                 pass
+
+            elif args.policy == "ppo":
+                if t % (args.update_freq_PPO * simulation_length) == 0:
+                    loss_dict = policy.train()
+
             else:
-                
-                if args.policy == "pi_sac":
-                    loss_dict = policy.train(
-                        replay_buffer, args.batch_size, updates)
-                    updates += 1
-                else:
-                    loss_dict = policy.train(
-                        replay_buffer, args.batch_size)
+                loss_dict = policy.train(
+                    replay_buffer, args.batch_size)
 
-                if args.log_to_wandb:
+            if args.log_to_wandb and policy != "reinforce":
 
-                    # log all loss_dict keys, but add train/ in front of their name
-                    for key in loss_dict.keys():
-                        wandb.log({f'train/{key}': loss_dict[key]},
-                                  step=t)
-                    wandb.log({
-                        #    'train/physics_loss': loss_dict['physics_loss'],
-                        'train/time': time.time() - start_time, },
-                        step=t)
+                for key in loss_dict.keys():
+                    wandb.log({f'train/{key}': loss_dict[key]},
+                              step=t)
+                wandb.log({
+                    'train/time': time.time() - start_time, },
+                    step=t)
 
         if done:
 
@@ -692,7 +632,6 @@ if __name__ == "__main__":
                 state_traj.zero_()
                 reward_traj.zero_()
                 done_traj.zero_()
-                # detach the tensors to allow differentiation
                 log_probs_traj.detach_()
                 entropy_traj.detach_()
                 log_probs_traj.zero_()

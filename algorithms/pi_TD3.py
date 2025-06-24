@@ -5,9 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
-# Paper: https://arxiv.org/abs/1802.09477
-
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim):
