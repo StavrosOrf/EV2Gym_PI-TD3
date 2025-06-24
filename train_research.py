@@ -73,6 +73,7 @@ def eval_policy(policy,
         'average_user_satisfaction',
         'min_user_satisfaction',
         'voltage_violation'
+        'power_tracker_violation'
     ]
 
     stats = {}
@@ -110,10 +111,10 @@ if __name__ == "__main__":
     # shac
     parser.add_argument("--policy", default="ppo")
     parser.add_argument("--name", default="base")
-    parser.add_argument("--scenario", default="v2g_profitmax")
+    parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid_150_300.yaml")
+    parser.add_argument("--config", default="PST_V2G_ProfixMax_150_300.yaml")
     # parser.add_argument("--config", default="v2g_grid_3.yaml")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
@@ -224,11 +225,12 @@ if __name__ == "__main__":
         reward_function = V2G_profitmaxV2
     elif args.scenario == "grid_v2g_profitmax":
         reward_function = Grid_V2G_profitmaxV2
+    elif args.scenario == 'pst_v2g_profitmax':
+        reward_function = pst_V2G_profitmaxV2
     else:
         raise ValueError("Scenario not recognized.")
 
     state_function = V2G_grid_state_ModelBasedRL
-    # state_function = PST_V2G_ProfitMaxGNN_state
 
     config = yaml.load(open(config_file, 'r'),
                        Loader=yaml.FullLoader)
@@ -304,15 +306,35 @@ if __name__ == "__main__":
     else:
         load_path = None
 
-    loss_fn = V2GridLoss(K=env.get_wrapper_attr('grid').net._K_,
-                         L=env.get_wrapper_attr('grid').net._L_,
-                         s_base=env.get_wrapper_attr(
-        'grid').net.s_base,
-        num_buses=env.get_wrapper_attr(
-        'grid').net.nb,
-        device=device,
-        verbose=False,
-    )
+    if "pst" in args.scenario:
+        loss_fn = V2GridLoss(K=np.zeros(1),
+                             L=np.zeros(1),
+                             s_base=-1,
+                             num_buses=34,
+                             device=device,
+                             verbose=False,
+                             )
+
+        transition_fn = V2G_Grid_StateTransition(verbose=False,
+                                                 device=device,
+                                                 num_buses=34,
+                                                 )
+    else:
+        loss_fn = V2GridLoss(K=env.get_wrapper_attr('grid').net._K_,
+                             L=env.get_wrapper_attr('grid').net._L_,
+                             s_base=env.get_wrapper_attr(
+            'grid').net.s_base,
+            num_buses=env.get_wrapper_attr(
+            'grid').net.nb,
+            device=device,
+            verbose=False,
+        )
+
+        transition_fn = V2G_Grid_StateTransition(verbose=False,
+                                                 device=device,
+                                                 num_buses=env.get_wrapper_attr(
+                                                     'grid').net.nb,
+                                                 )
 
     if args.scenario == "v2g":
         loss_fn = loss_fn.V2G_simpleV2
@@ -320,12 +342,8 @@ if __name__ == "__main__":
         loss_fn = loss_fn.V2G_profit_maxV2
     elif args.scenario == "grid_v2g_profitmax":
         loss_fn = loss_fn.grid_profit_maxV2
-
-    transition_fn = V2G_Grid_StateTransition(verbose=False,
-                                             device=device,
-                                             num_buses=env.get_wrapper_attr(
-                                                 'grid').net.nb,
-                                             )
+    elif args.scenario == "pst_v2g_profitmax":
+        loss_fn = loss_fn.pst_V2G_profit_maxV2
 
     # Set seeds
     env.action_space.seed(args.seed)
@@ -574,9 +592,13 @@ if __name__ == "__main__":
 
             start_time = time.time()
             if args.policy == 'sac' or args.policy == 'pi_sac':
-                loss_dict = policy.train(
-                    replay_buffer, args.batch_size, updates)
-                updates += 1
+                
+                if t % args.policy_freq == 0:
+                    loss_dict = policy.train(
+                            replay_buffer, args.batch_size, updates)
+                    updates += 1
+                else:
+                    loss_dict = None
 
             elif args.policy == "reinforce":
                 pass
