@@ -7,20 +7,73 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+# class Actor(nn.Module):
+#     def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim):
+#         super(Actor, self).__init__()
+
+#         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+#         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+#         self.l3 = nn.Linear(mlp_hidden_dim, action_dim)
+
+#         self.max_action = max_action
+
+#     def forward(self, state):
+#         a = F.relu(self.l1(state))
+#         a = F.relu(self.l2(a))
+#         # return self.max_action * torch.sigmoid(self.l3(a))
+#         return torch.tanh(self.l3(a))
+
+
+# class Critic(nn.Module):
+#     def __init__(self, state_dim, action_dim, mlp_hidden_dim):
+
+#         super(Critic, self).__init__()
+
+#         # Q1 architecture
+#         self.l1 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
+#         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+#         self.l3 = nn.Linear(mlp_hidden_dim, 1)
+
+#         # Q2 architecture
+#         self.l4 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
+#         self.l5 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+#         self.l6 = nn.Linear(mlp_hidden_dim, 1)
+
+#     def forward(self, state, action):
+#         sa = torch.cat([state, action], 1)
+
+#         q1 = F.relu(self.l1(sa))
+#         q1 = F.relu(self.l2(q1))
+#         q1 = self.l3(q1)
+
+#         q2 = F.relu(self.l4(sa))
+#         q2 = F.relu(self.l5(q2))
+#         q2 = self.l6(q2)
+#         return q1, q2
+
+#     def Q1(self, state, action):
+#         sa = torch.cat([state, action], 1)
+
+#         q1 = F.relu(self.l1(sa))
+#         q1 = F.relu(self.l2(q1))
+#         q1 = self.l3(q1)
+#         return q1
+
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim):
         super(Actor, self).__init__()
 
         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
         self.l3 = nn.Linear(mlp_hidden_dim, action_dim)
 
         self.max_action = max_action
 
     def forward(self, state):
-        a = F.relu(self.l1(state))
-        a = F.relu(self.l2(a))
-        # return self.max_action * torch.sigmoid(self.l3(a))
+        a = F.silu(self.ln1(self.l1(state)))
+        a = F.silu(self.ln2(self.l2(a)))
         return torch.tanh(self.l3(a))
 
 
@@ -31,31 +84,36 @@ class Critic(nn.Module):
 
         # Q1 architecture
         self.l1 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
+        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
         self.l3 = nn.Linear(mlp_hidden_dim, 1)
 
         # Q2 architecture
         self.l4 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
+        self.ln4 = nn.LayerNorm(mlp_hidden_dim)
         self.l5 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.ln5 = nn.LayerNorm(mlp_hidden_dim)
         self.l6 = nn.Linear(mlp_hidden_dim, 1)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], 1)
 
-        q1 = F.relu(self.l1(sa))
-        q1 = F.relu(self.l2(q1))
+        #use silu activation and layer normalization
+        q1 = F.silu(self.ln1(self.l1(sa)))
+        q1 = F.silu(self.ln2(self.l2(q1)))
         q1 = self.l3(q1)
 
-        q2 = F.relu(self.l4(sa))
-        q2 = F.relu(self.l5(q2))
+        q2 = F.silu(self.ln4(self.l4(sa)))
+        q2 = F.silu(self.ln5(self.l5(q2)))
         q2 = self.l6(q2)
         return q1, q2
 
     def Q1(self, state, action):
         sa = torch.cat([state, action], 1)
 
-        q1 = F.relu(self.l1(sa))
-        q1 = F.relu(self.l2(q1))
+        q1 = F.silu(self.ln1(self.l1(sa)))
+        q1 = F.silu(self.ln2(self.l2(q1)))
         q1 = self.l3(q1)
         return q1
 
@@ -87,13 +145,17 @@ class PI_TD3(object):
         self.actor = Actor(state_dim, action_dim, max_action,
                            mlp_hidden_dim).to(device)
         self.actor_target = copy.deepcopy(self.actor).to(device)
-        self.actor_optimizer = torch.optim.Adam(
-            self.actor.parameters(), lr=3e-4)
+        # self.actor_optimizer = torch.optim.Adam(
+        #     self.actor.parameters(), lr=3e-4)
+        self.actor_optimizer = torch.optim.AdamW(self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
+
 
         self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic).to(device)
-        self.critic_optimizer = torch.optim.Adam(
-            self.critic.parameters(), lr=3e-4)
+        # self.critic_optimizer = torch.optim.Adam(
+        #     self.critic.parameters(), lr=3e-4)
+        self.actor_optimizer = torch.optim.AdamW(self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
+
 
         assert look_ahead >= 1, 'Look ahead should be greater than 1'
         self.look_ahead = look_ahead
