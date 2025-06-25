@@ -36,17 +36,17 @@ class PI_TD3(object):
         self.actor = Actor(state_dim, action_dim, max_action,
                            mlp_hidden_dim).to(device)
         self.actor_target = copy.deepcopy(self.actor).to(device)
-        self.actor_optimizer = torch.optim.Adam(
-            self.actor.parameters(), lr=3e-4)
-        # self.actor_optimizer = torch.optim.AdamW(
-        #     self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
+        # self.actor_optimizer = torch.optim.Adam(
+        #     self.actor.parameters(), lr=3e-4)
+        self.actor_optimizer = torch.optim.AdamW(
+            self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
         self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic).to(device)
-        self.critic_optimizer = torch.optim.Adam(
-            self.critic.parameters(), lr=3e-4)
-        # self.critic_optimizer = torch.optim.AdamW(
-        #     self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
+        # self.critic_optimizer = torch.optim.Adam(
+        #     self.critic.parameters(), lr=3e-4)
+        self.critic_optimizer = torch.optim.AdamW(
+            self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         assert look_ahead >= 1, 'Look ahead should be greater than 1'
         self.look_ahead = look_ahead

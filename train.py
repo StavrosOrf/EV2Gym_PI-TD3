@@ -27,6 +27,7 @@ from algorithms.TD3 import TD3
 from algorithms.pi_TD3 import PI_TD3
 from algorithms.pi_DDPG import PI_DDPG
 from algorithms.shac import SHAC
+from algorithms.shac_onpolicy import SHAC_OnPolicy
 from algorithms.reinforce import Reinforce
 
 
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     # td3, pi_td3
     # pi_ddpg
     # shac
-    parser.add_argument("--policy", default="pi_td3")
+    parser.add_argument("--policy", default="shac_op")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
@@ -161,6 +162,10 @@ if __name__ == "__main__":
                         help='Value target update per no. of updates per step (default: 1)')
     parser.add_argument('--policy_SAC', default="Gaussian",
                         help='Policy Type: Gaussian | Deterministic (default: Gaussian)')
+
+    # SHAC parameters #############################################
+    parser.add_argument('--N_agents', type=int, default=12, metavar='N',
+                        help='Number of parallel environments (default: 12)')
 
     # PPO parameters #############################################
     parser.add_argument('--eps_clip', type=float, default=0.2)
@@ -423,6 +428,7 @@ if __name__ == "__main__":
         "train_updates_PPO": args.train_updates_PPO,
         'td_lambda_horizon': args.td_lambda_horizon,
         "lambda_": args.lambda_,
+        'N_agents': args.N_agents,
     }
 
     # Save kwargs to local path
@@ -470,6 +476,15 @@ if __name__ == "__main__":
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
+    elif args.policy == "shac_op":
+
+        os.system(f'cp algorithms/shac_onpolicy.py {save_path}')
+        policy = SHAC_OnPolicy(**kwargs)
+        replay_buffer = Trajectory_ReplayBuffer(state_dim,
+                                                action_dim,
+                                                device=device,
+                                                max_episode_length=simulation_length,
+                                                max_size=args.N_agents,)
 
     elif args.policy == "reinforce":
 
@@ -516,13 +531,15 @@ if __name__ == "__main__":
 
     episode_timesteps = -1
     episode_reward = 0
+    
+    shac_trained = False
 
     state, _ = env.reset()
     ep_start_time = time.time()
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
+    if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op']:
         action_traj = torch.zeros((simulation_length, action_dim)).to(device)
         state_traj = torch.zeros((simulation_length, state_dim)).to(device)
         done_traj = torch.zeros((simulation_length, 1)).to(device)
@@ -538,7 +555,7 @@ if __name__ == "__main__":
 
         episode_timesteps += 1
 
-        if args.policy in ["sac", "shac", "pi_sac"]:
+        if args.policy in ["sac", "shac", "pi_sac", "shac_op"]:
             action = policy.select_action(state, evaluate=False)
             next_state, reward, done, _, stats = env.step(action)
 
@@ -566,7 +583,7 @@ if __name__ == "__main__":
             policy.buffer.rewards.append(reward)
             policy.buffer.is_terminals.append(done)
 
-        elif args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
+        elif args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op']:
             # Store data in replay buffer
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
@@ -597,12 +614,12 @@ if __name__ == "__main__":
                     updates += 1
                 else:
                     loss_dict = None
-            elif args.policy in ['shac']:
+            elif args.policy in ['shac'] :
                 if t % args.policy_freq == 0:
                     loss_dict = policy.train(
                         replay_buffer, args.batch_size)
 
-            elif args.policy == "reinforce":
+            elif args.policy == "reinforce" or args.policy == "shac_op":
                 pass
 
             elif args.policy == "ppo":
@@ -625,8 +642,8 @@ if __name__ == "__main__":
                     step=t)
 
         if done:
-
-            if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac']:
+            
+            if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op']:
                 # Store trajectory in replay buffer
                 replay_buffer.add(state_traj,
                                   action_traj,
@@ -642,9 +659,8 @@ if __name__ == "__main__":
 
             if args.policy == "reinforce":
                 start_time = time.time()
-                loss_dict = policy.train(rewards=reward_traj,
-                                         log_probs=log_probs_traj,
-                                         entropies=entropy_traj)
+                loss_dict = policy.train(
+                        replay_buffer, args.batch_size)
 
                 action_traj.zero_()
                 state_traj.zero_()
@@ -663,6 +679,22 @@ if __name__ == "__main__":
                                   step=t)
                     wandb.log({
                         #    'train/physics_loss': loss_dict['physics_loss'],
+                        'train/time': time.time() - start_time, },
+                        step=t)
+                    
+            elif args.policy == "shac_op" and episode_num % args.N_agents == 0 and episode_num > 0:
+                print(f"Training SHAC on-policy at timestep {t} for episode {episode_num}...")
+                start_time = time.time()
+                loss_dict = policy.train(replay_buffer, args.batch_size)
+                shac_trained = True
+                
+                if args.log_to_wandb:
+
+                    # log all loss_dict keys, but add train/ in front of their name
+                    for key in loss_dict.keys():
+                        wandb.log({f'train/{key}': loss_dict[key]},
+                                  step=t)
+                    wandb.log({
                         'train/time': time.time() - start_time, },
                         step=t)
 
@@ -685,7 +717,11 @@ if __name__ == "__main__":
             episode_timesteps = -1
 
         # Evaluate episode
-        if (t + 1) % args.eval_freq == 0 and t + 100 >= args.start_timesteps:
+        if ((t + 1) % args.eval_freq == 0 and t + 100 >= args.start_timesteps) or shac_trained:
+            if shac_trained:                
+                shac_trained = False
+            elif args.policy == "shac_op":
+                pass
 
             avg_reward, eval_stats = eval_policy(policy=policy,
                                                  args=args,

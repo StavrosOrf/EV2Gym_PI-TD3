@@ -10,7 +10,6 @@ epsilon = 1e-6
 
 # Initialize Policy weights
 
-
 def weights_init_(m):
     if isinstance(m, nn.Linear):
         torch.nn.init.xavier_uniform_(m.weight, gain=1)
