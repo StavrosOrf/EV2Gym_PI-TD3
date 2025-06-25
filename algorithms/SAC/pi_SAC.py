@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from algorithms.SAC.model import soft_update, hard_update
 from algorithms.SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
+from algorithms.utils import td_lambda_forward_view
 
 
 class PI_SAC(object):
@@ -34,6 +35,7 @@ class PI_SAC(object):
         self.device = args['device']
         self.hidden_size = args['hidden_size']
         self.lr = args['lr']
+        self.lookahead_critic_reward = args['lookahead_critic_reward']
 
         self.critic = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(device=self.device)
@@ -89,25 +91,44 @@ class PI_SAC(object):
         reward_batch = rewards[:, 0].view(-1, 1)
         not_dones = (torch.ones_like(
             dones[:, 0], device=self.device) - dones[:, 0]).view(-1, 1)
-        
 
-        with torch.no_grad():
-            next_state_action, next_state_log_pi, _ = self.policy.sample(
-                next_state_batch)
+        if self.lookahead_critic_reward == 2:
+            with torch.no_grad():
+                next_state_action, next_state_log_pi, _ = self.policy.sample(
+                    next_state_batch)
 
-            qf1_next_target, qf2_next_target = self.critic_target(
-                next_state_batch, next_state_action)
-            min_qf_next_target = torch.min(
-                qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
-            next_q_value = reward_batch + not_dones * \
-                self.gamma * (min_qf_next_target)
-        # Two Q-functions to mitigate positive bias in the policy improvement step
-        qf1, qf2 = self.critic(state_batch, action_batch)
-        # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-        qf1_loss = F.mse_loss(qf1, next_q_value)
-        # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-        qf2_loss = F.mse_loss(qf2, next_q_value)
-        qf_loss = qf1_loss + qf2_loss
+                qf1_next_target, qf2_next_target = self.critic_target(
+                    next_state_batch, next_state_action)
+                min_qf_next_target = torch.min(
+                    qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
+                next_q_value = reward_batch + not_dones * \
+                    self.gamma * (min_qf_next_target)
+            # Two Q-functions to mitigate positive bias in the policy improvement step
+            qf1, qf2 = self.critic(state_batch, action_batch)
+            # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+            qf1_loss = F.mse_loss(qf1, next_q_value)
+            # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+            qf2_loss = F.mse_loss(qf2, next_q_value)
+            qf_loss = qf1_loss + qf2_loss
+
+        elif self.lookahead_critic_reward == 3:
+            target_Q = td_lambda_forward_view(
+                rewards=rewards,
+                dones=dones,
+                states=states,
+                actions=actions,
+                critic=self.critic_target,
+                gamma=self.discount,
+                lambda_=self.lambda_,
+                horizon=self.look_ahead  # -1
+            )
+
+            # Get current Q estimates
+            current_Q1, current_Q2 = self.critic(states[:, 0, :],
+                                                 actions[:, 0, :])
+            # Compute critic loss
+            qf_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
+                F.mse_loss(current_Q2.view(-1), target_Q)
 
         self.critic_optim.zero_grad()
         qf_loss.backward()
@@ -160,7 +181,7 @@ class PI_SAC(object):
         # actor_loss = actor_loss.mean()
         # print("Actor loss: ", actor_loss.shape)
         # print(f'alpha: {self.alpha}, log_pi: {log_pi.shape}')
-        
+
         log_pi = log_pi / self.look_ahead
 
         # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]

@@ -17,9 +17,9 @@ counter = 0
 batch_size = 64  # 256 # 512
 td_lambda_horizon = 20
 
-for policy in ['shac']:
+for policy in ['pi_sac']:
     for lookahead_critic_reward in [3]:
-        for critic in [True]:
+        for critic in [False]:
             for K in [20]:  # 512
                 for seed in [9]:
 

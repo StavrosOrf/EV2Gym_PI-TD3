@@ -1,7 +1,7 @@
 import torch
 
 def td_lambda_forward_view(
-    rewards, dones, states, actions, critic, gamma=0.99, lambda_=0.95, horizon = -1
+    rewards, dones, states, actions, critic, gamma=0.99, lambda_=0.95, horizon = -1, avg=True,
 ):
     """
     Implements TD(lambda) as in the formula:
@@ -31,17 +31,17 @@ def td_lambda_forward_view(
     #       f"\nStates shape: {states.shape}\nActions shape: {actions.shape}")
 
     # Compute all Q(s_{t+n}, a_{t+n}) up to H (for bootstrapping)
-    with torch.no_grad():
+    with torch.no_grad():                
         
-        # q_bootstrap = critic.Q1(states.reshape(-1, states.shape[-1]),
-        #                      actions.reshape(-1, actions.shape[-1])
-        #                      )
-        
-        # ifwe want to average Q-values from both critics
-        q1, q2 = critic(states.reshape(-1, states.shape[-1]),
+        if avg:
+            q1, q2 = critic(states.reshape(-1, states.shape[-1]),
+                                actions.reshape(-1, actions.shape[-1])
+                                )
+            q_bootstrap = (q1 + q2) / 2.0  # Average Q-values from both critics
+        else:
+            q_bootstrap = critic.Q1(states.reshape(-1, states.shape[-1]),
                              actions.reshape(-1, actions.shape[-1])
                              )
-        q_bootstrap = (q1 + q2) / 2.0  # Average Q-values from both critics
         
         q_bootstrap = q_bootstrap.view(B, H+1)  # Reshape to [B, H+1]    
         

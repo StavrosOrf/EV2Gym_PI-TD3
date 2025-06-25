@@ -276,9 +276,10 @@ class PI_TD3(object):
 
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \
-                    self.critic.Q1(state_pred, next_action).view(-1) *\
-                    (torch.ones_like(done, device=self.device) -
-                     dones[:, self.look_ahead])
+                    self.critic.Q1(state_pred, next_action).view(-1) 
+                    # *\
+                    # (torch.ones_like(done, device=self.device) -
+                    #  dones[:, self.look_ahead])
 
             actor_loss = actor_loss.mean()
 
