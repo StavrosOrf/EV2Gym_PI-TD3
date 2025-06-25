@@ -191,6 +191,57 @@ class PI_TD3(object):
                     next_state = state_pred
                     not_done = 1 - dones[:, self.look_ahead - 1]
                     noise = noise[:, -1, :]
+                    
+                elif self.lookahead_critic_reward == 3:      
+                    """
+                    Implements the forward-view TD(lambda) target calculation.
+                    Assumes:
+                    - `states`, `actions`, `rewards`, `dones` are of shape [batch, horizon, ...]
+                    - `self.lambda_` is defined and in [0, 1]
+                    - `self.discount` is gamma
+                    - self.critic_target is your target Q-network
+                    - self.actor_target is your target policy
+                    """
+
+                    # Unpack
+                    B, H, state_dim = states.shape
+                    lambda_ = getattr(self, "lambda_", 0.95)  # Use self.lambda_ if defined
+                    gamma = self.discount
+
+                    # Compute next actions and Q values for all steps
+                    with torch.no_grad():
+                        # Get target actions for all steps (you can also add noise if needed)
+                        next_actions = self.actor_target(states[:, 1:, :])  # actions for t+1
+                        # Get target Q values for all steps
+                        q_targets = self.critic_target(states[:, 1:, :], next_actions)  # Q(s_{t+1}, a_{t+1})
+
+                    # Initialize TD-lambda returns
+                    td_lambda_targets = torch.zeros(B, H - 1, device=states.device)
+
+                    for t in range(H - 1):  # For each possible starting point
+                        # For each n = 1..H-t, compute n-step return
+                        G = torch.zeros(B, device=states.device)
+                        lambda_accum = 1.0
+                        for n in range(1, H - t):
+                            rewards_slice = rewards[:, t:t + n]
+                            dones_slice = dones[:, t:t + n]
+                            discount_factors = gamma ** torch.arange(n, device=states.device).float()
+                            not_done = torch.cumprod(1 - dones_slice, dim=1)  # Mask for non-terminal
+
+                            reward_sum = torch.sum(rewards_slice * discount_factors, dim=1)
+                            if n < H - t - 1:
+                                q_val = (gamma ** n) * q_targets[:, t + n - 1].squeeze(-1) * not_done[:, -1]
+                            else:
+                                q_val = torch.zeros_like(G)  # No Q bootstrapping at last step
+
+                            G_n = reward_sum + q_val
+                            td_lambda_targets[:, t] += lambda_accum * (1 - lambda_) * G_n
+                            lambda_accum *= lambda_
+                        # Add last term for n = H-t
+                        rewards_slice = rewards[:, t:]
+                        discount_factors = gamma ** torch.arange(H - t, device=states.device).float()
+                        reward_sum = torch.sum(rewards_slice * discount_factors, dim=1)
+                        td_lambda_targets[:, t] += lambda_accum * reward_sum                                  
 
                 else:
                     noise = (

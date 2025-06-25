@@ -10,7 +10,6 @@ import os
 import random
 
 seeds = [50, 60, 70]
-config = "v2g_grid_150.yaml"
 
 batch_size = 64
 
@@ -21,10 +20,16 @@ if not os.path.exists('./slurm_logs'):
 # td3, sac, pi_sac, pi_td3, shac
 for algo in ['td3']:
     for K in [1, 2, 5, 10, 25, 40]:
-        for scenario in ['v2g',
+        for scenario in [
                          'v2g_profitmax',
                          'grid_v2g_profitmax',
+                         'pst_v2g_profitmax'
                          ]:
+            
+            if 'pst' in scenario:
+                config = "PST_V2G_ProfixMax_150_300.yaml"
+            else:
+                config = "v2g_grid_150_300.yaml"
             
             for lookahead_critic_reward in [0, 1, 2]: # 2 is the default value
                 for critic_enabled in [True, False]:
@@ -33,15 +38,18 @@ for algo in ['td3']:
                         if K != 1 and algo != 'mb_traj':
                             continue
 
-                        if K <= 5:
-                            time = 10
+                        if K <= 10:
+                            time = 24
+                        elif K <= 20:
+                            time = 36
                         else:
-                            time = 15
+                            time = 46
 
                         if K <= 10:
                             cpu_cores = 2
                         else:
                             cpu_cores = 3
+                                                        
 
                         if time > 46:
                             time = 46
@@ -89,7 +97,7 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate dt3
 previous=$(/usr/bin/nvidia-smi --query-accounted-apps='gpu_utilization,mem_utilization,max_memory_usage,time' --format='csv' | /usr/bin/tail -n '+2')
 
-''' + 'srun python train_research.py' + \
+''' + 'srun python train.py' + \
                     ' --scenario ' + scenario + \
                     ' --K ' + str(K) + \
                     ' --device cuda:0' + \

@@ -40,7 +40,6 @@ def eval_policy(policy,
 
     avg_reward = 0.
     stats_list = []
-    eval_stats = {}
     for replay in tqdm(eval_config['eval_replays']):
         replay = f'{eval_config["eval_path"]}{replay}'
         eval_env = EV2Gym(config_file=config_file,
@@ -71,9 +70,9 @@ def eval_policy(policy,
         'total_energy_charged',
         'total_energy_discharged',
         'average_user_satisfaction',
-        'min_user_satisfaction',
-        'voltage_violation'
-        'power_tracker_violation'
+        # 'min_user_satisfaction',
+        'voltage_violation',
+        'power_tracker_violation',
     ]
 
     stats = {}
@@ -88,7 +87,7 @@ def eval_policy(policy,
             key_name = "eval/" + key
         stats[key_name] = np.mean([stats_list[i][key]
                                    for i in range(len(stats_list))])
-
+        
     avg_reward /= eval_episodes
 
     print("---------------------------------------")
@@ -109,7 +108,7 @@ if __name__ == "__main__":
     # TD3
     # pi_td3, pi_DDPG
     # shac
-    parser.add_argument("--policy", default="ppo")
+    parser.add_argument("--policy", default="shac")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
@@ -124,7 +123,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    DEVELOPMENT = True
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -552,7 +551,7 @@ if __name__ == "__main__":
             action = policy.select_action(state, evaluate=False)
             next_state, reward, done, _, stats = env.step(action)
 
-        elif args.policy in ['TD3', 'pi_td3', 'pi_DDPG']:
+        elif args.policy in ['td3', 'pi_td3', 'pi_DDPG']:
             # Select action randomly or according to policy + add noise
             action = (
                 policy.select_action(state)

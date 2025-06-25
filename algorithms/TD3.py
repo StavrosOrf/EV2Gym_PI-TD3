@@ -106,8 +106,6 @@ class TD3(object):
         self.max_norm = 0.5
 
         self.ph_coeff = ph_coeff
-        self.loss_fn = loss_fn
-        self.transition_fn = transition_fn
 
         self.total_it = 0
         self.loss_dict = {
@@ -160,62 +158,8 @@ class TD3(object):
 
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
-
-            if self.transition_fn is not None:
-
-                if False:
-                    # test if loss_fn is working properly
-                    reward_test = self.loss_fn(state=state,
-                                               action=action)
-                    reward_diff = torch.abs(
-                        reward.view(-1) - reward_test.view(-1))
-                    if reward_diff.mean() > 0.01:
-
-                        print(f'Reward diff: {reward_diff.mean()}')
-                        print(f'Reward: {reward}')
-                        print(f'Reward Test: {reward_test}')
-                        input("Error in reward calculation")
-
-                    next_state_test = self.transition_fn(state,
-                                                         next_state,
-                                                         action)
-                    state_diff = torch.abs(next_state - next_state_test)
-                    if state_diff.mean() > 0.001:
-                        print(f'State diff: {state_diff.mean()}')
-                        input("Error in state transition")
-
-                action_vector = self.actor(state)
-                next_state_pred = self.transition_fn(state,
-                                                     next_state,
-                                                     action_vector)
-
-                reward_pred = self.loss_fn.grid_profit_maxV2(state=state,
-                                                             action=action_vector)
-
-                with torch.no_grad():
-                    next_action = self.actor(next_state_pred)
-
-                actor_loss = - (reward_pred + self.discount *
-                                self.critic.Q1(next_state_pred, next_action)).mean()
-
-                self.loss_dict['physics_loss'] = reward_pred.mean().item()
-                self.loss_dict['actor_loss'] = actor_loss.item()
-                # print(f'Physics loss: {reward_pred.mean().item()}')
-                # print(f'Actor loss: {actor_loss.item()}')
-
-            elif self.loss_fn is not None:
-                raise NotImplementedError
-                action_vector = self.actor(state)
-                physics_loss = self.loss_fn.smooth_profit_max(
-                    action=action_vector, state=state).mean()
-                actor_loss = -self.critic.Q1(state, action_vector).mean()
-
-                self.loss_dict['physics_loss'] = physics_loss.item()
-                self.loss_dict['actor_loss'] = actor_loss.item()
-                actor_loss -= self.ph_coeff * physics_loss
-
-            else:
-                actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+            
+            actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 
             # Optimize the actor
             self.actor_optimizer.zero_grad()

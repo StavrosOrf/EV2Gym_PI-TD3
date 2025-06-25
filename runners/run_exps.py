@@ -42,7 +42,7 @@ for policy in ['pi_sac', 'pi_td3']:
                         extra_args = ' --disable_critic'
 
                     # command = 'tmux new-session -d \; send-keys " /home/sorfanoudakis/.conda/envs/dt/bin/python train_research.py' + \
-                    command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
+                    command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train.py' + \
                         ' --device cuda:0' + \
                         ' --scenario ' + scenario + \
                         ' --batch_size ' + str(batch_size) + \
