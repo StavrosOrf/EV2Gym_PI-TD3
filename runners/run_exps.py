@@ -16,24 +16,12 @@ scenario = 'pst_v2g_profitmax'
 counter = 0
 batch_size = 64  # 256 # 512
 
-# for policy in ['TD3', 'pi_td3', 'SAC']: # MB pi_DDPG
-# for policy in ['pi_td3', 'SAC']: # MB, shac, reinforce
-for policy in ['pi_sac', 'pi_td3']:
-    for lookahead_critic_reward in [2]:
+
+for policy in ['pi_td3']:
+    for lookahead_critic_reward in [3]:
         for critic in [True, False]:
-            for K in [20]:  # 512
+            for K in [5, 20]:  # 512
                 for seed in [9]:
-                    
-                    # if lookahead_critic_reward != 2 and not critic:
-
-                    if not critic and policy != 'pi_td3' and policy != 'pi_sac':
-                        continue
-                    
-                    if policy not in ['pi_td3', 'pi_DDPG', 'pi_sac','shac'] and K != 1:
-                        continue
-
-                    if policy == 'pi_DDPG' and K not in [2, 20]:
-                        continue
 
                     extra_args = ''
 

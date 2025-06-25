@@ -1,6 +1,7 @@
 
 import copy
 import numpy as np
+from algorithms.utils import td_lambda_forward_view
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -69,6 +70,7 @@ class PI_TD3(object):
             ph_coeff=1,
             discount=0.99,
             tau=0.005,
+            lambda_=0.95,
             policy_noise=0.2,
             noise_clip=0.5,
             policy_freq=2,
@@ -97,6 +99,7 @@ class PI_TD3(object):
 
         self.max_action = max_action
         self.discount = discount
+        self.lambda_ = lambda_
         self.tau = tau
         self.policy_noise = policy_noise
         self.noise_clip = noise_clip
@@ -128,14 +131,6 @@ class PI_TD3(object):
         states, actions, rewards, dones = replay_buffer.sample_new(
             batch_size)
 
-        # state, dones, actions = replay_buffer.sample_new(batch_size)
-
-        # print(f'State: {states.shape}')
-        # print(f'Action: {actions.shape}')
-        # print(f'Reward: {rewards.shape}')
-        # print(f'Done: {dones.shape}')
-        # exit()
-
         if self.critic_enabled:
             with torch.no_grad():
                 # Select action according to policy and add clipped noise
@@ -154,6 +149,20 @@ class PI_TD3(object):
                         device=states.device).view(1, -1)
                     rewards = rewards[:, :self.look_ahead] * discount_vector
                     reward = torch.sum(rewards[:, :self.look_ahead], dim=1)
+
+
+                    next_action = (
+                        self.actor_target(next_state) + noise
+                    ).clamp(-self.max_action, self.max_action)
+
+                    # Compute the target Q value
+                    target_Q1, target_Q2 = self.critic_target(
+                        next_state, next_action)
+                    target_Q = torch.min(target_Q1, target_Q2)
+                    
+                    target_Q = reward + self.discount**(self.look_ahead) * \
+                        not_done * target_Q.view(-1)
+                    
 
                 elif self.lookahead_critic_reward == 1:
 
@@ -192,57 +201,38 @@ class PI_TD3(object):
                     not_done = 1 - dones[:, self.look_ahead - 1]
                     noise = noise[:, -1, :]
                     
+                    next_state = states[:, 1, :]
+                    not_done = 1 - dones[:, 0]
+                    reward = rewards[:, 0]
+
+                    next_action = (
+                        self.actor_target(next_state) + noise
+                    ).clamp(-self.max_action, self.max_action)
+
+                    # Compute the target Q value
+                    target_Q1, target_Q2 = self.critic_target(
+                        next_state, next_action)
+                    target_Q = torch.min(target_Q1, target_Q2)
+                    
+                    target_Q = total_reward + self.discount**(self.look_ahead) * \
+                        not_done * target_Q.view(-1)
+                    
                 elif self.lookahead_critic_reward == 3:      
                     """
-                    Implements the forward-view TD(lambda) target calculation.
-                    Assumes:
-                    - `states`, `actions`, `rewards`, `dones` are of shape [batch, horizon, ...]
-                    - `self.lambda_` is defined and in [0, 1]
-                    - `self.discount` is gamma
-                    - self.critic_target is your target Q-network
-                    - self.actor_target is your target policy
+                    Uses the forward-view TD(lambda) target calculation.
                     """
-
-                    # Unpack
-                    B, H, state_dim = states.shape
-                    lambda_ = getattr(self, "lambda_", 0.95)  # Use self.lambda_ if defined
-                    gamma = self.discount
-
-                    # Compute next actions and Q values for all steps
-                    with torch.no_grad():
-                        # Get target actions for all steps (you can also add noise if needed)
-                        next_actions = self.actor_target(states[:, 1:, :])  # actions for t+1
-                        # Get target Q values for all steps
-                        q_targets = self.critic_target(states[:, 1:, :], next_actions)  # Q(s_{t+1}, a_{t+1})
-
-                    # Initialize TD-lambda returns
-                    td_lambda_targets = torch.zeros(B, H - 1, device=states.device)
-
-                    for t in range(H - 1):  # For each possible starting point
-                        # For each n = 1..H-t, compute n-step return
-                        G = torch.zeros(B, device=states.device)
-                        lambda_accum = 1.0
-                        for n in range(1, H - t):
-                            rewards_slice = rewards[:, t:t + n]
-                            dones_slice = dones[:, t:t + n]
-                            discount_factors = gamma ** torch.arange(n, device=states.device).float()
-                            not_done = torch.cumprod(1 - dones_slice, dim=1)  # Mask for non-terminal
-
-                            reward_sum = torch.sum(rewards_slice * discount_factors, dim=1)
-                            if n < H - t - 1:
-                                q_val = (gamma ** n) * q_targets[:, t + n - 1].squeeze(-1) * not_done[:, -1]
-                            else:
-                                q_val = torch.zeros_like(G)  # No Q bootstrapping at last step
-
-                            G_n = reward_sum + q_val
-                            td_lambda_targets[:, t] += lambda_accum * (1 - lambda_) * G_n
-                            lambda_accum *= lambda_
-                        # Add last term for n = H-t
-                        rewards_slice = rewards[:, t:]
-                        discount_factors = gamma ** torch.arange(H - t, device=states.device).float()
-                        reward_sum = torch.sum(rewards_slice * discount_factors, dim=1)
-                        td_lambda_targets[:, t] += lambda_accum * reward_sum                                  
-
+                    
+                    target_Q = td_lambda_forward_view(
+                        rewards=rewards,
+                        dones=dones,
+                        states=states,
+                        actions=actions,
+                        critic=self.critic_target,
+                        gamma=self.discount,
+                        lambda_=self.lambda_,
+                        horizon=self.look_ahead #-1
+                    )
+                        
                 else:
                     noise = (
                         torch.randn_like(
@@ -252,30 +242,22 @@ class PI_TD3(object):
                     not_done = 1 - dones[:, 0]
                     reward = rewards[:, 0]
 
-                next_action = (
-                    self.actor_target(next_state) + noise
-                ).clamp(-self.max_action, self.max_action)
+                    next_action = (
+                        self.actor_target(next_state) + noise
+                    ).clamp(-self.max_action, self.max_action)
 
-                # Compute the target Q value
-                target_Q1, target_Q2 = self.critic_target(
-                    next_state, next_action)
-                target_Q = torch.min(target_Q1, target_Q2)
-
-                if self.lookahead_critic_reward == 0:
-                    target_Q = reward + self.discount**(self.look_ahead) * \
-                        not_done * target_Q.view(-1)
-
-                elif self.lookahead_critic_reward == 1:
-                    target_Q = total_reward + self.discount**(self.look_ahead) * \
-                        not_done * target_Q.view(-1)
-                else:
+                    # Compute the target Q value
+                    target_Q1, target_Q2 = self.critic_target(
+                        next_state, next_action)
+                    target_Q = torch.min(target_Q1, target_Q2)
+                    
                     target_Q = reward + self.discount * \
                         not_done * target_Q.view(-1)
+
 
             # Get current Q estimates
             current_Q1, current_Q2 = self.critic(states[:, 0, :],
                                                  actions[:, 0, :])
-
             # Compute critic loss
             critic_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
                 F.mse_loss(current_Q2.view(-1), target_Q)
@@ -288,6 +270,8 @@ class PI_TD3(object):
             self.critic_optimizer.step()
 
             self.loss_dict['critic_loss'] = critic_loss.item()
+            
+
 
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:

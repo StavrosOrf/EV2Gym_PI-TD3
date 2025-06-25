@@ -103,12 +103,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    # SAC
-    # reinforce
-    # TD3
-    # pi_td3, pi_DDPG
+    # sac, pi_sac
+    # reinforce, ppo
+    # td3, pi_td3
+    # pi_ddpg
     # shac
-    parser.add_argument("--policy", default="shac")
+    parser.add_argument("--policy", default="pi_td3")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = True
+    DEVELOPMENT = False
 
     if DEVELOPMENT:
         parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
@@ -183,16 +183,17 @@ if __name__ == "__main__":
     parser.add_argument('--action_std_decay_freq',
                         type=int, default=int(2.5e5))
 
-    # Physics loss #############################################
+
     parser.add_argument('--K', type=int, default=10)
-    parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--lr', type=float, default=3e-5)
     parser.add_argument('--lr_critic', type=float, default=3e-4)
     # add bollean argument to enable/disable critic
     parser.add_argument('--disable_critic', action='store_true',
                         default=False,
                         help='Enable critic in the policy.')
-    parser.add_argument('--lookahead_critic_reward', type=int, default=2)
+    parser.add_argument('--lookahead_critic_reward', type=int, default=3)
+    parser.add_argument('--lambda_', type=float, default=0.95)
+    
 
     # Parameters #############################################
     parser.add_argument('--mlp_hidden_dim', type=int, default=128)
