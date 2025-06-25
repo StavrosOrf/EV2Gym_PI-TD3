@@ -158,28 +158,28 @@ class PI_SAC(object):
             elif self.lookahead_critic_reward == 4:
                 # Compute estimated returns
                 with torch.no_grad():
-                    next_values = self.critic_target(
+                    qf1_next_target, qf2_next_target = self.critic_target(
                         states.view(-1, states.shape[-1]),
-                        actions.view(-1, actions.shape[-1])).view(batch_size, -1)
-
+                        actions.view(-1, actions.shape[-1]))
+                    
+                    next_values = (qf1_next_target + qf2_next_target) / 2.0
                     target_values = self.compute_target_values(rewards,
-                                                               next_values,
+                                                               next_values.view(batch_size, -1),
                                                                dones,
-                                                               gamma=self.discount,
-                                                               lam=self.lambda_p)
+                                                               gamma=self.gamma,
+                                                               lam=self.lambda_)
 
                 # Value update
-                predicted_values = self.critic(
+                current_Q1, current_Q2 = self.critic(
                     states.view(-1, states.shape[-1]),
-                    actions.view(-1, actions.shape[-1])).squeeze(-1)
-                qf_loss = (
-                    (predicted_values - target_values.view(-1)) ** 2).mean()
+                    actions.view(-1, actions.shape[-1]))
+                
+                qf_loss = F.mse_loss(current_Q1.view(-1), target_values.view(-1)) +\
+                    F.mse_loss(current_Q2.view(-1), target_values.view(-1))
 
             self.critic_optim.zero_grad()
             qf_loss.backward()
             self.critic_optim.step()
-
-        # pi, log_pi, _ = self.policy.sample(state_batch)
 
         # replace min_qf_pi with the rolled out value
         state_pred = states[:, 0, :]
@@ -253,7 +253,7 @@ class PI_SAC(object):
             soft_update(self.critic_target, self.critic, self.tau)
 
         loss_dict = {
-            'critic_loss': qf_loss.item(),
+            'critic_loss': qf_loss.item() if self.critic_enabled else 0,
             'actor_loss': policy_loss.item(),
             'alpha_loss': alpha_loss.item(),
             'alpha_tlogs': alpha_tlogs.item()

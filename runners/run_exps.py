@@ -19,7 +19,7 @@ td_lambda_horizon = 20
 
 for policy in ['pi_sac']:
     for lookahead_critic_reward in [4]:
-        for critic in [True, False]:
+        for critic in [False]:
             for K in [20]:  # 512
                 for seed in [9]:
 
@@ -39,6 +39,7 @@ for policy in ['pi_sac']:
                         ' --policy ' + policy + \
                         ' --seed ' + str(seed) + \
                         ' --K ' + str(K) + \
+                        ' --disable_development_mode' + \
                         ' --td_lambda_horizon ' + str(td_lambda_horizon) + \
                         extra_args + \
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \

@@ -122,25 +122,17 @@ if __name__ == "__main__":
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
 
-    DEVELOPMENT = False
+    parser.add_argument('--disable_development_mode', action='store_true',
+                        default=False,
+                        help='Enable critic in the policy.')
 
-    if DEVELOPMENT:
-        parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
-        parser.add_argument("--eval_episodes", default=1, type=int)
-        parser.add_argument("--start_timesteps", default=301,
-                            type=int)
-        parser.add_argument('--eval_freq', default=96*5, type=int)
-        parser.add_argument("--batch_size", default=3, type=int)  # 256
-        print(f'!!!!!!!!!!!!!!!! DEVELOPMENT MODE !!!!!!!!!!!!!!!!')
-        print(f' Switch to production mode by setting DEVELOPMENT = False')
-    else:
-        parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
-        parser.add_argument("--eval_episodes", default=50, type=int)
-        parser.add_argument("--start_timesteps", default=5000,
-                            type=int)  # original 25e5
-        parser.add_argument("--eval_freq", default=960,  # 2250
-                            type=int)  # in episodes
-        parser.add_argument("--batch_size", default=64, type=int)  # 256
+    parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
+    parser.add_argument("--eval_episodes", default=50, type=int)
+    parser.add_argument("--start_timesteps", default=5000,
+                        type=int)  # original 25e5
+    parser.add_argument("--eval_freq", default=960,  # 2250
+                        type=int)  # in episodes
+    parser.add_argument("--batch_size", default=64, type=int)  # 256
 
     parser.add_argument("--discount", default=0.99,
                         type=float)     # Discount factor
@@ -201,9 +193,17 @@ if __name__ == "__main__":
 
     scale = 1
     args = parser.parse_args()
+    
+    if not args.disable_development_mode:        
+        args.log_to_wandb = False
+        args.eval_episodes = 1
+        args.start_timesteps = 301
+        args.eval_freq = 96*5
+        args.batch_size = 3
+
 
     device = args.device
-    print(f'device: {device}')
+    
 
     replay_buffer_size = int(args.replay_buffer_size)
 
@@ -213,8 +213,9 @@ if __name__ == "__main__":
     print("---------------------------------------")
     print(f"Policy: {args.policy}, Env: {args.env}, Seed: {args.seed}")
     print("  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -")
+    print(f'device: {device}')
     print(f'Config File: {config_file}')
-    print("---------------------------------------")
+    print("---------------------------------------")    
 
     if not os.path.exists("./results"):
         os.makedirs("./results")
@@ -363,7 +364,7 @@ if __name__ == "__main__":
         exp_prefix = f'{args.name}-{random.randint(int(1e5), int(1e6) - 1)}'
     else:
         exp_prefix = args.load_model
-    print(f'group_name: {group_name}, exp_prefix: {exp_prefix}')
+    # print(f'group_name: {group_name}, exp_prefix: {exp_prefix}')
 
     save_path = f'./saved_models/{exp_prefix}/'
     # create folder
@@ -510,9 +511,10 @@ if __name__ == "__main__":
     if args.load_model != "":
         policy.load(f"./saved_models/{args.load_model}/model.last")
 
-    print(
-        f'action_dim: {action_dim}, replay_buffer_size: {replay_buffer_size}')
+    print("---------------------------------------")
+    print(f'action_dim: {action_dim}')
     print(f'max_episode_length: {simulation_length}')
+    print("---------------------------------------")
 
     evaluations = []
 

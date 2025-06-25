@@ -104,6 +104,7 @@ previous=$(/usr/bin/nvidia-smi --query-accounted-apps='gpu_utilization,mem_utili
                     ' --policy ' + algo + \
                     ' --group_name ' + '"final_"' + \
                     ' --seed ' + str(seed) + \
+                    ' --disable_development_mode' + \
                     ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                     ' --batch_size ' + str(batch_size) + \
                     ' --project_name ' + '"EVs4Grid_PaperExps"' + \

@@ -185,6 +185,33 @@ class PI_TD3(object):
                         lambda_=self.lambda_,
                         horizon=self.look_ahead  # -1
                     )
+                    
+                elif self.lookahead_critic_reward == 4:
+                    # Compute estimated returns
+                    with torch.no_grad():
+                        qf1_next_target, qf2_next_target = self.critic_target(
+                            states.view(-1, states.shape[-1]),
+                            actions.view(-1, actions.shape[-1]))
+                        
+                        next_values = (qf1_next_target + qf2_next_target) / 2.0
+                        target_values = self.compute_target_values(rewards,
+                                                                next_values.view(batch_size, -1),
+                                                                dones,
+                                                                gamma=self.gamma,
+                                                                lam=self.lambda_)
+
+                    # Value update
+                    current_Q1, current_Q2 = self.critic(
+                        states.view(-1, states.shape[-1]),
+                        actions.view(-1, actions.shape[-1]))
+                    predicted_values = ((current_Q1 + current_Q2) / 2.0).squeeze(-1)
+                    
+                    qf_loss = (
+                        (predicted_values - target_values.view(-1)) ** 2).mean()
+
+            # self.critic_optim.zero_grad()
+            # qf_loss.backward()
+            # self.critic_optim.step()
 
                 else:
                     noise = (
@@ -285,8 +312,6 @@ class PI_TD3(object):
 
             self.loss_dict['physics_loss'] = actor_loss.item()
             self.loss_dict['actor_loss'] = actor_loss.item()
-            # print(f'Physics loss: {reward_pred.mean().item()}')
-            # print(f'Actor loss: {actor_loss.item()}')
 
             # Optimize the actor
             self.actor_optimizer.zero_grad()
