@@ -244,8 +244,8 @@ class PI_TD3(object):
             # Optimize the critic
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
-            # torch.nn.utils.clip_grad_norm_(
-            #     self.critic.parameters(), max_norm=self.max_norm)
+            torch.nn.utils.clip_grad_norm_(
+                self.critic.parameters(), max_norm=self.max_norm)
             self.critic_optimizer.step()
 
             self.loss_dict['critic_loss'] = critic_loss.item()
@@ -316,8 +316,8 @@ class PI_TD3(object):
             # Optimize the actor
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-            # torch.nn.utils.clip_grad_norm_(
-            #     self.actor.parameters(), max_norm=self.max_norm)
+            torch.nn.utils.clip_grad_norm_(
+                self.actor.parameters(), max_norm=self.max_norm)
             self.actor_optimizer.step()
 
             # Update the frozen target models

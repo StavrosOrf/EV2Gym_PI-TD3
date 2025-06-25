@@ -19,7 +19,7 @@ td_lambda_horizon = 20
 
 for policy in ['pi_sac']:
     for lookahead_critic_reward in [4]:
-        for critic in [False]:
+        for critic in [True, False]:
             for K in [20]:  # 512
                 for seed in [9]:
 

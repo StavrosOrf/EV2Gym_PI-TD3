@@ -38,6 +38,7 @@ class PI_SAC(object):
         self.hidden_size = args['hidden_size']
         self.lr = args['lr']
         self.lookahead_critic_reward = args['lookahead_critic_reward']
+        self.max_norm = 0.5
 
         self.critic = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(device=self.device)
@@ -179,11 +180,15 @@ class PI_SAC(object):
 
             self.critic_optim.zero_grad()
             qf_loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                self.critic.parameters(), max_norm=self.max_norm)
             self.critic_optim.step()
 
         # replace min_qf_pi with the rolled out value
         state_pred = states[:, 0, :]
 
+        total_reward = torch.zeros(states.size(0), device=self.device)
+        
         for i in range(0, self.look_ahead):
 
             done = dones[:, i]
@@ -200,14 +205,17 @@ class PI_SAC(object):
                                             new_state=states[:, i+1, :],
                                             action=action_vector)
 
-            if i == 0:
-                actor_loss = - reward_pred
-                log_pi = log_pi_vec
-            else:
-                actor_loss += - discount * reward_pred * \
-                    (torch.ones_like(done, device=self.device
-                                     ) - done)
-                log_pi += log_pi_vec
+            # if i == 0:
+            #     actor_loss = - reward_pred
+            #     log_pi = log_pi_vec
+            # else:
+            #     actor_loss += - discount * reward_pred * \
+            #         (torch.ones_like(done, device=self.device
+            #                          ) - done)
+            #     log_pi += log_pi_vec
+                
+            normalized_entropy = log_pi_vec.squeeze() / self.target_entropy
+            total_reward += discount * (reward_pred - self.log_alpha.exp() * normalized_entropy) * (1.0 - done)
 
         # with torch.no_grad():
         # next_action = self.actor(state_pred)
@@ -217,26 +225,30 @@ class PI_SAC(object):
             qf1_pi, qf2_pi = self.critic_target(state_pred, next_action)
             qf = (qf1_pi + qf2_pi) / 2
 
-            actor_loss += - discount * self.gamma * \
-                qf.view(-1) *\
-                (torch.ones_like(done, device=self.device) -
-                    dones[:, self.look_ahead])
+            # actor_loss += - discount * self.gamma * \
+            #     qf.view(-1) *\
+            #     (torch.ones_like(done, device=self.device) -
+            #         dones[:, self.look_ahead])
+
+            policy_loss = -(total_reward + discount * self.gamma * qf.squeeze()).mean()
 
         # actor_loss = actor_loss.mean()
         # print("Actor loss: ", actor_loss.shape)
         # print(f'alpha: {self.alpha}, log_pi: {log_pi.shape}')
 
-        log_pi = log_pi / self.look_ahead
+        # log_pi = log_pi / self.look_ahead
 
         # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
-        policy_loss = ((self.alpha * log_pi) + actor_loss).mean()
+        # policy_loss = ((self.alpha * log_pi) + actor_loss).mean()
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+                self.policy.parameters(), max_norm=self.max_norm)
         self.policy_optim.step()
 
         if self.automatic_entropy_tuning:
-            alpha_loss = -(self.log_alpha * (log_pi +
+            alpha_loss = -(self.log_alpha * (log_pi_vec +
                            self.target_entropy).detach()).mean()
 
             self.alpha_optim.zero_grad()
