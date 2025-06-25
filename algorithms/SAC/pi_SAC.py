@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from algorithms.SAC.model import soft_update, hard_update
 from algorithms.SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
-from algorithms.utils import td_lambda_forward_view
+from algorithms.utils import td_lambda_forward_view, compute_target_values
 
 
 class PI_SAC(object):
@@ -80,28 +80,6 @@ class PI_SAC(object):
             _, _, action = self.policy.sample(state)
         return action.detach().cpu().numpy()[0]
 
-    def compute_target_values(self, rewards, next_values, dones, gamma=0.99, lam=0.95):
-        batch_size, horizon = rewards.shape
-        target_values = torch.zeros_like(rewards).to(self.device)
-
-        Ai = torch.zeros(batch_size).to(self.device)
-        Bi = torch.zeros(batch_size).to(self.device)
-        lam_tensor = torch.ones(batch_size).to(self.device)
-
-        for t in reversed(range(horizon)):
-            done_mask = 1. - dones[:, t]
-            lam_tensor = lam_tensor * lam * done_mask + (1. - done_mask)
-
-            Ai = done_mask * (lam * gamma * Ai + gamma *
-                              next_values[:, t] + (1. - lam_tensor) / (1. - lam) * rewards[:, t])
-            Bi = gamma * \
-                (next_values[:, t] * (1. - done_mask) +
-                 Bi * done_mask) + rewards[:, t]
-
-            target_values[:, t] = (1. - lam) * Ai + lam_tensor * Bi
-
-        return target_values
-
     def train(self, memory, batch_size, updates, **kwargs):
         # Sample a batch from memory
         # state_batch, action_batch, next_state_batch, reward_batch, not_dones = memory.sample(
@@ -162,19 +140,21 @@ class PI_SAC(object):
                     qf1_next_target, qf2_next_target = self.critic_target(
                         states.view(-1, states.shape[-1]),
                         actions.view(-1, actions.shape[-1]))
-                    
+
                     next_values = (qf1_next_target + qf2_next_target) / 2.0
-                    target_values = self.compute_target_values(rewards,
-                                                               next_values.view(batch_size, -1),
-                                                               dones,
-                                                               gamma=self.gamma,
-                                                               lam=self.lambda_)
+                    target_values = compute_target_values(rewards,
+                                                          next_values.view(
+                                                              batch_size, -1),
+                                                          dones,
+                                                          gamma=self.gamma,
+                                                          lam=self.lambda_,
+                                                          device=self.device,)
 
                 # Value update
                 current_Q1, current_Q2 = self.critic(
                     states.view(-1, states.shape[-1]),
                     actions.view(-1, actions.shape[-1]))
-                
+
                 qf_loss = F.mse_loss(current_Q1.view(-1), target_values.view(-1)) +\
                     F.mse_loss(current_Q2.view(-1), target_values.view(-1))
 
@@ -188,7 +168,7 @@ class PI_SAC(object):
         state_pred = states[:, 0, :]
 
         total_reward = torch.zeros(states.size(0), device=self.device)
-        
+
         for i in range(0, self.look_ahead):
 
             done = dones[:, i]
@@ -213,9 +193,11 @@ class PI_SAC(object):
             #         (torch.ones_like(done, device=self.device
             #                          ) - done)
             #     log_pi += log_pi_vec
-                
+
             normalized_entropy = log_pi_vec.squeeze() / self.target_entropy
-            total_reward += discount * (reward_pred - self.log_alpha.exp() * normalized_entropy) * (1.0 - done)
+            total_reward += discount * \
+                (reward_pred - self.log_alpha.exp()
+                 * normalized_entropy) * (1.0 - done)
 
         # with torch.no_grad():
         # next_action = self.actor(state_pred)
@@ -230,7 +212,10 @@ class PI_SAC(object):
             #     (torch.ones_like(done, device=self.device) -
             #         dones[:, self.look_ahead])
 
-            policy_loss = -(total_reward + discount * self.gamma * qf.squeeze()).mean()
+            policy_loss = -(total_reward + discount *
+                            self.gamma * qf.squeeze()).mean()
+        else:
+            policy_loss = -(total_reward).mean()
 
         # actor_loss = actor_loss.mean()
         # print("Actor loss: ", actor_loss.shape)
@@ -244,7 +229,7 @@ class PI_SAC(object):
         self.policy_optim.zero_grad()
         policy_loss.backward()
         torch.nn.utils.clip_grad_norm_(
-                self.policy.parameters(), max_norm=self.max_norm)
+            self.policy.parameters(), max_norm=self.max_norm)
         self.policy_optim.step()
 
         if self.automatic_entropy_tuning:

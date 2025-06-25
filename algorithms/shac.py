@@ -2,6 +2,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from algorithms.utils import compute_target_values
 
 
 class Actor(nn.Module):
@@ -106,30 +107,8 @@ class SHAC:
 
         return policy_loss
 
-    def compute_target_values(self, rewards, next_values, dones, gamma=0.99, lam=0.95):
-        batch_size, horizon = rewards.shape
-        target_values = torch.zeros_like(rewards).to(self.device)
-
-        Ai = torch.zeros(batch_size).to(self.device)
-        Bi = torch.zeros(batch_size).to(self.device)
-        lam_tensor = torch.ones(batch_size).to(self.device)
-
-        for t in reversed(range(horizon)):
-            done_mask = 1. - dones[:, t]
-            lam_tensor = lam_tensor * lam * done_mask + (1. - done_mask)
-
-            Ai = done_mask * (lam * gamma * Ai + gamma *
-                              next_values[:, t] + (1. - lam_tensor) / (1. - lam) * rewards[:, t])
-            Bi = gamma * \
-                (next_values[:, t] * (1. - done_mask) +
-                 Bi * done_mask) + rewards[:, t]
-
-            target_values[:, t] = (1. - lam) * Ai + lam_tensor * Bi
-
-        return target_values
-
     def train(self, replay_buffer, batch_size=64):
-        
+
         states, actions, rewards, dones = replay_buffer.sample_new(
             batch_size)
 
@@ -144,11 +123,12 @@ class SHAC:
             next_values = self.critic_target(
                 states.view(-1, states.shape[-1])).view(batch_size, -1)
 
-            target_values = self.compute_target_values(rewards,
-                                                       next_values,
-                                                       dones,
-                                                       gamma=self.discount,
-                                                       lam=self.lambda_p)
+            target_values = compute_target_values(rewards,
+                                                  next_values,
+                                                  dones,
+                                                  gamma=self.discount,
+                                                  lam=self.lambda_p,
+                                                  device=self.device)
 
         # Value update
         self.critic_optimizer.zero_grad()

@@ -86,7 +86,7 @@ def eval_policy(policy,
             key_name = "eval/" + key
         stats[key_name] = np.mean([stats_list[i][key]
                                    for i in range(len(stats_list))])
-        
+
     avg_reward /= eval_episodes
 
     print("---------------------------------------")
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     # td3, pi_td3
     # pi_ddpg
     # shac
-    parser.add_argument("--policy", default="pi_sac")
+    parser.add_argument("--policy", default="pi_td3")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
@@ -121,10 +121,8 @@ if __name__ == "__main__":
     parser.add_argument('--group_name', type=str, default='Full_problem_')
 
     parser.add_argument("--time_limit_hours", default=200, type=float)  # 1e7
-
     parser.add_argument('--disable_development_mode', action='store_true',
-                        default=False,
-                        help='Enable critic in the policy.')
+                        default=False)
 
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
     parser.add_argument("--eval_episodes", default=50, type=int)
@@ -174,7 +172,6 @@ if __name__ == "__main__":
     parser.add_argument('--action_std_decay_freq',
                         type=int, default=int(2.5e5))
 
-
     parser.add_argument('--K', type=int, default=10)
     parser.add_argument('--lr', type=float, default=3e-5)
     parser.add_argument('--lr_critic', type=float, default=3e-4)
@@ -185,7 +182,6 @@ if __name__ == "__main__":
     parser.add_argument('--lookahead_critic_reward', type=int, default=4)
     parser.add_argument('--lambda_', type=float, default=0.95)
     parser.add_argument('--td_lambda_horizon', type=int, default=30)
-    
 
     # Parameters #############################################
     parser.add_argument('--mlp_hidden_dim', type=int, default=128)
@@ -193,17 +189,15 @@ if __name__ == "__main__":
 
     scale = 1
     args = parser.parse_args()
-    
-    if not args.disable_development_mode:        
+
+    if not args.disable_development_mode:
         args.log_to_wandb = False
         args.eval_episodes = 1
         args.start_timesteps = 301
         args.eval_freq = 96*5
         args.batch_size = 3
 
-
     device = args.device
-    
 
     replay_buffer_size = int(args.replay_buffer_size)
 
@@ -215,7 +209,7 @@ if __name__ == "__main__":
     print("  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -")
     print(f'device: {device}')
     print(f'Config File: {config_file}')
-    print("---------------------------------------")    
+    print("---------------------------------------")
 
     if not os.path.exists("./results"):
         os.makedirs("./results")
@@ -596,17 +590,17 @@ if __name__ == "__main__":
 
             start_time = time.time()
             if args.policy == 'sac' or args.policy == 'pi_sac':
-                
+
                 if t % args.policy_freq == 0:
                     loss_dict = policy.train(
-                            replay_buffer, args.batch_size, updates)
+                        replay_buffer, args.batch_size, updates)
                     updates += 1
                 else:
                     loss_dict = None
             elif args.policy in ['shac']:
                 if t % args.policy_freq == 0:
                     loss_dict = policy.train(
-                    replay_buffer, args.batch_size)
+                        replay_buffer, args.batch_size)
 
             elif args.policy == "reinforce":
                 pass

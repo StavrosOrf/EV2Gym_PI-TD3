@@ -88,3 +88,26 @@ def td_lambda_forward_view(
 
     # print(f"Final TD(lambda) shape: {td_lambda.shape}, first 5 values: {td_lambda[:, :5]}")
     return td_lambda[:,0]
+
+@torch.no_grad()
+def compute_target_values(rewards, next_values, dones, gamma=0.99, lam=0.95, device='cpu'):
+    batch_size, horizon = rewards.shape
+    target_values = torch.zeros_like(rewards).to(device)
+
+    Ai = torch.zeros(batch_size).to(device)
+    Bi = torch.zeros(batch_size).to(device)
+    lam_tensor = torch.ones(batch_size).to(device)
+
+    for t in reversed(range(horizon)):
+        done_mask = 1. - dones[:, t]
+        lam_tensor = lam_tensor * lam * done_mask + (1. - done_mask)
+
+        Ai = done_mask * (lam * gamma * Ai + gamma *
+                            next_values[:, t] + (1. - lam_tensor) / (1. - lam) * rewards[:, t])
+        Bi = gamma * \
+            (next_values[:, t] * (1. - done_mask) +
+                Bi * done_mask) + rewards[:, t]
+
+        target_values[:, t] = (1. - lam) * Ai + lam_tensor * Bi
+
+    return target_values

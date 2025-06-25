@@ -1,7 +1,7 @@
 
 import copy
 import numpy as np
-from algorithms.utils import td_lambda_forward_view
+from algorithms.utils import td_lambda_forward_view, compute_target_values
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -86,12 +86,12 @@ class PI_TD3(object):
         states, actions, rewards, dones = replay_buffer.sample_new(
             batch_size)
 
-        if self.critic_enabled:
-            with torch.no_grad():
-                # Select action according to policy and add clipped noise
+        if self.critic_enabled:            
+            # Select action according to policy and add clipped noise
 
-                if self.lookahead_critic_reward == 0:
+            if self.lookahead_critic_reward == 0:
 
+                with torch.no_grad():
                     noise = (
                         torch.randn_like(
                             actions[:, 0, :], device=self.device) * self.policy_noise
@@ -117,8 +117,8 @@ class PI_TD3(object):
                     target_Q = reward + self.discount**(self.look_ahead) * \
                         not_done * target_Q.view(-1)
 
-                elif self.lookahead_critic_reward == 1:
-
+            elif self.lookahead_critic_reward == 1:
+                with torch.no_grad():
                     noise = (
                         torch.randn_like(
                             actions[:, :self.look_ahead, :], device=self.device) * self.policy_noise
@@ -140,11 +140,11 @@ class PI_TD3(object):
                         ).clamp(-self.max_action, self.max_action)
 
                         reward_pred = self.loss_fn(state=state_pred,
-                                                   action=action_vector)
+                                                action=action_vector)
 
                         state_pred = self.transition_fn(state=state_pred,
                                                         new_state=states[:,
-                                                                         i+1, :],
+                                                                        i+1, :],
                                                         action=action_vector)
 
                         total_reward += discount * reward_pred * \
@@ -170,11 +170,11 @@ class PI_TD3(object):
                     target_Q = total_reward + self.discount**(self.look_ahead) * \
                         not_done * target_Q.view(-1)
 
-                elif self.lookahead_critic_reward == 3:
-                    """
-                    Uses the forward-view TD(lambda) target calculation.
-                    """
-
+            elif self.lookahead_critic_reward == 3:
+                """
+                Uses the forward-view TD(lambda) target calculation.
+                """
+                with torch.no_grad():
                     target_Q = td_lambda_forward_view(
                         rewards=rewards,
                         dones=dones,
@@ -185,35 +185,41 @@ class PI_TD3(object):
                         lambda_=self.lambda_,
                         horizon=self.look_ahead  # -1
                     )
-                    
-                elif self.lookahead_critic_reward == 4:
-                    # Compute estimated returns
-                    with torch.no_grad():
-                        qf1_next_target, qf2_next_target = self.critic_target(
-                            states.view(-1, states.shape[-1]),
-                            actions.view(-1, actions.shape[-1]))
-                        
-                        next_values = (qf1_next_target + qf2_next_target) / 2.0
-                        target_values = self.compute_target_values(rewards,
-                                                                next_values.view(batch_size, -1),
-                                                                dones,
-                                                                gamma=self.gamma,
-                                                                lam=self.lambda_)
 
-                    # Value update
-                    current_Q1, current_Q2 = self.critic(
+            elif self.lookahead_critic_reward == 4:
+                # Compute targets without gradients
+                with torch.no_grad():
+                    qf1_next_target, qf2_next_target = self.critic_target(
                         states.view(-1, states.shape[-1]),
                         actions.view(-1, actions.shape[-1]))
-                    predicted_values = ((current_Q1 + current_Q2) / 2.0).squeeze(-1)
-                    
-                    qf_loss = (
-                        (predicted_values - target_values.view(-1)) ** 2).mean()
+                    next_values = (qf1_next_target + qf2_next_target) / 2.0
+                    target_values = compute_target_values(
+                        rewards,
+                        next_values.view(batch_size, -1),
+                        dones,
+                        gamma=self.discount,
+                        lam=self.lambda_,
+                        device=self.device
+                    )
 
-            # self.critic_optim.zero_grad()
-            # qf_loss.backward()
-            # self.critic_optim.step()
+                # Compute predictions with gradients
+                current_Q1, current_Q2 = self.critic(
+                    states.view(-1, states.shape[-1]),
+                    actions.view(-1, actions.shape[-1]))
 
-                else:
+                critic_loss = F.mse_loss(current_Q1.view(-1), target_values.view(-1)) + \
+                            F.mse_loss(current_Q2.view(-1), target_values.view(-1))
+
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.critic.parameters(), max_norm=self.max_norm)
+                self.critic_optimizer.step()
+                self.loss_dict['critic_loss'] = critic_loss.item()
+
+            else:
+                
+                with torch.no_grad():
                     noise = (
                         torch.randn_like(
                             actions[:, 0, :], device=self.device) * self.policy_noise
@@ -234,9 +240,10 @@ class PI_TD3(object):
                     target_Q = reward + self.discount * \
                         not_done * target_Q.view(-1)
 
+        if self.lookahead_critic_reward <= 3:
             # Get current Q estimates
             current_Q1, current_Q2 = self.critic(states[:, 0, :],
-                                                 actions[:, 0, :])
+                                                    actions[:, 0, :])
             # Compute critic loss
             critic_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
                 F.mse_loss(current_Q2.view(-1), target_Q)
@@ -247,7 +254,6 @@ class PI_TD3(object):
             torch.nn.utils.clip_grad_norm_(
                 self.critic.parameters(), max_norm=self.max_norm)
             self.critic_optimizer.step()
-
             self.loss_dict['critic_loss'] = critic_loss.item()
 
         # Delayed policy updates
@@ -303,10 +309,10 @@ class PI_TD3(object):
 
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \
-                    self.critic.Q1(state_pred, next_action).view(-1) 
-                    # *\
-                    # (torch.ones_like(done, device=self.device) -
-                    #  dones[:, self.look_ahead])
+                    self.critic.Q1(state_pred, next_action).view(-1)
+                # *\
+                # (torch.ones_like(done, device=self.device) -
+                #  dones[:, self.look_ahead])
 
             actor_loss = actor_loss.mean()
 
