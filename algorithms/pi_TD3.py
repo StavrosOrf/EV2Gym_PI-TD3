@@ -80,6 +80,7 @@ class PI_TD3(object):
             look_ahead=2,
             critic_enabled=True,
             lookahead_critic_reward=1,
+            td_lambda_horizon=5,
             **kwargs
     ):
 
@@ -111,6 +112,7 @@ class PI_TD3(object):
         self.transition_fn = transition_fn
         self.critic_enabled = critic_enabled
         self.lookahead_critic_reward = lookahead_critic_reward
+        self.td_lambda_horizon = td_lambda_horizon
 
         self.total_it = 0
         self.loss_dict = {
@@ -317,19 +319,9 @@ class PI_TD3(object):
                 if i == 0:
                     actor_loss = - reward_pred
                 else:
-                    # print(f'Actor Loss: {actor_loss.shape}')
-                    # print(f'Reward Pred: {reward_pred.shape}')
-                    # print(f'Done: {done.shape}')
                     actor_loss += - discount * reward_pred * \
                         (torch.ones_like(done, device=self.device
                                          ) - done)
-
-            # add the critic loss
-            # with torch.no_grad():
-            # print(f'Actor Loss: {actor_loss.shape}')
-            # print(f'State Pred: {state_pred.shape}')
-            # print(f'Action Vector: {action_vector.shape}')
-            # print(f'Q: {(discount * self.discount * self.critic.Q1(state_pred, next_action).view(-1)).shape}')
 
             # with torch.no_grad():
             next_action = self.actor(state_pred)

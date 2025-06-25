@@ -193,6 +193,7 @@ if __name__ == "__main__":
                         help='Enable critic in the policy.')
     parser.add_argument('--lookahead_critic_reward', type=int, default=3)
     parser.add_argument('--lambda_', type=float, default=0.95)
+    parser.add_argument('--td_lambda_horizon', type=int, default=30)
     
 
     # Parameters #############################################
@@ -426,6 +427,7 @@ if __name__ == "__main__":
         "action_std_decay_rate": args.action_std_decay_rate,
         "min_action_std": args.min_action_std,
         "train_updates_PPO": args.train_updates_PPO,
+        'td_lambda_horizon': args.td_lambda_horizon,
     }
 
     # Save kwargs to local path

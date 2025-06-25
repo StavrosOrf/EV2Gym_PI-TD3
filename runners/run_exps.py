@@ -15,12 +15,12 @@ scenario = 'pst_v2g_profitmax'
 
 counter = 0
 batch_size = 64  # 256 # 512
-
+td_lambda_horizon = 20
 
 for policy in ['pi_td3']:
     for lookahead_critic_reward in [3]:
-        for critic in [True, False]:
-            for K in [5, 20]:  # 512
+        for critic in [True]:
+            for K in [20]:  # 512
                 for seed in [9]:
 
                     extra_args = ''
@@ -39,15 +39,16 @@ for policy in ['pi_td3']:
                         ' --policy ' + policy + \
                         ' --seed ' + str(seed) + \
                         ' --K ' + str(K) + \
+                        ' --td_lambda_horizon ' + str(td_lambda_horizon) + \
                         extra_args + \
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "AblationTests_300"' + \
                         ' --name ' +\
-                        f'LookaheadCriticReward={lookahead_critic_reward}_' + \
+                        f'AVG_bothcritics_LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \
-                        '_batch_size=' + str(batch_size) + \
+                        '_td_lambda_horizon=' + str(td_lambda_horizon) + \
                         '_seed=' + str(seed) + \
                         '" Enter'
                     os.system(command=command)
