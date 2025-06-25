@@ -47,7 +47,6 @@ class SHAC:
                  state_dim,
                  action_dim,
                  max_action,
-
                  loss_fn=None,
                  transition_fn=None,
                  discount=0.99,
@@ -107,10 +106,6 @@ class SHAC:
 
         return policy_loss
 
-    def compute_value_loss(self, states, returns):
-        values = self.critic(states)
-        return F.mse_loss(values, returns)
-
     def compute_target_values(self, rewards, next_values, dones, gamma=0.99, lam=0.95):
         batch_size, horizon = rewards.shape
         target_values = torch.zeros_like(rewards).to(self.device)
@@ -134,6 +129,7 @@ class SHAC:
         return target_values
 
     def train(self, replay_buffer, batch_size=64):
+        
         states, actions, rewards, dones = replay_buffer.sample_new(
             batch_size)
 

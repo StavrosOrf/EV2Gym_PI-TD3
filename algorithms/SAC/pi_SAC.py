@@ -21,8 +21,8 @@ class PI_SAC(object):
         self.gamma = args['discount']
         self.tau = args['tau']
         self.alpha = args['alpha']
-        self.lambda_ = args['lambda']
-        self.horizon = args['horizon']
+        self.lambda_ = args['lambda_']
+        self.td_lambda_horizon = args['td_lambda_horizon']
 
         self.look_ahead = args['look_ahead']
         self.critic_enabled = args['critic_enabled']
@@ -79,6 +79,28 @@ class PI_SAC(object):
             _, _, action = self.policy.sample(state)
         return action.detach().cpu().numpy()[0]
 
+    def compute_target_values(self, rewards, next_values, dones, gamma=0.99, lam=0.95):
+        batch_size, horizon = rewards.shape
+        target_values = torch.zeros_like(rewards).to(self.device)
+
+        Ai = torch.zeros(batch_size).to(self.device)
+        Bi = torch.zeros(batch_size).to(self.device)
+        lam_tensor = torch.ones(batch_size).to(self.device)
+
+        for t in reversed(range(horizon)):
+            done_mask = 1. - dones[:, t]
+            lam_tensor = lam_tensor * lam * done_mask + (1. - done_mask)
+
+            Ai = done_mask * (lam * gamma * Ai + gamma *
+                              next_values[:, t] + (1. - lam_tensor) / (1. - lam) * rewards[:, t])
+            Bi = gamma * \
+                (next_values[:, t] * (1. - done_mask) +
+                 Bi * done_mask) + rewards[:, t]
+
+            target_values[:, t] = (1. - lam) * Ai + lam_tensor * Bi
+
+        return target_values
+
     def train(self, memory, batch_size, updates, **kwargs):
         # Sample a batch from memory
         # state_batch, action_batch, next_state_batch, reward_batch, not_dones = memory.sample(
@@ -94,49 +116,70 @@ class PI_SAC(object):
         not_dones = (torch.ones_like(
             dones[:, 0], device=self.device) - dones[:, 0]).view(-1, 1)
 
-        if self.lookahead_critic_reward == 2:
-            with torch.no_grad():
-                next_state_action, next_state_log_pi, _ = self.policy.sample(
-                    next_state_batch)
+        if self.critic_enabled:
+            if self.lookahead_critic_reward == 2:
+                with torch.no_grad():
+                    next_state_action, next_state_log_pi, _ = self.policy.sample(
+                        next_state_batch)
 
-                qf1_next_target, qf2_next_target = self.critic_target(
-                    next_state_batch, next_state_action)
-                min_qf_next_target = torch.min(
-                    qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
-                next_q_value = reward_batch + not_dones * \
-                    self.gamma * (min_qf_next_target)
-            # Two Q-functions to mitigate positive bias in the policy improvement step
-            qf1, qf2 = self.critic(state_batch, action_batch)
-            # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-            qf1_loss = F.mse_loss(qf1, next_q_value)
-            # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-            qf2_loss = F.mse_loss(qf2, next_q_value)
-            qf_loss = qf1_loss + qf2_loss
+                    qf1_next_target, qf2_next_target = self.critic_target(
+                        next_state_batch, next_state_action)
+                    min_qf_next_target = torch.min(
+                        qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
+                    next_q_value = reward_batch + not_dones * \
+                        self.gamma * (min_qf_next_target)
+                # Two Q-functions to mitigate positive bias in the policy improvement step
+                qf1, qf2 = self.critic(state_batch, action_batch)
+                # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+                qf1_loss = F.mse_loss(qf1, next_q_value)
+                # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+                qf2_loss = F.mse_loss(qf2, next_q_value)
+                qf_loss = qf1_loss + qf2_loss
 
-        elif self.lookahead_critic_reward == 3:
-            target_Q = td_lambda_forward_view(
-                rewards=rewards,
-                dones=dones,
-                states=states,
-                actions=actions,
-                critic=self.critic_target,
-                gamma=self.gamma,
-                lambda_=self.lambda_,
-                horizon=self.look_ahead  # -1
-            )
+            elif self.lookahead_critic_reward == 3:
+                target_Q = td_lambda_forward_view(
+                    rewards=rewards,
+                    dones=dones,
+                    states=states,
+                    actions=actions,
+                    critic=self.critic_target,
+                    gamma=self.gamma,
+                    lambda_=self.lambda_,
+                    horizon=self.td_lambda_horizon
+                )
 
-            # Get current Q estimates
-            current_Q1, current_Q2 = self.critic(states[:, 0, :],
-                                                 actions[:, 0, :])
-            # Compute critic loss
-            qf_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
-                F.mse_loss(current_Q2.view(-1), target_Q)
+                # Get current Q estimates
+                current_Q1, current_Q2 = self.critic(states[:, 0, :],
+                                                     actions[:, 0, :])
+                # Compute critic loss
+                qf_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
+                    F.mse_loss(current_Q2.view(-1), target_Q)
 
-        self.critic_optim.zero_grad()
-        qf_loss.backward()
-        self.critic_optim.step()
+            elif self.lookahead_critic_reward == 4:
+                # Compute estimated returns
+                with torch.no_grad():
+                    next_values = self.critic_target(
+                        states.view(-1, states.shape[-1]),
+                        actions.view(-1, actions.shape[-1])).view(batch_size, -1)
 
-        pi, log_pi, _ = self.policy.sample(state_batch)
+                    target_values = self.compute_target_values(rewards,
+                                                               next_values,
+                                                               dones,
+                                                               gamma=self.discount,
+                                                               lam=self.lambda_p)
+
+                # Value update
+                predicted_values = self.critic(
+                    states.view(-1, states.shape[-1]),
+                    actions.view(-1, actions.shape[-1])).squeeze(-1)
+                qf_loss = (
+                    (predicted_values - target_values.view(-1)) ** 2).mean()
+
+            self.critic_optim.zero_grad()
+            qf_loss.backward()
+            self.critic_optim.step()
+
+        # pi, log_pi, _ = self.policy.sample(state_batch)
 
         # replace min_qf_pi with the rolled out value
         state_pred = states[:, 0, :]
@@ -171,14 +214,13 @@ class PI_SAC(object):
         next_action, _, _ = self.policy.sample(state_pred)
 
         if self.critic_enabled:
-            qf1_pi, _ = self.critic(state_pred, next_action)
+            qf1_pi, qf2_pi = self.critic_target(state_pred, next_action)
+            qf = (qf1_pi + qf2_pi) / 2
 
             actor_loss += - discount * self.gamma * \
-                qf1_pi.view(-1) *\
+                qf.view(-1) *\
                 (torch.ones_like(done, device=self.device) -
                     dones[:, self.look_ahead])
-
-            # min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
         # actor_loss = actor_loss.mean()
         # print("Actor loss: ", actor_loss.shape)
@@ -209,9 +251,9 @@ class PI_SAC(object):
 
         if updates % self.target_update_interval == 0:
             soft_update(self.critic_target, self.critic, self.tau)
+
         loss_dict = {
-            'critic_loss': qf1_loss.item(),
-            'critic_loss2': qf2_loss.item(),
+            'critic_loss': qf_loss.item(),
             'actor_loss': policy_loss.item(),
             'alpha_loss': alpha_loss.item(),
             'alpha_tlogs': alpha_tlogs.item()
