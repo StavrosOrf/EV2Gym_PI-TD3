@@ -5,117 +5,8 @@ from algorithms.utils import td_lambda_forward_view
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-
-# class Actor(nn.Module):
-#     def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim):
-#         super(Actor, self).__init__()
-
-#         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
-#         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-#         self.l3 = nn.Linear(mlp_hidden_dim, action_dim)
-
-#         self.max_action = max_action
-
-#     def forward(self, state):
-#         a = F.relu(self.l1(state))
-#         a = F.relu(self.l2(a))
-#         # return self.max_action * torch.sigmoid(self.l3(a))
-#         return torch.tanh(self.l3(a))
-
-
-# class Critic(nn.Module):
-#     def __init__(self, state_dim, action_dim, mlp_hidden_dim):
-
-#         super(Critic, self).__init__()
-
-#         # Q1 architecture
-#         self.l1 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
-#         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-#         self.l3 = nn.Linear(mlp_hidden_dim, 1)
-
-#         # Q2 architecture
-#         self.l4 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
-#         self.l5 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-#         self.l6 = nn.Linear(mlp_hidden_dim, 1)
-
-#     def forward(self, state, action):
-#         sa = torch.cat([state, action], 1)
-
-#         q1 = F.relu(self.l1(sa))
-#         q1 = F.relu(self.l2(q1))
-#         q1 = self.l3(q1)
-
-#         q2 = F.relu(self.l4(sa))
-#         q2 = F.relu(self.l5(q2))
-#         q2 = self.l6(q2)
-#         return q1, q2
-
-#     def Q1(self, state, action):
-#         sa = torch.cat([state, action], 1)
-
-#         q1 = F.relu(self.l1(sa))
-#         q1 = F.relu(self.l2(q1))
-#         q1 = self.l3(q1)
-#         return q1
-
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim):
-        super(Actor, self).__init__()
-
-        self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
-        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
-        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
-        self.l3 = nn.Linear(mlp_hidden_dim, action_dim)
-
-        self.max_action = max_action
-
-    def forward(self, state):
-        a = F.silu(self.ln1(self.l1(state)))
-        a = F.silu(self.ln2(self.l2(a)))
-        return torch.tanh(self.l3(a))
-
-
-class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, mlp_hidden_dim):
-
-        super(Critic, self).__init__()
-
-        # Q1 architecture
-        self.l1 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
-        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
-        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
-        self.l3 = nn.Linear(mlp_hidden_dim, 1)
-
-        # Q2 architecture
-        self.l4 = nn.Linear(state_dim + action_dim, mlp_hidden_dim)
-        self.ln4 = nn.LayerNorm(mlp_hidden_dim)
-        self.l5 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.ln5 = nn.LayerNorm(mlp_hidden_dim)
-        self.l6 = nn.Linear(mlp_hidden_dim, 1)
-
-    def forward(self, state, action):
-        sa = torch.cat([state, action], 1)
-
-        #use silu activation and layer normalization
-        q1 = F.silu(self.ln1(self.l1(sa)))
-        q1 = F.silu(self.ln2(self.l2(q1)))
-        q1 = self.l3(q1)
-
-        q2 = F.silu(self.ln4(self.l4(sa)))
-        q2 = F.silu(self.ln5(self.l5(q2)))
-        q2 = self.l6(q2)
-        return q1, q2
-
-    def Q1(self, state, action):
-        sa = torch.cat([state, action], 1)
-
-        q1 = F.silu(self.ln1(self.l1(sa)))
-        q1 = F.silu(self.ln2(self.l2(q1)))
-        q1 = self.l3(q1)
-        return q1
+from algorithms.TD3 import Actor
+from algorithms.TD3 import Critic
 
 
 class PI_TD3(object):
@@ -145,17 +36,17 @@ class PI_TD3(object):
         self.actor = Actor(state_dim, action_dim, max_action,
                            mlp_hidden_dim).to(device)
         self.actor_target = copy.deepcopy(self.actor).to(device)
-        # self.actor_optimizer = torch.optim.Adam(
-        #     self.actor.parameters(), lr=3e-4)
-        self.actor_optimizer = torch.optim.AdamW(self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
-
+        self.actor_optimizer = torch.optim.Adam(
+            self.actor.parameters(), lr=3e-4)
+        # self.actor_optimizer = torch.optim.AdamW(
+        #     self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
         self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic).to(device)
-        # self.critic_optimizer = torch.optim.Adam(
-        #     self.critic.parameters(), lr=3e-4)
-        self.actor_optimizer = torch.optim.AdamW(self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
-
+        self.critic_optimizer = torch.optim.Adam(
+            self.critic.parameters(), lr=3e-4)
+        # self.critic_optimizer = torch.optim.AdamW(
+        #     self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         assert look_ahead >= 1, 'Look ahead should be greater than 1'
         self.look_ahead = look_ahead
@@ -214,7 +105,6 @@ class PI_TD3(object):
                     rewards = rewards[:, :self.look_ahead] * discount_vector
                     reward = torch.sum(rewards[:, :self.look_ahead], dim=1)
 
-
                     next_action = (
                         self.actor_target(next_state) + noise
                     ).clamp(-self.max_action, self.max_action)
@@ -223,10 +113,9 @@ class PI_TD3(object):
                     target_Q1, target_Q2 = self.critic_target(
                         next_state, next_action)
                     target_Q = torch.min(target_Q1, target_Q2)
-                    
+
                     target_Q = reward + self.discount**(self.look_ahead) * \
                         not_done * target_Q.view(-1)
-                    
 
                 elif self.lookahead_critic_reward == 1:
 
@@ -264,7 +153,7 @@ class PI_TD3(object):
                     next_state = state_pred
                     not_done = 1 - dones[:, self.look_ahead - 1]
                     noise = noise[:, -1, :]
-                    
+
                     next_state = states[:, 1, :]
                     not_done = 1 - dones[:, 0]
                     reward = rewards[:, 0]
@@ -277,15 +166,15 @@ class PI_TD3(object):
                     target_Q1, target_Q2 = self.critic_target(
                         next_state, next_action)
                     target_Q = torch.min(target_Q1, target_Q2)
-                    
+
                     target_Q = total_reward + self.discount**(self.look_ahead) * \
                         not_done * target_Q.view(-1)
-                    
-                elif self.lookahead_critic_reward == 3:      
+
+                elif self.lookahead_critic_reward == 3:
                     """
                     Uses the forward-view TD(lambda) target calculation.
                     """
-                    
+
                     target_Q = td_lambda_forward_view(
                         rewards=rewards,
                         dones=dones,
@@ -294,9 +183,9 @@ class PI_TD3(object):
                         critic=self.critic_target,
                         gamma=self.discount,
                         lambda_=self.lambda_,
-                        horizon=self.look_ahead #-1
+                        horizon=self.look_ahead  # -1
                     )
-                        
+
                 else:
                     noise = (
                         torch.randn_like(
@@ -314,10 +203,9 @@ class PI_TD3(object):
                     target_Q1, target_Q2 = self.critic_target(
                         next_state, next_action)
                     target_Q = torch.min(target_Q1, target_Q2)
-                    
+
                     target_Q = reward + self.discount * \
                         not_done * target_Q.view(-1)
-
 
             # Get current Q estimates
             current_Q1, current_Q2 = self.critic(states[:, 0, :],
@@ -334,8 +222,6 @@ class PI_TD3(object):
             self.critic_optimizer.step()
 
             self.loss_dict['critic_loss'] = critic_loss.item()
-            
-
 
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
@@ -404,10 +290,8 @@ class PI_TD3(object):
             # Optimize the actor
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-
             # torch.nn.utils.clip_grad_norm_(
             #     self.actor.parameters(), max_norm=self.max_norm)
-
             self.actor_optimizer.step()
 
             # Update the frozen target models

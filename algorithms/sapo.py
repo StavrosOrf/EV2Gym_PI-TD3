@@ -9,15 +9,17 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
 
         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
         self.l3_mu = nn.Linear(mlp_hidden_dim, action_dim)
         self.l3_log_std = nn.Linear(mlp_hidden_dim, action_dim)
 
         self.max_action = max_action
 
     def forward(self, state):
-        a = F.silu(self.l1(state))
-        a = F.silu(self.l2(a))
+        a = F.silu(self.ln1(self.l1(state)))
+        a = F.silu(self.ln2(self.l2(a)))
         mu = self.l3_mu(a)
         log_std = self.l3_log_std(a).clamp(-5, 2)
         std = log_std.exp()

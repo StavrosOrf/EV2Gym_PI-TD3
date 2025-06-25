@@ -89,6 +89,7 @@ class PI_SAC(object):
         reward_batch = rewards[:, 0].view(-1, 1)
         not_dones = (torch.ones_like(
             dones[:, 0], device=self.device) - dones[:, 0]).view(-1, 1)
+        
 
         with torch.no_grad():
             next_state_action, next_state_log_pi, _ = self.policy.sample(

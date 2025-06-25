@@ -65,7 +65,6 @@ def eval_policy(policy,
         stats_list.append(stats)
 
     keys_to_keep = [
-        'total_reward',
         'total_profits',
         'total_energy_charged',
         'total_energy_discharged',
@@ -601,6 +600,10 @@ if __name__ == "__main__":
                     updates += 1
                 else:
                     loss_dict = None
+            elif args.policy in ['shac']:
+                if t % args.policy_freq == 0:
+                    loss_dict = policy.train(
+                    replay_buffer, args.batch_size)
 
             elif args.policy == "reinforce":
                 pass

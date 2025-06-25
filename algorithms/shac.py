@@ -9,15 +9,16 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
 
         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
         self.l3 = nn.Linear(mlp_hidden_dim, action_dim)
 
         self.max_action = max_action
 
     def forward(self, state):
-
-        a = F.relu(self.l1(state))
-        a = F.relu(self.l2(a))
+        a = F.elu(self.ln1(self.l1(state)))
+        a = F.elu(self.ln2(self.l2(a)))
         return torch.tanh(self.l3(a))
 
 
@@ -26,17 +27,17 @@ class Critic(nn.Module):
 
         super(Critic, self).__init__()
 
-        # Q1 architecture
         self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
         self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
         self.l3 = nn.Linear(mlp_hidden_dim, 1)
 
     def forward(self, state):
 
-        q1 = F.relu(self.l1(state))
-        q1 = F.relu(self.l2(q1))
+        q1 = F.elu(self.ln1(self.l1(state)))
+        q1 = F.elu(self.ln2(self.l2(q1)))
         q1 = self.l3(q1)
-
         return q1
 
 
@@ -146,16 +147,17 @@ class SHAC:
         with torch.no_grad():
             next_values = self.critic_target(
                 states.view(-1, states.shape[-1])).view(batch_size, -1)
-            
+
             target_values = self.compute_target_values(rewards,
                                                        next_values,
                                                        dones,
-                                                       gamma =self.discount,
+                                                       gamma=self.discount,
                                                        lam=self.lambda_p)
 
         # Value update
         self.critic_optimizer.zero_grad()
-        predicted_values = self.critic(states.view(-1, states.shape[-1])).squeeze(-1)
+        predicted_values = self.critic(
+            states.view(-1, states.shape[-1])).squeeze(-1)
         value_loss = ((predicted_values - target_values.view(-1)) ** 2).mean()
         value_loss.backward()
         self.critic_optimizer.step()

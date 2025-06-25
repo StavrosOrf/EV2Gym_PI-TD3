@@ -17,7 +17,7 @@ counter = 0
 batch_size = 64  # 256 # 512
 td_lambda_horizon = 20
 
-for policy in ['pi_td3']:
+for policy in ['shac']:
     for lookahead_critic_reward in [3]:
         for critic in [True]:
             for K in [20]:  # 512
@@ -44,7 +44,7 @@ for policy in ['pi_td3']:
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "AblationTests_300"' + \
                         ' --name ' +\
-                        f'AVG_bothcritics_LookaheadCriticReward={lookahead_critic_reward}_' + \
+                        f'NewArch_LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \
