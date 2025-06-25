@@ -21,6 +21,8 @@ class PI_SAC(object):
         self.gamma = args['discount']
         self.tau = args['tau']
         self.alpha = args['alpha']
+        self.lambda_ = args['lambda']
+        self.horizon = args['horizon']
 
         self.look_ahead = args['look_ahead']
         self.critic_enabled = args['critic_enabled']
@@ -118,7 +120,7 @@ class PI_SAC(object):
                 states=states,
                 actions=actions,
                 critic=self.critic_target,
-                gamma=self.discount,
+                gamma=self.gamma,
                 lambda_=self.lambda_,
                 horizon=self.look_ahead  # -1
             )
