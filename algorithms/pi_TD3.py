@@ -36,17 +36,17 @@ class PI_TD3(object):
         self.actor = Actor(state_dim, action_dim, max_action,
                            mlp_hidden_dim).to(device)
         self.actor_target = copy.deepcopy(self.actor).to(device)
-        # self.actor_optimizer = torch.optim.Adam(
-        #     self.actor.parameters(), lr=3e-4)
-        self.actor_optimizer = torch.optim.AdamW(
-            self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
+        self.actor_optimizer = torch.optim.Adam(
+            self.actor.parameters(), lr=3e-4)
+        # self.actor_optimizer = torch.optim.AdamW(
+        #     self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
         self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic).to(device)
-        # self.critic_optimizer = torch.optim.Adam(
-        #     self.critic.parameters(), lr=3e-4)
-        self.critic_optimizer = torch.optim.AdamW(
-            self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
+        self.critic_optimizer = torch.optim.Adam(
+            self.critic.parameters(), lr=3e-4)
+        # self.critic_optimizer = torch.optim.AdamW(
+        #     self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         assert look_ahead >= 1, 'Look ahead should be greater than 1'
         self.look_ahead = look_ahead
@@ -188,16 +188,24 @@ class PI_TD3(object):
 
             elif self.lookahead_critic_reward == 4:
                 # Compute targets without gradients
-                with torch.no_grad():
+                temp_states = states[:, :self.look_ahead, :]
+                temp_actions = actions[:, :self.look_ahead, :]
+                temp_rewards = rewards[:, :self.look_ahead]
+                temp_dones = dones[:, :self.look_ahead]
+                
+                with torch.no_grad():                    
+                    
                     qf1_next_target, qf2_next_target = self.critic_target(
-                        states.view(-1, states.shape[-1]),
-                        actions.view(-1, actions.shape[-1]))
+                        temp_states.reshape(-1, temp_states.shape[-1]),
+                        temp_actions.reshape(-1, temp_actions.shape[-1])
+                    )
                     # next_values = (qf1_next_target + qf2_next_target) / 2.0
                     next_values = torch.min(qf1_next_target, qf2_next_target)
+                    
                     target_values = compute_target_values(
-                        rewards,
+                        temp_rewards,
                         next_values.view(batch_size, -1),
-                        dones,
+                        temp_dones,
                         gamma=self.discount,
                         lam=self.lambda_,
                         device=self.device
@@ -205,16 +213,17 @@ class PI_TD3(object):
 
                 # Compute predictions with gradients
                 current_Q1, current_Q2 = self.critic(
-                    states.view(-1, states.shape[-1]),
-                    actions.view(-1, actions.shape[-1]))
+                    temp_states.reshape(-1, temp_states.shape[-1]),
+                    temp_actions.reshape(-1, temp_actions.shape[-1])
+                )
 
                 critic_loss = F.mse_loss(current_Q1.view(-1), target_values.view(-1)) + \
                             F.mse_loss(current_Q2.view(-1), target_values.view(-1))
 
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    self.critic.parameters(), max_norm=self.max_norm)
+                # torch.nn.utils.clip_grad_norm_(
+                #     self.critic.parameters(), max_norm=self.max_norm)
                 self.critic_optimizer.step()
                 self.loss_dict['critic_loss'] = critic_loss.item()
 
@@ -310,7 +319,7 @@ class PI_TD3(object):
 
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \
-                    self.critic.Q1(state_pred, next_action).view(-1)*\
+                    self.critic_target.Q1(state_pred, next_action).view(-1)*\
                 (torch.ones_like(done, device=self.device) -
                  dones[:, self.look_ahead])
 

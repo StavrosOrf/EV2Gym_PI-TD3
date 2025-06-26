@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from algorithms.utils import compute_target_values
 from algorithms.shac import Actor, Critic
 
+
 class SHAC_OnPolicy:
     def __init__(self,
                  mlp_hidden_dim,
@@ -30,6 +31,8 @@ class SHAC_OnPolicy:
         self.critic_target = copy.deepcopy(self.critic).to(device)
         self.critic_optimizer = torch.optim.Adam(
             self.critic.parameters(), lr=3e-4)
+        
+        self.critic_update_steps = kwargs.get('critic_update_steps', 3)
 
         self.transition_fn = transition_fn
         self.loss_fn = loss_fn
@@ -48,7 +51,7 @@ class SHAC_OnPolicy:
         state_pred = states[:, 0, :]
         total_reward = 0
 
-        for t in range(self.horizon):
+        for t in range(self.horizon-1):
             done = dones[:, t]
 
             action_pred = self.actor(state_pred)
@@ -66,46 +69,46 @@ class SHAC_OnPolicy:
 
         v_next = self.critic_target(state_pred)
         policy_loss = -(total_reward + (self.discount **
-                        self.horizon) * v_next).mean()
+                        (self.horizon-1)) * v_next).mean()
 
         return policy_loss
 
     def train(self, replay_buffer, batch_size=64):
 
-        states, actions, rewards, dones = replay_buffer.sample_new(
-            batch_size)
+        states = replay_buffer.state.detach().to(self.device)
+        dones = replay_buffer.dones.detach().to(self.device)
 
         # Policy update
         self.actor_optimizer.zero_grad()
         policy_loss = self.compute_policy_loss(states, dones)
         policy_loss.backward()
         self.actor_optimizer.step()
-        
-        states = states[:,:self.horizon,:]
-        dones = dones[:,:self.horizon]
-        rewards = rewards[:,:self.horizon]
 
-        # Compute estimated returns
-        with torch.no_grad():
-            next_values = self.critic_target(
-                states.reshape(-1, states.shape[-1])
-                ).view(batch_size, -1)
+        for _ in range(self.critic_update_steps):
+            
+            states, actions, rewards, dones, _ = replay_buffer.sample(
+                batch_size)
 
-            target_values = compute_target_values(rewards,
-                                                  next_values,
-                                                  dones,
-                                                  gamma=self.discount,
-                                                  lam=self.lambda_p,
-                                                  device=self.device)
+            # Compute estimated returns
+            with torch.no_grad():
+                next_values = self.critic_target(
+                    states.reshape(-1, states.shape[-1])).view(batch_size, -1)
 
-        # Value update
-        self.critic_optimizer.zero_grad()
-        predicted_values = self.critic(
-            states.reshape(-1, states.shape[-1])
-            ).squeeze(-1)
-        value_loss = ((predicted_values - target_values.view(-1)) ** 2).mean()
-        value_loss.backward()
-        self.critic_optimizer.step()
+                target_values = compute_target_values(rewards,
+                                                      next_values,
+                                                      dones,
+                                                      gamma=self.discount,
+                                                      lam=self.lambda_p,
+                                                      device=self.device)
+
+            predicted_values = self.critic(
+                states.reshape(-1, states.shape[-1])).squeeze(-1)
+            value_loss = (
+                (predicted_values - target_values.view(-1)) ** 2).mean()
+            
+            self.critic_optimizer.zero_grad()
+            value_loss.backward()
+            self.critic_optimizer.step()
 
         # Update target networks
         for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):

@@ -21,8 +21,8 @@ td_lambda_horizon = 20
 # pi_td3, lookahead_critic_reward = 3, K>= 20, no clip_grads
 
 
-for policy in ['sapo']:
-    for lookahead_critic_reward in [2]:
+for policy in ['pi_td3']:
+    for lookahead_critic_reward in [4]:
         for critic in [True]:
             for K in [20]:  # 512
                 for seed in [9]:
@@ -49,7 +49,7 @@ for policy in ['sapo']:
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "AblationTests_300"' + \
                         ' --name ' +\
-                        f'Critic_instead_of_target_LookaheadCriticReward={lookahead_critic_reward}_' + \
+                        f'TD3_likeSHAC_LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \

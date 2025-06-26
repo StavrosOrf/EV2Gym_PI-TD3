@@ -237,6 +237,71 @@ class SAPO_Trajectory_ReplayBuffer(object):
         return states_new.detach(), actions_new.detach(), rewards_new.detach(), dones_new.detach(), log_probs_new.detach()
 
 
+class ParallelEnvs_ReplayBuffer(object):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 max_episode_length,
+                 device=None,
+                 max_size=int(1e4)):
+
+        self.max_size = max_size
+        self.max_length = max_episode_length
+
+        self.state = torch.zeros((max_size, max_episode_length, state_dim))
+        self.action = torch.zeros((max_size, max_episode_length, action_dim))
+        self.log_probs = torch.zeros(
+            (max_size, max_episode_length))
+        self.rewards = torch.zeros((max_size, max_episode_length))
+        self.dones = torch.zeros((max_size, max_episode_length))
+
+        self.device = device
+        
+    # def sample(self, batch_size):
+
+    def sample(self, batch_size):        
+        ind = np.random.randint(0, self.max_size, size=batch_size)
+        start = np.random.randint(
+            1, self.max_length - 1, size=batch_size)
+
+        # Ensure ind, start, and end are integers
+        ind = ind.astype(int)
+        start = start.astype(int)
+        # end = end.astype(int)
+
+        # Sample states and actions
+        states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
+        actions = torch.FloatTensor(self.action[ind, :, :]).to(self.device)
+        log_probs = torch.FloatTensor(
+            self.log_probs[ind, :]).to(self.device)
+        rewards = torch.FloatTensor(self.rewards[ind, :]).to(self.device)
+        dones = torch.FloatTensor(self.dones[ind, :]).to(self.device)
+
+        states_new = torch.zeros_like(states, device=self.device)
+        actions_new = torch.zeros_like(actions, device=self.device)
+        log_probs_new = torch.zeros_like(log_probs, device=self.device)
+        rewards_new = torch.zeros_like(rewards, device=self.device)
+        dones_new = torch.ones_like(dones, device=self.device)
+
+        for i in range(batch_size):
+            # print(f'self.max_length-start[i] {self.max_length-start[i]}')
+            # print(f'states[i, start[i]:, :].shape {states[i, start[i]:, :].shape}')
+
+            states_new[i, :self.max_length-start[i],
+                       :] = states[i, start[i]:, :]
+            actions_new[i, :self.max_length-start[i],
+                        :] = actions[i, start[i]:, :]
+            log_probs_new[i, :self.max_length-start[i]] = log_probs[i, start[i]:]
+            rewards_new[i, :self.max_length-start[i]] = rewards[i, start[i]:]
+            dones_new[i, :self.max_length-start[i]] = dones[i, start[i]:]
+
+        # print(f'start: {start}')
+        # print(f'dones: {dones}')
+        # print(f'states: {states.shape}')
+        # print(f'dones: {dones.shape}')
+        # input(f'states: {states.shape}')
+        return states_new.detach(), actions_new.detach(), rewards_new.detach(), dones_new.detach(), log_probs_new.detach()
+
 class ThreeStep_Action(gym.ActionWrapper, gym.utils.RecordConstructorArgs):
     """
     Clip the continuous action within the valid :class:`Box` observation space bound.
