@@ -58,24 +58,6 @@ class Critic(nn.Module):
         return q1
 
 
-def compute_soft_td_lambda(values, rewards, dones, log_probs, entropy_target, gamma=0.99, lam=0.95):
-    # values: [ensemble, batch, H+1]
-    # rewards, dones, log_probs: [batch, H]
-    ensemble, batch_size, H1 = values.shape
-    H = H1 - 1
-
-    soft_returns = torch.zeros((ensemble, batch_size, H), device=values.device)
-    # h_norm = log_probs / entropy_target
-    for k in range(ensemble):
-        next_value = values[k, :, -1]
-        g = next_value
-        for t in reversed(range(H)):
-            g = rewards[:, t] + gamma * \
-                ((1 - dones[:, t]) * ((1 - lam) * values[k, :, t] + lam * g))
-            soft_returns[k, :, t] = g
-    return soft_returns  # [ensemble, batch, H]
-
-
 class SAPO:
     def __init__(self,
                  mlp_hidden_dim,
@@ -148,7 +130,6 @@ class SAPO:
                                          action=action_pred)
 
             normalized_entropy = log_prob.squeeze() / self.entropy_target
-
             total_reward += gamma * \
                 (reward_pred - self.log_alpha.exp()
                  * normalized_entropy) * (1.0 - done)
@@ -164,6 +145,30 @@ class SAPO:
         actor_loss = -(total_reward + gamma * v_next.squeeze()).mean()
         return actor_loss, log_prob.mean()
 
+    def compute_soft_td_lambda(self, values, rewards, dones, log_probs, entropy_target, gamma=0.99, lam=0.95):
+        # values: [ensemble, batch, H+1]
+        # rewards, dones, log_probs: [batch, H]
+        ensemble, batch_size, H1 = values.shape
+        H = H1 - 1
+
+        soft_returns = torch.zeros(
+            (ensemble, batch_size, H), device=values.device)
+        # h_norm = log_probs / entropy_target
+        normalized_entropy = log_probs / entropy_target
+
+        with torch.no_grad():
+            h_norm = self.log_alpha.exp() * normalized_entropy
+
+        for k in range(ensemble):
+            next_value = values[k, :, -1]
+            g = next_value
+            for t in reversed(range(H)):
+                g = rewards[:, t] - h_norm[:, t] + gamma * \
+                    ((1 - dones[:, t]) *
+                     ((1 - lam) * values[k, :, t] + lam * g))
+                soft_returns[k, :, t] = g
+        return soft_returns  # [ensemble, batch, H]
+
     def compute_critic_targets(self, states, rewards, dones, log_probs):
         # states: [batch, H+1, state_dim], rewards, dones, log_probs: [batch, H]
         batch_size, H1, state_dim = states.shape
@@ -178,7 +183,7 @@ class SAPO:
         # [num_critics, batch, H+1]
         v_ensemble = torch.stack(v_ensemble, dim=0)
         # Soft TD(λ)
-        soft_targets = compute_soft_td_lambda(
+        soft_targets = self.compute_soft_td_lambda(
             v_ensemble, rewards, dones, log_probs, self.entropy_target,
             gamma=self.discount, lam=self.lambda_td
         )  # [num_critics, batch, H]
@@ -192,11 +197,12 @@ class SAPO:
         for _ in range(K):
             states, _, rewards, dones, log_probs = replay_buffer.sample_new(
                 batch_size)
-            
+
             states = states[:, :self.horizon, :]  # [batch, H+1, state_dim]
             dones = dones[:, :self.horizon]  # [batch, H]
             rewards = rewards[:, :self.horizon]  # [batch, H]
-            log_probs = log_probs[:, :self.horizon, :]  # [batch, H, action_dim]
+            # [batch, H, action_dim]
+            log_probs = log_probs[:, :self.horizon,]
 
             batch_size, H1, state_dim = states.shape
             H = H1 - 1
@@ -221,7 +227,6 @@ class SAPO:
         return loss.item()
 
     def train(self, replay_buffer, batch_size):
-        print(f"Training SAPO with batch size {batch_size}")
         states, _, rewards, dones, log_probs = replay_buffer.sample_new(
             batch_size)
 
@@ -240,7 +245,8 @@ class SAPO:
         self.alpha_optimizer.step()
 
         # Critic update: mini-epoch K
-        critic_loss = self.update_critics(replay_buffer, batch_size, K=self.num_mini_epochs)
+        critic_loss = self.update_critics(
+            replay_buffer, batch_size, K=self.num_mini_epochs)
 
         return {
             'actor_loss': actor_loss.item(),

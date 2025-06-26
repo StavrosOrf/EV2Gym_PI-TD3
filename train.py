@@ -559,7 +559,7 @@ if __name__ == "__main__":
         
         if args.policy == "sapo":
             log_probs_traj = torch.zeros(
-                (simulation_length, action_dim)).to(device)
+                (simulation_length, 1)).to(device)
 
         if args.policy == "reinforce":
             log_probs_traj = torch.zeros(
@@ -677,7 +677,7 @@ if __name__ == "__main__":
                                       done_traj,
                                       log_probs=log_probs_traj,
                                       )
-                    log_probs_traj = torch.zeros((simulation_length, action_dim)).to(device)
+                    log_probs_traj = torch.zeros((simulation_length, 1)).to(device)
                 else:                
                     replay_buffer.add(state_traj,
                                   action_traj,

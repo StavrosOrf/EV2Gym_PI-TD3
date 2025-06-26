@@ -177,7 +177,7 @@ class SAPO_Trajectory_ReplayBuffer(object):
         self.state = torch.zeros((max_size, max_episode_length, state_dim))
         self.action = torch.zeros((max_size, max_episode_length, action_dim))
         self.log_probs = torch.zeros(
-            (max_size, max_episode_length, action_dim))
+            (max_size, max_episode_length))
         self.rewards = torch.zeros((max_size, max_episode_length))
         self.dones = torch.zeros((max_size, max_episode_length))
 
@@ -186,7 +186,7 @@ class SAPO_Trajectory_ReplayBuffer(object):
     def add(self, state, action, reward, done, log_probs):
         self.state[self.ptr, :, :] = state
         self.action[self.ptr, :, :] = action
-        self.log_probs[self.ptr, :, :] = log_probs
+        self.log_probs[self.ptr, :] = log_probs.squeeze()
         self.rewards[self.ptr, :] = reward.squeeze()
         self.dones[self.ptr, :] = done.squeeze()
 
@@ -207,7 +207,7 @@ class SAPO_Trajectory_ReplayBuffer(object):
         states = torch.FloatTensor(self.state[ind, :, :]).to(self.device)
         actions = torch.FloatTensor(self.action[ind, :, :]).to(self.device)
         log_probs = torch.FloatTensor(
-            self.log_probs[ind, :, :]).to(self.device)
+            self.log_probs[ind, :]).to(self.device)
         rewards = torch.FloatTensor(self.rewards[ind, :]).to(self.device)
         dones = torch.FloatTensor(self.dones[ind, :]).to(self.device)
 
@@ -225,8 +225,7 @@ class SAPO_Trajectory_ReplayBuffer(object):
                        :] = states[i, start[i]:, :]
             actions_new[i, :self.max_length-start[i],
                         :] = actions[i, start[i]:, :]
-            log_probs_new[i, :self.max_length-start[i],
-                          :] = log_probs[i, start[i]:, :]
+            log_probs_new[i, :self.max_length-start[i]] = log_probs[i, start[i]:]
             rewards_new[i, :self.max_length-start[i]] = rewards[i, start[i]:]
             dones_new[i, :self.max_length-start[i]] = dones[i, start[i]:]
 

@@ -207,7 +207,7 @@ class PI_SAC(object):
         next_action, _, _ = self.policy.sample(state_pred)
 
         if self.critic_enabled:
-            qf1_pi, _ = self.critic_target(state_pred, next_action)
+            qf1_pi, _ = self.critic(state_pred, next_action)
             # qf = (qf1_pi + qf2_pi) / 2
 
             # actor_loss += - discount * self.gamma * \
@@ -241,6 +241,8 @@ class PI_SAC(object):
 
             self.alpha_optim.zero_grad()
             alpha_loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                [self.log_alpha], max_norm=self.max_norm)
             self.alpha_optim.step()
 
             self.alpha = self.log_alpha.exp()
