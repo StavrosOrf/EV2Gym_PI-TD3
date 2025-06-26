@@ -721,7 +721,7 @@ if __name__ == "__main__":
             if shac_trained:                
                 shac_trained = False
             elif args.policy == "shac_op":
-                pass
+                continue
 
             avg_reward, eval_stats = eval_policy(policy=policy,
                                                  args=args,

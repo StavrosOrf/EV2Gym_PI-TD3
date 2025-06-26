@@ -2,7 +2,7 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from algorithms.SAC.model import soft_update, hard_update
 from algorithms.SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
 from algorithms.utils import td_lambda_forward_view, compute_target_values
@@ -42,7 +42,8 @@ class PI_SAC(object):
 
         self.critic = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(device=self.device)
-        self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
+        # self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
+        self.critic_optim = AdamW(self.critic.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         self.critic_target = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(self.device)
@@ -56,11 +57,13 @@ class PI_SAC(object):
                         action_space.shape).to(self.device)).item()
                 self.log_alpha = torch.zeros(
                     1, requires_grad=True, device=self.device)
-                self.alpha_optim = Adam([self.log_alpha], lr=self.lr)
+                # self.alpha_optim = Adam([self.log_alpha], lr=self.lr)
+                self.alpha_optim = AdamW([self.log_alpha], lr=5e-3, betas=(0.7, 0.95))
 
             self.policy = GaussianPolicy(
                 num_inputs, action_space.shape[0], self.hidden_size, action_space).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
+            # self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
+            self.policy_optim = AdamW(self.policy.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
         else:
             self.alpha = 0
@@ -160,8 +163,8 @@ class PI_SAC(object):
 
             self.critic_optim.zero_grad()
             qf_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                self.critic.parameters(), max_norm=self.max_norm)
+            # torch.nn.utils.clip_grad_norm_(
+            #     self.critic.parameters(), max_norm=self.max_norm)
             self.critic_optim.step()
 
         # replace min_qf_pi with the rolled out value
@@ -204,8 +207,8 @@ class PI_SAC(object):
         next_action, _, _ = self.policy.sample(state_pred)
 
         if self.critic_enabled:
-            qf1_pi, qf2_pi = self.critic_target(state_pred, next_action)
-            qf = (qf1_pi + qf2_pi) / 2
+            qf1_pi, _ = self.critic_target(state_pred, next_action)
+            # qf = (qf1_pi + qf2_pi) / 2
 
             # actor_loss += - discount * self.gamma * \
             #     qf.view(-1) *\
@@ -213,7 +216,7 @@ class PI_SAC(object):
             #         dones[:, self.look_ahead])
 
             policy_loss = -(total_reward + discount *
-                            self.gamma * qf.squeeze()).mean()
+                            self.gamma * qf1_pi.squeeze()).mean()
         else:
             policy_loss = -(total_reward).mean()
 
@@ -228,8 +231,8 @@ class PI_SAC(object):
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
-        torch.nn.utils.clip_grad_norm_(
-            self.policy.parameters(), max_norm=self.max_norm)
+        # torch.nn.utils.clip_grad_norm_(
+        #     self.policy.parameters(), max_norm=self.max_norm)
         self.policy_optim.step()
 
         if self.automatic_entropy_tuning:

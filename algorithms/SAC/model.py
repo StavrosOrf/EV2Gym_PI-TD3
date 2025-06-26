@@ -34,7 +34,7 @@ class QNetwork(nn.Module):
         self.ln5 = nn.LayerNorm(mlp_hidden_dim)
         self.l6 = nn.Linear(mlp_hidden_dim, 1)
         
-        self.apply(weights_init_)
+        # self.apply(weights_init_)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], 1)
@@ -66,7 +66,7 @@ class GaussianPolicy(nn.Module):
         self.mean_linear = nn.Linear(hidden_dim, num_actions)
         self.log_std_linear = nn.Linear(hidden_dim, num_actions)
 
-        self.apply(weights_init_)
+        # self.apply(weights_init_)
 
         # action rescaling
         if action_space is None:

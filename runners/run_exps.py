@@ -17,8 +17,12 @@ counter = 0
 batch_size = 64  # 256 # 512
 td_lambda_horizon = 20
 
-for policy in ['shac_op']:
-    for lookahead_critic_reward in [4]:
+
+# pi_td3, lookahead_critic_reward = 3, K>= 20, no clip_grads
+
+
+for policy in ['pi_sac']:
+    for lookahead_critic_reward in [2,3,4]:
         for critic in [True]:
             for K in [20]:  # 512
                 for seed in [9]:
@@ -45,7 +49,7 @@ for policy in ['shac_op']:
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "AblationTests_300"' + \
                         ' --name ' +\
-                        f'LookaheadCriticReward={lookahead_critic_reward}_' + \
+                        f'PrunedHorizonSHAC_LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \

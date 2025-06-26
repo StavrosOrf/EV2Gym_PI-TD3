@@ -183,7 +183,7 @@ class PI_TD3(object):
                         critic=self.critic_target,
                         gamma=self.discount,
                         lambda_=self.lambda_,
-                        horizon=self.look_ahead  # -1
+                        horizon=self.td_lambda_horizon,
                     )
 
             elif self.lookahead_critic_reward == 4:
@@ -192,7 +192,8 @@ class PI_TD3(object):
                     qf1_next_target, qf2_next_target = self.critic_target(
                         states.view(-1, states.shape[-1]),
                         actions.view(-1, actions.shape[-1]))
-                    next_values = (qf1_next_target + qf2_next_target) / 2.0
+                    # next_values = (qf1_next_target + qf2_next_target) / 2.0
+                    next_values = torch.min(qf1_next_target, qf2_next_target)
                     target_values = compute_target_values(
                         rewards,
                         next_values.view(batch_size, -1),
@@ -240,21 +241,21 @@ class PI_TD3(object):
                     target_Q = reward + self.discount * \
                         not_done * target_Q.view(-1)
 
-        if self.lookahead_critic_reward <= 3:
-            # Get current Q estimates
-            current_Q1, current_Q2 = self.critic(states[:, 0, :],
-                                                    actions[:, 0, :])
-            # Compute critic loss
-            critic_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
-                F.mse_loss(current_Q2.view(-1), target_Q)
+            if self.lookahead_critic_reward <= 3:
+                # Get current Q estimates
+                current_Q1, current_Q2 = self.critic(states[:, 0, :],
+                                                        actions[:, 0, :])
+                # Compute critic loss
+                critic_loss = F.mse_loss(current_Q1.view(-1), target_Q) +\
+                    F.mse_loss(current_Q2.view(-1), target_Q)
 
-            # Optimize the critic
-            self.critic_optimizer.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                self.critic.parameters(), max_norm=self.max_norm)
-            self.critic_optimizer.step()
-            self.loss_dict['critic_loss'] = critic_loss.item()
+                # Optimize the critic
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                # torch.nn.utils.clip_grad_norm_(
+                #     self.critic.parameters(), max_norm=self.max_norm)
+                self.critic_optimizer.step()
+                self.loss_dict['critic_loss'] = critic_loss.item()
 
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
@@ -309,10 +310,9 @@ class PI_TD3(object):
 
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \
-                    self.critic.Q1(state_pred, next_action).view(-1)
-                # *\
-                # (torch.ones_like(done, device=self.device) -
-                #  dones[:, self.look_ahead])
+                    self.critic.Q1(state_pred, next_action).view(-1)*\
+                (torch.ones_like(done, device=self.device) -
+                 dones[:, self.look_ahead])
 
             actor_loss = actor_loss.mean()
 
@@ -322,8 +322,8 @@ class PI_TD3(object):
             # Optimize the actor
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                self.actor.parameters(), max_norm=self.max_norm)
+            # torch.nn.utils.clip_grad_norm_(
+            #     self.actor.parameters(), max_norm=self.max_norm)
             self.actor_optimizer.step()
 
             # Update the frozen target models

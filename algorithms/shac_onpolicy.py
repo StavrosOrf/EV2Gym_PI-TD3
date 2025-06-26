@@ -80,11 +80,17 @@ class SHAC_OnPolicy:
         policy_loss = self.compute_policy_loss(states, dones)
         policy_loss.backward()
         self.actor_optimizer.step()
+        
+        #
+        states = states[:,:self.horizon,:]
+        dones = dones[:,:self.horizon]
+        rewards = rewards[:,:self.horizon]
 
         # Compute estimated returns
         with torch.no_grad():
             next_values = self.critic_target(
-                states.view(-1, states.shape[-1])).view(batch_size, -1)
+                states.reshape(-1, states.shape[-1])
+                ).view(batch_size, -1)
 
             target_values = compute_target_values(rewards,
                                                   next_values,
@@ -96,7 +102,8 @@ class SHAC_OnPolicy:
         # Value update
         self.critic_optimizer.zero_grad()
         predicted_values = self.critic(
-            states.view(-1, states.shape[-1])).squeeze(-1)
+            states.reshape(-1, states.shape[-1])
+            ).squeeze(-1)
         value_loss = ((predicted_values - target_values.view(-1)) ** 2).mean()
         value_loss.backward()
         self.critic_optimizer.step()
