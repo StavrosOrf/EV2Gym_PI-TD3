@@ -16,7 +16,7 @@ from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2, V2G_costs_simple
 from agent.transition_fn import V2G_Grid_StateTransition
 from agent.loss_fn import V2GridLoss
 
-from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Action, ReplayBuffer
+from agent.utils import Trajectory_ReplayBuffer, ThreeStep_Action, TwoStep_Action, ReplayBuffer, SAPO_Trajectory_ReplayBuffer
 
 from ev2gym.models.ev2gym_env import EV2Gym
 
@@ -29,6 +29,7 @@ from algorithms.pi_DDPG import PI_DDPG
 from algorithms.shac import SHAC
 from algorithms.shac_onpolicy import SHAC_OnPolicy
 from algorithms.reinforce import Reinforce
+from algorithms.sapo import SAPO
 
 
 def eval_policy(policy,
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     # td3, pi_td3
     # pi_ddpg
     # shac
-    parser.add_argument("--policy", default="shac_op")
+    parser.add_argument("--policy", default="sapo")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
@@ -429,6 +430,7 @@ if __name__ == "__main__":
         'td_lambda_horizon': args.td_lambda_horizon,
         "lambda_": args.lambda_,
         'N_agents': args.N_agents,
+        'action_space': env.action_space,
     }
 
     # Save kwargs to local path
@@ -476,6 +478,15 @@ if __name__ == "__main__":
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
+    elif args.policy == "sapo":
+
+        os.system(f'cp algorithms/sapo.py {save_path}')
+        policy = SAPO(**kwargs)
+        replay_buffer = SAPO_Trajectory_ReplayBuffer(state_dim,
+                                                     action_dim,
+                                                     device=device,
+                                                     max_episode_length=simulation_length,)
+
     elif args.policy == "shac_op":
 
         os.system(f'cp algorithms/shac_onpolicy.py {save_path}')
@@ -531,7 +542,7 @@ if __name__ == "__main__":
 
     episode_timesteps = -1
     episode_reward = 0
-    
+
     shac_trained = False
 
     state, _ = env.reset()
@@ -539,11 +550,16 @@ if __name__ == "__main__":
 
     time_limit_minutes = int(args.time_limit_hours * 60)
 
-    if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op']:
+    if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op',
+                       'sapo']:
         action_traj = torch.zeros((simulation_length, action_dim)).to(device)
         state_traj = torch.zeros((simulation_length, state_dim)).to(device)
         done_traj = torch.zeros((simulation_length, 1)).to(device)
         reward_traj = torch.zeros((simulation_length, 1)).to(device)
+        
+        if args.policy == "sapo":
+            log_probs_traj = torch.zeros(
+                (simulation_length, action_dim)).to(device)
 
         if args.policy == "reinforce":
             log_probs_traj = torch.zeros(
@@ -557,6 +573,9 @@ if __name__ == "__main__":
 
         if args.policy in ["sac", "shac", "pi_sac", "shac_op"]:
             action = policy.select_action(state, evaluate=False)
+            next_state, reward, done, _, stats = env.step(action)
+        elif args.policy in [ "sapo"]:
+            action, log_prob = policy.select_action(state, evaluate=False)
             next_state, reward, done, _, stats = env.step(action)
 
         elif args.policy == "reinforce":
@@ -583,7 +602,7 @@ if __name__ == "__main__":
             policy.buffer.rewards.append(reward)
             policy.buffer.is_terminals.append(done)
 
-        elif args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op']:
+        elif args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op', 'sapo']:
             # Store data in replay buffer
             replay_buffer.add(state, action, next_state, reward, float(done))
         else:
@@ -593,6 +612,10 @@ if __name__ == "__main__":
             done_traj[episode_timesteps] = torch.FloatTensor([done]).to(device)
             reward_traj[episode_timesteps] = torch.FloatTensor(
                 [reward]).to(device)
+            if args.policy == "sapo":
+                # Store log probabilities in trajectory
+                log_probs_traj[episode_timesteps] = torch.FloatTensor(
+                    log_prob).to(device)
 
             if args.policy == "reinforce":
                 # print(f'log_prob: {log_prob}, entropy: {entropy} step: {episode_timesteps}')
@@ -614,7 +637,7 @@ if __name__ == "__main__":
                     updates += 1
                 else:
                     loss_dict = None
-            elif args.policy in ['shac'] :
+            elif args.policy in ['shac', 'sapo']:
                 if t % args.policy_freq == 0:
                     loss_dict = policy.train(
                         replay_buffer, args.batch_size)
@@ -642,10 +665,21 @@ if __name__ == "__main__":
                     step=t)
 
         if done:
-            
-            if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op']:
+
+            if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op', 'sapo']:
                 # Store trajectory in replay buffer
-                replay_buffer.add(state_traj,
+                
+                if args.policy == "sapo":
+                    # Store log probabilities and entropy in trajectory
+                    replay_buffer.add(state_traj,
+                                      action_traj,
+                                      reward_traj,
+                                      done_traj,
+                                      log_probs=log_probs_traj,
+                                      )
+                    log_probs_traj = torch.zeros((simulation_length, action_dim)).to(device)
+                else:                
+                    replay_buffer.add(state_traj,
                                   action_traj,
                                   reward_traj,
                                   done_traj)
@@ -656,11 +690,12 @@ if __name__ == "__main__":
                     (simulation_length, state_dim)).to(device)
                 done_traj = torch.zeros((simulation_length, 1)).to(device)
                 reward_traj = torch.zeros((simulation_length, 1)).to(device)
+                
 
             if args.policy == "reinforce":
                 start_time = time.time()
                 loss_dict = policy.train(
-                        replay_buffer, args.batch_size)
+                    replay_buffer, args.batch_size)
 
                 action_traj.zero_()
                 state_traj.zero_()
@@ -681,13 +716,14 @@ if __name__ == "__main__":
                         #    'train/physics_loss': loss_dict['physics_loss'],
                         'train/time': time.time() - start_time, },
                         step=t)
-                    
+
             elif args.policy == "shac_op" and episode_num % args.N_agents == 0 and episode_num > 0:
-                print(f"Training SHAC on-policy at timestep {t} for episode {episode_num}...")
+                print(
+                    f"Training SHAC on-policy at timestep {t} for episode {episode_num}...")
                 start_time = time.time()
                 loss_dict = policy.train(replay_buffer, args.batch_size)
                 shac_trained = True
-                
+
                 if args.log_to_wandb:
 
                     # log all loss_dict keys, but add train/ in front of their name
@@ -718,7 +754,7 @@ if __name__ == "__main__":
 
         # Evaluate episode
         if ((t + 1) % args.eval_freq == 0 and t + 100 >= args.start_timesteps) or shac_trained:
-            if shac_trained:                
+            if shac_trained:
                 shac_trained = False
             elif args.policy == "shac_op":
                 continue
