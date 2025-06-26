@@ -48,7 +48,7 @@ class Critic(nn.Module):
         q1 = F.silu(self.ln1(self.l1(state)))
         q1 = F.silu(self.ln2(self.l2(q1)))
         q1 = self.l3(q1)
-        
+
         return q1
 
     def Q1(self, state):
@@ -63,13 +63,14 @@ def compute_soft_td_lambda(values, rewards, dones, log_probs, entropy_target, ga
     # rewards, dones, log_probs: [batch, H]
     ensemble, batch_size, H1 = values.shape
     H = H1 - 1
+
     soft_returns = torch.zeros((ensemble, batch_size, H), device=values.device)
-    h_norm = log_probs / entropy_target
+    # h_norm = log_probs / entropy_target
     for k in range(ensemble):
         next_value = values[k, :, -1]
         g = next_value
         for t in reversed(range(H)):
-            g = rewards[:, t] - h_norm[:, t] + gamma * \
+            g = rewards[:, t] + gamma * \
                 ((1 - dones[:, t]) * ((1 - lam) * values[k, :, t] + lam * g))
             soft_returns[k, :, t] = g
     return soft_returns  # [ensemble, batch, H]
@@ -83,7 +84,7 @@ class SAPO:
                  max_action,
                  action_space,
                  transition_fn=None,
-                 reward_fn=None,
+                 loss_fn=None,
                  discount=0.99,
                  horizon=32,
                  entropy_target=-0.5,
@@ -96,7 +97,7 @@ class SAPO:
         self.device = device
         self.lambda_td = kwargs.get('lambda_td', 0.95)
         self.num_mini_epochs = kwargs.get('num_mini_epochs', 8)
-        
+
         self.actor = Actor(state_dim, action_dim, max_action,
                            mlp_hidden_dim).to(device)
         self.actor_optimizer = torch.optim.AdamW(
@@ -113,12 +114,12 @@ class SAPO:
             [self.log_alpha], lr=5e-3, betas=(0.7, 0.95))
 
         self.transition_fn = transition_fn
-        self.reward_fn = reward_fn
+        self.reward_fn = loss_fn
         self.discount = discount
         self.horizon = horizon
         self.entropy_target = - \
-                    torch.prod(torch.Tensor(
-                        action_space.shape).to(self.device)).item()
+            torch.prod(torch.Tensor(
+                action_space.shape).to(self.device)).item()
         self.device = device
 
     def select_action(self, state, evaluate=False):
@@ -126,15 +127,16 @@ class SAPO:
         action, log_prob = self.actor(state)
         if evaluate:
             return action.cpu().data.numpy().flatten()
-        else:            
+        else:
             return action.cpu().data.numpy().flatten(), log_prob.cpu().data.numpy().flatten()
 
     def compute_actor_loss(self, states, dones):
         state_pred = states[:, 0, :]
         total_reward = torch.zeros(states.size(0), device=self.device)
-        gamma = torch.ones(states.size(0), device=self.device)
-
+        # gamma = torch.ones(states.size(0), device=self.device)
+        gamma = self.discount
         for t in range(self.horizon):
+
             done = dones[:, t]
             action_pred, log_prob = self.actor(state_pred)
 
@@ -142,13 +144,15 @@ class SAPO:
                                                  new_state=states[:, t + 1, :],
                                                  action=action_pred)
 
-            reward_pred = self.reward_fn(state=state_pred, action=action_pred)
+            reward_pred = self.reward_fn(state=state_pred,
+                                         action=action_pred)
 
             normalized_entropy = log_prob.squeeze() / self.entropy_target
 
             total_reward += gamma * \
                 (reward_pred - self.log_alpha.exp()
                  * normalized_entropy) * (1.0 - done)
+
             gamma *= self.discount
             state_pred = next_state_pred
 
@@ -156,6 +160,7 @@ class SAPO:
         q1 = self.critics[0](state_pred)
         q2 = self.critics[1](state_pred)
         v_next = (q1 + q2) / 2.0  # Average over critics
+
         actor_loss = -(total_reward + gamma * v_next.squeeze()).mean()
         return actor_loss, log_prob.mean()
 
@@ -169,12 +174,7 @@ class SAPO:
         for critic in self.critics:
             v = torch.stack([critic(state_batches[t])
                             for t in range(H1)], dim=1)  # [batch, H+1]
-            #update v to [batch, H+1] to [num_critics, batch, H+1]            
-            # for t in range(H1):
-            #     q1, q2 = critic(state_batches[t])
-            
-            
-            v_ensemble.append(v)
+            v_ensemble.append(v.squeeze(2))  # [batch, H+1]
         # [num_critics, batch, H+1]
         v_ensemble = torch.stack(v_ensemble, dim=0)
         # Soft TD(λ)
@@ -186,21 +186,31 @@ class SAPO:
         target_v = torch.min(soft_targets, dim=0)[0].detach()  # [batch, H]
         return target_v
 
-    def update_critics(self, states, rewards, dones, log_probs, K=8):
+    def update_critics(self, replay_buffer, batch_size, K=8):
         # K: number of mini-epochs (batches)
-        batch_size, H1, state_dim = states.shape
-        H = H1 - 1
-        target_v = self.compute_critic_targets(
-            states, rewards, dones, log_probs)  # [batch, H]
 
         for _ in range(K):
+            states, _, rewards, dones, log_probs = replay_buffer.sample_new(
+                batch_size)
+            
+            states = states[:, :self.horizon, :]  # [batch, H+1, state_dim]
+            dones = dones[:, :self.horizon]  # [batch, H]
+            rewards = rewards[:, :self.horizon]  # [batch, H]
+            log_probs = log_probs[:, :self.horizon, :]  # [batch, H, action_dim]
+
+            batch_size, H1, state_dim = states.shape
+            H = H1 - 1
+            target_v = self.compute_critic_targets(
+                states, rewards, dones, log_probs)  # [batch, H]
+
             idx = torch.randint(0, batch_size, (batch_size,))
             loss = 0
             for i, critic in enumerate(self.critics):
                 pred = []
                 for t in range(H):
                     pred.append(critic(states[idx, t]))
-                pred = torch.stack(pred, dim=1)  # [batch, H]
+                pred = torch.stack(pred, dim=1).squeeze(2)  # [batch, H]
+                # print(f"pred shape: {pred.shape}, target_v shape: {target_v[idx].shape}")
                 loss += F.mse_loss(pred, target_v[idx])
             loss /= len(self.critics)
             self.critics_optimizer.zero_grad()
@@ -210,7 +220,8 @@ class SAPO:
             self.critics_optimizer.step()
         return loss.item()
 
-    def train(self, replay_buffer, batch_size=2048):
+    def train(self, replay_buffer, batch_size):
+        print(f"Training SAPO with batch size {batch_size}")
         states, _, rewards, dones, log_probs = replay_buffer.sample_new(
             batch_size)
 
@@ -229,8 +240,7 @@ class SAPO:
         self.alpha_optimizer.step()
 
         # Critic update: mini-epoch K
-        critic_loss = self.update_critics(
-            states, rewards, dones, log_probs, K=self.num_mini_epochs)
+        critic_loss = self.update_critics(replay_buffer, batch_size, K=self.num_mini_epochs)
 
         return {
             'actor_loss': actor_loss.item(),

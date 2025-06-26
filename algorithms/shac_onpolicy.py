@@ -81,7 +81,6 @@ class SHAC_OnPolicy:
         policy_loss.backward()
         self.actor_optimizer.step()
         
-        #
         states = states[:,:self.horizon,:]
         dones = dones[:,:self.horizon]
         rewards = rewards[:,:self.horizon]
