@@ -21,10 +21,10 @@ N_agents = 24  # 4
 # pi_td3, lookahead_critic_reward = 3, K>= 20, no clip_grads
 
 
-for policy in ['shac_op', 'sapo_op']:
-    for lookahead_critic_reward in [4]:
+for policy in ['pi_td3']:
+    for lookahead_critic_reward in [3]:
         for critic in [True]:
-            for K in [40]:  # 512
+            for K in [40, 80]:  # 512
                 for seed in [9]:
 
                     extra_args = ''

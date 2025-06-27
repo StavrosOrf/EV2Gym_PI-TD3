@@ -36,17 +36,17 @@ class PI_TD3(object):
         self.actor = Actor(state_dim, action_dim, max_action,
                            mlp_hidden_dim).to(device)
         self.actor_target = copy.deepcopy(self.actor).to(device)
-        self.actor_optimizer = torch.optim.Adam(
-            self.actor.parameters(), lr=3e-4)
-        # self.actor_optimizer = torch.optim.AdamW(
-        #     self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
+        # self.actor_optimizer = torch.optim.Adam(
+        #     self.actor.parameters(), lr=3e-4)
+        self.actor_optimizer = torch.optim.AdamW(
+            self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
         self.critic = Critic(state_dim, action_dim, mlp_hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic).to(device)
-        self.critic_optimizer = torch.optim.Adam(
-            self.critic.parameters(), lr=3e-4)
-        # self.critic_optimizer = torch.optim.AdamW(
-        #     self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
+        # self.critic_optimizer = torch.optim.Adam(
+        #     self.critic.parameters(), lr=3e-4)
+        self.critic_optimizer = torch.optim.AdamW(
+            self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         assert look_ahead >= 1, 'Look ahead should be greater than 1'
         self.look_ahead = look_ahead
@@ -183,7 +183,7 @@ class PI_TD3(object):
                         critic=self.critic_target,
                         gamma=self.discount,
                         lambda_=self.lambda_,
-                        horizon=self.td_lambda_horizon,
+                        horizon=self.look_ahead,
                     )
 
             elif self.lookahead_critic_reward == 4:
@@ -292,7 +292,7 @@ class PI_TD3(object):
 
             state_pred = states[:, 0, :]
 
-            for i in range(0, self.look_ahead):
+            for i in range(0, self.look_ahead-1 ):
 
                 done = dones[:, i]
 
@@ -304,7 +304,7 @@ class PI_TD3(object):
                                            action=action_vector)
 
                 state_pred = self.transition_fn(state=state_pred,
-                                                new_state=states[:, i+1, :],
+                                                new_state=states[:, i, :],
                                                 action=action_vector)
 
                 if i == 0:
@@ -314,14 +314,15 @@ class PI_TD3(object):
                         (torch.ones_like(done, device=self.device
                                          ) - done)
 
-            # with torch.no_grad():
-            next_action = self.actor(state_pred)
+            with torch.no_grad():
+                next_action = self.actor(state_pred)
 
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \
-                    self.critic_target.Q1(state_pred, next_action).view(-1)*\
-                (torch.ones_like(done, device=self.device) -
-                 dones[:, self.look_ahead])
+                    self.critic_target.Q1(state_pred, next_action).view(-1)
+                #     *\
+                # (torch.ones_like(done, device=self.device) -
+                #  dones[:, self.look_ahead])
 
             actor_loss = actor_loss.mean()
 

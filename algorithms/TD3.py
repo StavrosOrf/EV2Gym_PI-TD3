@@ -28,8 +28,8 @@ class Actor(nn.Module):
         self.max_action = max_action
 
     def forward(self, state):
-        a = F.elu(self.ln1(self.l1(state)))
-        a = F.elu(self.ln2(self.l2(a)))
+        a = F.silu(self.ln1(self.l1(state)))
+        a = F.silu(self.ln2(self.l2(a)))
         return torch.tanh(self.l3(a))
 
 class Critic(nn.Module):
@@ -55,20 +55,20 @@ class Critic(nn.Module):
         sa = torch.cat([state, action], 1)
 
         #use elu activation and layer normalization
-        q1 = F.elu(self.ln1(self.l1(sa)))
-        q1 = F.elu(self.ln2(self.l2(q1)))
+        q1 = F.silu(self.ln1(self.l1(sa)))
+        q1 = F.silu(self.ln2(self.l2(q1)))
         q1 = self.l3(q1)
 
-        q2 = F.elu(self.ln4(self.l4(sa)))
-        q2 = F.elu(self.ln5(self.l5(q2)))
+        q2 = F.silu(self.ln4(self.l4(sa)))
+        q2 = F.silu(self.ln5(self.l5(q2)))
         q2 = self.l6(q2)
         return q1, q2
 
     def Q1(self, state, action):
         sa = torch.cat([state, action], 1)
 
-        q1 = F.elu(self.ln1(self.l1(sa)))
-        q1 = F.elu(self.ln2(self.l2(q1)))
+        q1 = F.silu(self.ln1(self.l1(sa)))
+        q1 = F.silu(self.ln2(self.l2(q1)))
         q1 = self.l3(q1)
         return q1
 
