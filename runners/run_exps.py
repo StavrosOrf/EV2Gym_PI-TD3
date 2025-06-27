@@ -24,7 +24,7 @@ N_agents = 24  # 4
 for policy in ['shac_op', 'sapo_op']:
     for lookahead_critic_reward in [4]:
         for critic in [True]:
-            for K in [20]:  # 512
+            for K in [40]:  # 512
                 for seed in [9]:
 
                     extra_args = ''
