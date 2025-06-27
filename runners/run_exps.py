@@ -16,12 +16,12 @@ scenario = 'pst_v2g_profitmax'
 counter = 0
 batch_size = 64  # 256 # 512
 td_lambda_horizon = 20
-
+N_agents = 24  # 4
 
 # pi_td3, lookahead_critic_reward = 3, K>= 20, no clip_grads
 
 
-for policy in ['pi_td3']:
+for policy in ['shac_op', 'sapo_op']:
     for lookahead_critic_reward in [4]:
         for critic in [True]:
             for K in [20]:  # 512
@@ -42,6 +42,7 @@ for policy in ['pi_td3']:
                         ' --lr ' + str(learning_rate) + \
                         ' --policy ' + policy + \
                         ' --seed ' + str(seed) + \
+                        ' --N_agents ' + str(N_agents) + \
                         ' --K ' + str(K) + \
                         ' --disable_development_mode' + \
                         ' --td_lambda_horizon ' + str(td_lambda_horizon) + \
@@ -49,7 +50,7 @@ for policy in ['pi_td3']:
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "AblationTests_300"' + \
                         ' --name ' +\
-                        f'TD3_likeSHAC_LookaheadCriticReward={lookahead_critic_reward}_' + \
+                        f'LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         f'{policy}' + \
                         '_K=' + str(K) + \

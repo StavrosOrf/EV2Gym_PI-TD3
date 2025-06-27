@@ -2,63 +2,9 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from algorithms.sapo import Actor, Critic
 
-
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim):
-        super(Actor, self).__init__()
-
-        self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
-        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
-        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
-        self.l3_mu = nn.Linear(mlp_hidden_dim, action_dim)
-        self.l3_log_std = nn.Linear(mlp_hidden_dim, action_dim)
-
-        self.max_action = max_action
-
-    def forward(self, state):
-        a = F.silu(self.ln1(self.l1(state)))
-        a = F.silu(self.ln2(self.l2(a)))
-        mu = self.l3_mu(a)
-        log_std = self.l3_log_std(a).clamp(-5, 2)
-        std = log_std.exp()
-        normal = torch.distributions.Normal(mu, std)
-        action = torch.tanh(normal.rsample()) * self.max_action
-        log_prob = normal.log_prob(action).sum(dim=-1, keepdim=True)
-        log_prob -= torch.log((1 - action.pow(2)).clamp(min=1e-6)
-                              ).sum(dim=-1, keepdim=True)
-        return action, log_prob
-
-
-class Critic(nn.Module):
-    def __init__(self, state_dim, mlp_hidden_dim):
-
-        super(Critic, self).__init__()
-
-        # Q1 architecture
-        self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
-        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
-        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
-        self.l3 = nn.Linear(mlp_hidden_dim, 1)
-
-    def forward(self, state):
-        # use silu activation and layer normalization
-        q1 = F.silu(self.ln1(self.l1(state)))
-        q1 = F.silu(self.ln2(self.l2(q1)))
-        q1 = self.l3(q1)
-
-        return q1
-
-    def Q1(self, state):
-        q1 = F.silu(self.ln1(self.l1(state)))
-        q1 = F.silu(self.ln2(self.l2(q1)))
-        q1 = self.l3(q1)
-        return q1
-
-
-class SAPO:
+class SAPO_OnPolicy:
     def __init__(self,
                  mlp_hidden_dim,
                  state_dim,
@@ -69,9 +15,6 @@ class SAPO:
                  loss_fn=None,
                  discount=0.99,
                  look_ahead=32,
-                 actor_lr=2e-3,
-                 critics_lr=2e-3,
-                 alpha_lr=5e-3,
                  device='cpu',
                  **kwargs):
 
@@ -116,13 +59,13 @@ class SAPO:
         total_reward = torch.zeros(states.size(0), device=self.device)
         # gamma = torch.ones(states.size(0), device=self.device)
         gamma = self.discount
-        for t in range(self.horizon):
+        for t in range(self.horizon-1):
 
             done = dones[:, t]
             action_pred, log_prob = self.actor(state_pred)
 
             next_state_pred = self.transition_fn(state=state_pred,
-                                                 new_state=states[:, t + 1, :],
+                                                 new_state=states[:, t, :],
                                                  action=action_pred)
 
             reward_pred = self.reward_fn(state=state_pred,
@@ -194,14 +137,8 @@ class SAPO:
         # K: number of mini-epochs (batches)
 
         for _ in range(K):
-            states, _, rewards, dones, log_probs = replay_buffer.sample_new(
+            states, _, rewards, dones, log_probs = replay_buffer.sample(
                 batch_size)
-
-            states = states[:, :self.horizon, :]  # [batch, H+1, state_dim]
-            dones = dones[:, :self.horizon]  # [batch, H]
-            rewards = rewards[:, :self.horizon]  # [batch, H]
-            # [batch, H, action_dim]
-            log_probs = log_probs[:, :self.horizon,]
 
             batch_size, H1, state_dim = states.shape
             H = H1 - 1
@@ -226,8 +163,9 @@ class SAPO:
         return loss.item()
 
     def train(self, replay_buffer, batch_size):
-        states, _, rewards, dones, log_probs = replay_buffer.sample_new(
-            batch_size)
+        
+        states = replay_buffer.state.detach().to(self.device)
+        dones = replay_buffer.dones.detach().to(self.device)
 
         # Policy update
         self.actor_optimizer.zero_grad()

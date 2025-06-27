@@ -8,8 +8,7 @@ import yaml
 import random
 import time
 from tqdm import tqdm
-import pickle
-import pandas as pd
+import resource
 
 from agent.state import V2G_grid_state_ModelBasedRL
 from agent.reward import Grid_V2G_profitmaxV2, V2G_profitmaxV2, V2G_costs_simple, pst_V2G_profitmaxV2
@@ -35,6 +34,7 @@ from algorithms.shac import SHAC
 from algorithms.shac_onpolicy import SHAC_OnPolicy
 from algorithms.reinforce import Reinforce
 from algorithms.sapo import SAPO
+from algorithms.sapo_onpolicy import SAPO_OnPolicy
 
 
 def eval_policy(policy,
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     # td3, pi_td3
     # pi_ddpg
     # shac
-    parser.add_argument("--policy", default="shac_op")
+    parser.add_argument("--policy", default="sapo_op")
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
@@ -170,7 +170,7 @@ if __name__ == "__main__":
                         help='Policy Type: Gaussian | Deterministic (default: Gaussian)')
 
     # SHAC parameters #############################################
-    parser.add_argument('--N_agents', type=int, default=4, metavar='N',
+    parser.add_argument('--N_agents', type=int, default=8, metavar='N',
                         help='Number of parallel environments (default: 12)')
 
     # PPO parameters #############################################
@@ -504,6 +504,15 @@ if __name__ == "__main__":
                                                   device=device,
                                                   max_episode_length=args.K,
                                                   max_size=args.N_agents,)
+    elif args.policy == "sapo_op":
+
+        os.system(f'cp algorithms/sapo_onpolicy.py {save_path}')
+        policy = SAPO_OnPolicy(**kwargs)
+        replay_buffer = ParallelEnvs_ReplayBuffer(state_dim,
+                                                  action_dim,
+                                                  device=device,
+                                                  max_episode_length=args.K,
+                                                  max_size=args.N_agents,)
 
     elif args.policy == "reinforce":
 
@@ -576,16 +585,19 @@ if __name__ == "__main__":
                 (simulation_length, action_dim)).to(device)
 
     if args.policy in ['shac_op', 'sapo_op']:
-        
+
         print(f'Using {args.N_agents} parallel environments.')
-        envs = [gym.make('evs-v1') for _ in range(args.N_agents)]        
+        envs = [gym.make('evs-v1') for _ in range(args.N_agents)]
         states = [env.reset()[0] for env in envs]
-        rewards = [0 for _ in range(args.N_agents)]
+        rewards = np.zeros(args.N_agents)
         episode_num = 0
+        
+        print(f'RAM usage: {os.getpid()} {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB')
 
         print(f'Starting training...')
         for t in range(start_timestep_training, int(args.max_timesteps)):
-
+            
+            start_time = time.time()
             #  exploration phase
             for n, env in enumerate(envs):
                 for step in range(args.K):
@@ -596,6 +608,7 @@ if __name__ == "__main__":
                     if args.policy == "shac_op":
                         action = policy.select_action(
                             states[n], evaluate=False)
+
                     elif args.policy == "sapo_op":
                         action, log_prob = policy.select_action(
                             states[n], evaluate=False)
@@ -621,17 +634,17 @@ if __name__ == "__main__":
                         states[n], _ = env.reset()
                     else:
                         states[n] = next_state
-
-            #  training phase
-            start_time = time.time()
+            
+            #  training phase            
             loss_dict = policy.train(
                 replay_buffer, args.batch_size)
 
-            print(
-                f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} AvgReward: {episode_reward:.3f}" +
-                f" Time: {time.time() - start_time:.3f}")
-
             if done:
+
+                print(
+                    f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} AvgReward: {np.mean(rewards):.3f}" +
+                    f" Time: {time.time() - start_time:.3f}")
+                
                 if args.log_to_wandb:
                     wandb.log({'train_ep/episode_reward': np.mean(rewards),
                                'train_ep/episode_num': episode_num},
@@ -643,11 +656,13 @@ if __name__ == "__main__":
                     wandb.log({
                         'train/time': time.time() - start_time, },
                         step=t)
+
                 episode_num += 1
                 episode_timesteps = -1
+                rewards = np.zeros(args.N_agents)
 
             # Evaluate episode
-            if (t + 1) % args.eval_freq == 0:
+            if (episode_num) % (args.eval_freq // simulation_length) == 0 and done:
 
                 avg_reward, eval_stats = eval_policy(policy=policy,
                                                      args=args,
