@@ -15,7 +15,7 @@ scenario = "v2g_profitmax"
 
 counter = 0
 batch_size = 64  # 256 # 512
-N_agents = 24  # 4
+N_agents = 16
 
 
 for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:

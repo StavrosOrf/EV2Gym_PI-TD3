@@ -685,6 +685,7 @@ if __name__ == "__main__":
                               step=t)
 
     else:
+        print(f'RAM usage: {os.getpid()} {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB')
         for t in range(start_timestep_training, int(args.max_timesteps)):
 
             episode_timesteps += 1

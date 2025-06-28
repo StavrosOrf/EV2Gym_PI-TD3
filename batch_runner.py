@@ -9,21 +9,26 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [50, 60, 70]
+seeds = [0]
 
 batch_size = 64
+N_agents = 16
+
+gpu = 'gpu' #gpu-a100 # gpu-a100-small # gpu
 
 # if directory does not exist, create it
 if not os.path.exists('./slurm_logs'):
     os.makedirs('./slurm_logs')
 
 # td3, sac, pi_sac, pi_td3, shac
-for algo in ['td3']:
-    for K in [1, 2, 5, 10, 25, 40]:
+# for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
+for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac']:
+    # for K in [30,80]:
+    for K in [1, 5, 10, 20]:
         for scenario in [
-                         'v2g_profitmax',
+                        #  'v2g_profitmax',
                          'grid_v2g_profitmax',
-                         'pst_v2g_profitmax'
+                        #  'pst_v2g_profitmax'
                          ]:
             
             if 'pst' in scenario:
@@ -31,24 +36,35 @@ for algo in ['td3']:
             else:
                 config = "v2g_grid_150_300.yaml"
             
-            for lookahead_critic_reward in [0, 1, 2]: # 2 is the default value
-                for critic_enabled in [True, False]:
+            for lookahead_critic_reward in [0]: # 2 is the default value
+                
+                if algo == 'pi_td3':
+                    lookahead_critic_reward = 3
+                elif algo == 'pi_sac':
+                    lookahead_critic_reward = 4
+
+                for critic_enabled in [True]:
                     for counter, seed in enumerate(seeds):
 
-                        if K != 1 and algo != 'mb_traj':
-                            continue
+                        if K != 1 and algo in ['sac','td3']:
+                            continue                       
 
                         if K <= 10:
-                            time = 24
-                        elif K <= 20:
-                            time = 36
+                            time = 15
+                        # elif K <= 20:
+                        #     time = 24
+                        # elif K <= 30:
+                        #     time = 24
                         else:
-                            time = 46
+                            time = 23
 
                         if K <= 10:
                             cpu_cores = 2
-                        else:
+                            
+                        elif K <= 20:
                             cpu_cores = 3
+                        else:
+                            cpu_cores = 4
                                                         
 
                         if time > 46:
@@ -62,13 +78,15 @@ for algo in ['td3']:
                         if not critic_enabled:
 
                             extra_args = ' --disable_critic'
-
+                        else:
+                            extra_args = ''
+                            
                         # gpu-a100, gpu
                         command = '''#!/bin/sh
 #!/bin/bash
 #SBATCH --job-name="pi_rl"
-#SBATCH --partition=gpu
 ''' + \
+                    f'#SBATCH --partition={gpu}\n' + \
                     f'#SBATCH --time={time}:00:00' + \
                     '''
 #SBATCH --ntasks=1
@@ -102,12 +120,13 @@ previous=$(/usr/bin/nvidia-smi --query-accounted-apps='gpu_utilization,mem_utili
                     ' --K ' + str(K) + \
                     ' --device cuda:0' + \
                     ' --policy ' + algo + \
-                    ' --group_name ' + '"final_"' + \
+                    ' --group_name ' + '"NewModels_AblationTests_300"' + \
                     ' --seed ' + str(seed) + \
                     ' --disable_development_mode' + \
                     ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
+                    ' --N_agents ' + str(N_agents) + \
                     ' --batch_size ' + str(batch_size) + \
-                    ' --project_name ' + '"EVs4Grid_PaperExps"' + \
+                    ' --project_name ' + '"EVs4Grid"' + \
                     ' --config ' + config + \
                     ' --name ' + str(run_name) + \
                     extra_args + \
@@ -127,18 +146,3 @@ conda deactivate
 
                         os.system('sbatch run_tmp.sh')
 
-                        # command = 'tmux new-session -d \; send-keys " /home/sorfanouda/anaconda3/envs/dt/bin/python train_research.py' + \
-                        #     ' --scenario ' + scenario + \
-                        #     ' --K ' + str(K) + \
-                        #     ' --device cuda:0' + \
-                        #     ' --policy ' + algo + \
-                        #     ' --group_name ' + '"F_"' + \
-                        #     ' --project_name ' + '"EVs4Grid_PaperExps"' + \
-                        #     ' --config ' + config + \
-                        #     ' --name ' + str(run_name) + \
-                        #     '" Enter'
-
-                        # os.system(command=command)
-                        # print(command)
-                        # import time as timer
-                        # timer.sleep(5)
