@@ -51,7 +51,7 @@ for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 's
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "NewModels_AblationTests_300"' + \
                         ' --name ' +\
-                        f'{policy}_WithLastActionGrad' + \
+                        f'{policy}' + \
                         f'LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         'K=' + str(K) + \
