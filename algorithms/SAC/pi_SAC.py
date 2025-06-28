@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.optim import Adam, AdamW
 from algorithms.SAC.model import soft_update, hard_update
 from algorithms.SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
+from algorithms.sapo import Actor
 from algorithms.utils import td_lambda_forward_view, compute_target_values
 
 
@@ -43,7 +44,8 @@ class PI_SAC(object):
         self.critic = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(device=self.device)
         # self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
-        self.critic_optim = AdamW(self.critic.parameters(), lr=5e-4, betas=(0.7, 0.95))
+        self.critic_optim = AdamW(
+            self.critic.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         self.critic_target = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(self.device)
@@ -58,12 +60,20 @@ class PI_SAC(object):
                 self.log_alpha = torch.zeros(
                     1, requires_grad=True, device=self.device)
                 # self.alpha_optim = Adam([self.log_alpha], lr=self.lr)
-                self.alpha_optim = AdamW([self.log_alpha], lr=5e-3, betas=(0.7, 0.95))
+                self.alpha_optim = AdamW(
+                    [self.log_alpha], lr=5e-3, betas=(0.7, 0.95))
 
-            self.policy = GaussianPolicy(
-                num_inputs, action_space.shape[0], self.hidden_size, action_space).to(self.device)
+            # self.policy = GaussianPolicy(
+            #     num_inputs, action_space.shape[0], self.hidden_size, action_space).to(self.device)
+
+            self.policy = Actor(state_dim=num_inputs,
+                                action_dim=action_space.shape[0],
+                                max_action=action_space.high[0],
+                                mlp_hidden_dim=self.hidden_size,
+                                ).to(self.device)
             # self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
-            self.policy_optim = AdamW(self.policy.parameters(), lr=2e-3, betas=(0.7, 0.95))
+            self.policy_optim = AdamW(
+                self.policy.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
         else:
             self.alpha = 0
@@ -77,10 +87,10 @@ class PI_SAC(object):
         if isinstance(state, np.ndarray):
             state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
 
-        if evaluate is False:
-            action, _, _ = self.policy.sample(state)
-        else:
-            _, _, action = self.policy.sample(state)
+        # if evaluate is False:
+        action, _ = self.policy(state)
+        # else:
+        #     _, _, action = self.policy(state)
         return action.detach().cpu().numpy()[0]
 
     def train(self, memory, batch_size, updates, **kwargs):
@@ -101,7 +111,7 @@ class PI_SAC(object):
         if self.critic_enabled:
             if self.lookahead_critic_reward == 2:
                 with torch.no_grad():
-                    next_state_action, next_state_log_pi, _ = self.policy.sample(
+                    next_state_action, next_state_log_pi= self.policy(
                         next_state_batch)
 
                     qf1_next_target, qf2_next_target = self.critic_target(
@@ -127,7 +137,7 @@ class PI_SAC(object):
                     critic=self.critic_target,
                     gamma=self.gamma,
                     lambda_=self.lambda_,
-                    horizon=self.td_lambda_horizon
+                    horizon=self.look_ahead
                 )
 
                 # Get current Q estimates
@@ -139,32 +149,40 @@ class PI_SAC(object):
 
             elif self.lookahead_critic_reward == 4:
                 # Compute estimated returns
-                with torch.no_grad():
-                    qf1_next_target, qf2_next_target = self.critic_target(
-                        states.view(-1, states.shape[-1]),
-                        actions.view(-1, actions.shape[-1]))
 
-                    next_values = (qf1_next_target + qf2_next_target) / 2.0
-                    target_values = compute_target_values(rewards,
+                temp_states = states[:, :self.look_ahead, :]
+                temp_actions = actions[:, :self.look_ahead, :]
+                temp_rewards = rewards[:, :self.look_ahead]
+                temp_dones = dones[:, :self.look_ahead]
+
+                with torch.no_grad():
+
+                    qf1_next_target, qf2_next_target = self.critic_target(
+                        temp_states.reshape(-1, temp_states.shape[-1]),
+                        temp_actions.reshape(-1, temp_actions.shape[-1]))
+
+                    next_values = torch.min(qf1_next_target, qf2_next_target)
+
+                    target_values = compute_target_values(temp_rewards,
                                                           next_values.view(
                                                               batch_size, -1),
-                                                          dones,
+                                                          temp_dones,
                                                           gamma=self.gamma,
                                                           lam=self.lambda_,
                                                           device=self.device,)
 
                 # Value update
                 current_Q1, current_Q2 = self.critic(
-                    states.view(-1, states.shape[-1]),
-                    actions.view(-1, actions.shape[-1]))
+                    temp_states.reshape(-1, temp_states.shape[-1]),
+                    temp_actions.reshape(-1, temp_actions.shape[-1]))
 
                 qf_loss = F.mse_loss(current_Q1.view(-1), target_values.view(-1)) +\
                     F.mse_loss(current_Q2.view(-1), target_values.view(-1))
 
             self.critic_optim.zero_grad()
             qf_loss.backward()
-            # torch.nn.utils.clip_grad_norm_(
-            #     self.critic.parameters(), max_norm=self.max_norm)
+            torch.nn.utils.clip_grad_norm_(
+                self.critic.parameters(), max_norm=self.max_norm)
             self.critic_optim.step()
 
         # replace min_qf_pi with the rolled out value
@@ -172,20 +190,20 @@ class PI_SAC(object):
 
         total_reward = torch.zeros(states.size(0), device=self.device)
 
-        for i in range(0, self.look_ahead):
+        for i in range(0, self.look_ahead-1):
 
             done = dones[:, i]
 
             discount = self.gamma**i
 
             # action_vector = self.actor(state_pred)
-            action_vector, log_pi_vec, _ = self.policy.sample(state_pred)
+            action_vector, log_pi_vec = self.policy(state_pred)
 
             reward_pred = self.loss_fn(state=state_pred,
                                        action=action_vector)
 
             state_pred = self.transition_fn(state=state_pred,
-                                            new_state=states[:, i+1, :],
+                                            new_state=states[:, i, :],
                                             action=action_vector)
 
             # if i == 0:
@@ -202,9 +220,8 @@ class PI_SAC(object):
                 (reward_pred - self.log_alpha.exp()
                  * normalized_entropy) * (1.0 - done)
 
-        # with torch.no_grad():
-        # next_action = self.actor(state_pred)
-        next_action, _, _ = self.policy.sample(state_pred)
+        with torch.no_grad():
+            next_action, _= self.policy(state_pred)
 
         if self.critic_enabled:
             qf1_pi, _ = self.critic(state_pred, next_action)
@@ -231,12 +248,12 @@ class PI_SAC(object):
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(
-        #     self.policy.parameters(), max_norm=self.max_norm)
+        torch.nn.utils.clip_grad_norm_(
+            self.policy.parameters(), max_norm=self.max_norm)
         self.policy_optim.step()
 
         if self.automatic_entropy_tuning:
-            alpha_loss = -(self.log_alpha * (log_pi_vec +
+            alpha_loss = -(self.log_alpha.exp() * (log_pi_vec.mean() +
                            self.target_entropy).detach()).mean()
 
             self.alpha_optim.zero_grad()

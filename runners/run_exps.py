@@ -5,27 +5,30 @@ This file is used to run various experiments in different tmux panes each.
 import os
 import time
 
-# config = "v2g_grid_150_300.yaml"
-config = "PST_V2G_ProfixMax_150_300.yaml"
+config = "v2g_grid_150_300.yaml"
+# config = "PST_V2G_ProfixMax_150_300.yaml"
 
 learning_rate = 3e-5
 # scenario = "v2g_profitmax"
-# scenario = "grid_v2g_profitmax"
-scenario = 'pst_v2g_profitmax'
+scenario = "grid_v2g_profitmax"
+# scenario = 'pst_v2g_profitmax'
 
 counter = 0
 batch_size = 64  # 256 # 512
 td_lambda_horizon = 20
 N_agents = 24  # 4
 
-# pi_td3, lookahead_critic_reward = 3, K>= 20, no clip_grads
 
-
-for policy in ['pi_td3']:
+for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
     for lookahead_critic_reward in [3]:
         for critic in [True]:
-            for K in [40, 80]:  # 512
+            for K in [40]:  # 512
                 for seed in [9]:
+                    
+                    if policy == 'pi_td3':
+                        lookahead_critic_reward = 3
+                    elif policy == 'pi_sac':
+                        lookahead_critic_reward = 4
 
                     extra_args = ''
 
@@ -48,11 +51,11 @@ for policy in ['pi_td3']:
                         ' --td_lambda_horizon ' + str(td_lambda_horizon) + \
                         extra_args + \
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
-                        ' --group_name "AblationTests_300"' + \
+                        ' --group_name "NewModels_AblationTests_300"' + \
                         ' --name ' +\
+                        f'{policy}' + \
                         f'LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
-                        f'{policy}' + \
                         '_K=' + str(K) + \
                         '_td_lambda_horizon=' + str(td_lambda_horizon) + \
                         '_seed=' + str(seed) + \
