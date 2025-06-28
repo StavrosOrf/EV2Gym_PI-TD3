@@ -15,7 +15,6 @@ scenario = "grid_v2g_profitmax"
 
 counter = 0
 batch_size = 64  # 256 # 512
-td_lambda_horizon = 20
 N_agents = 24  # 4
 
 
@@ -48,16 +47,14 @@ for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 's
                         ' --N_agents ' + str(N_agents) + \
                         ' --K ' + str(K) + \
                         ' --disable_development_mode' + \
-                        ' --td_lambda_horizon ' + str(td_lambda_horizon) + \
                         extra_args + \
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "NewModels_AblationTests_300"' + \
                         ' --name ' +\
-                        f'{policy}' + \
+                        f'{policy}_' + \
                         f'LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
-                        '_K=' + str(K) + \
-                        '_td_lambda_horizon=' + str(td_lambda_horizon) + \
+                        'K=' + str(K) + \
                         '_seed=' + str(seed) + \
                         '" Enter'
                     os.system(command=command)
