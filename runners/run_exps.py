@@ -9,8 +9,8 @@ config = "v2g_grid_150_300.yaml"
 # config = "PST_V2G_ProfixMax_150_300.yaml"
 
 learning_rate = 3e-5
-# scenario = "v2g_profitmax"
-scenario = "grid_v2g_profitmax"
+scenario = "v2g_profitmax"
+# scenario = "grid_v2g_profitmax"
 # scenario = 'pst_v2g_profitmax'
 
 counter = 0
@@ -19,6 +19,7 @@ N_agents = 24  # 4
 
 
 for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
+# for policy in ['pi_td3','pi_sac']:
     for lookahead_critic_reward in [3]:
         for critic in [True]:
             for K in [40]:  # 512
@@ -32,7 +33,6 @@ for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 's
                     extra_args = ''
 
                     if not critic:
-
                         extra_args = ' --disable_critic'
 
                     # command = 'tmux new-session -d \; send-keys " /home/sorfanoudakis/.conda/envs/dt/bin/python train_research.py' + \
@@ -51,7 +51,7 @@ for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 's
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "NewModels_AblationTests_300"' + \
                         ' --name ' +\
-                        f'{policy}_' + \
+                        f'{policy}_WithLastActionGrad' + \
                         f'LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         'K=' + str(K) + \

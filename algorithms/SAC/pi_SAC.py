@@ -220,8 +220,8 @@ class PI_SAC(object):
                 (reward_pred - self.log_alpha.exp()
                  * normalized_entropy) * (1.0 - done)
 
-        with torch.no_grad():
-            next_action, _= self.policy(state_pred)
+        # with torch.no_grad():
+        next_action, _= self.policy(state_pred)
 
         if self.critic_enabled:
             qf1_pi, _ = self.critic(state_pred, next_action)

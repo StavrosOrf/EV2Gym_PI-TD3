@@ -314,8 +314,8 @@ class PI_TD3(object):
                         (torch.ones_like(done, device=self.device
                                          ) - done)
 
-            with torch.no_grad():
-                next_action = self.actor(state_pred)
+            # with torch.no_grad():
+            next_action = self.actor(state_pred)
 
             if self.critic_enabled:
                 actor_loss += - discount * self.discount * \

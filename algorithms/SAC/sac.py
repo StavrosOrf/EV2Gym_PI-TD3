@@ -2,10 +2,10 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from algorithms.SAC.model import soft_update, hard_update
 from algorithms.SAC.model import GaussianPolicy, QNetwork, DeterministicPolicy
-
+from algorithms.sapo import Actor
 
 class SAC(object):
 
@@ -30,7 +30,9 @@ class SAC(object):
 
         self.critic = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(device=self.device)
-        self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
+        # self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
+        self.critic_optim = AdamW(
+            self.critic.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         self.critic_target = QNetwork(
             num_inputs, action_space.shape[0], self.hidden_size).to(self.device)
@@ -44,11 +46,21 @@ class SAC(object):
                         action_space.shape).to(self.device)).item()
                 self.log_alpha = torch.zeros(
                     1, requires_grad=True, device=self.device)
-                self.alpha_optim = Adam([self.log_alpha], lr=self.lr)
+                # self.alpha_optim = Adam([self.log_alpha], lr=self.lr)
+                self.alpha_optim = AdamW(
+                    [self.log_alpha], lr=5e-3, betas=(0.7, 0.95))
 
-            self.policy = GaussianPolicy(
-                num_inputs, action_space.shape[0], self.hidden_size, action_space).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
+            # self.policy = GaussianPolicy(
+            #     num_inputs, action_space.shape[0], self.hidden_size, action_space).to(self.device)
+            self.policy = Actor(state_dim=num_inputs,
+                                action_dim=action_space.shape[0],
+                                max_action=action_space.high[0],
+                                mlp_hidden_dim=self.hidden_size,
+                                ).to(self.device)
+            
+            # self.policy_optim = Adam(self.policy.parameters(), lr=self.lr)
+            self.policy_optim = AdamW(
+                self.policy.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
         else:
             self.alpha = 0
@@ -62,10 +74,9 @@ class SAC(object):
         if isinstance(state, np.ndarray):
             state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
 
-        if evaluate is False:
-            action, _, _ = self.policy.sample(state)
-        else:
-            _, _, action = self.policy.sample(state)
+
+        action, _ = self.policy(state)
+
         return action.detach().cpu().numpy()[0]
 
     def train(self, memory, batch_size, updates):
@@ -74,7 +85,7 @@ class SAC(object):
             batch_size=batch_size)
 
         with torch.no_grad():
-            next_state_action, next_state_log_pi, _ = self.policy.sample(
+            next_state_action, next_state_log_pi = self.policy(
                 next_state_batch)
 
             qf1_next_target, qf2_next_target = self.critic_target(
@@ -95,7 +106,7 @@ class SAC(object):
         qf_loss.backward()
         self.critic_optim.step()
 
-        pi, log_pi, _ = self.policy.sample(state_batch)
+        pi, log_pi = self.policy(state_batch)
 
         qf1_pi, qf2_pi = self.critic(state_batch, pi)
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
