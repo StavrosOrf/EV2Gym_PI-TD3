@@ -30,6 +30,7 @@ from algorithms.ppo import PPO
 from algorithms.TD3 import TD3
 from algorithms.pi_TD3 import PI_TD3
 from algorithms.pi_DDPG import PI_DDPG
+from algorithms.pi_ppo import PhysicsInformedPPO
 from algorithms.shac import SHAC
 from algorithms.shac_onpolicy import SHAC_OnPolicy
 from algorithms.reinforce import Reinforce
@@ -114,12 +115,12 @@ if __name__ == "__main__":
     # td3, pi_td3
     # pi_ddpg
     # shac
-    parser.add_argument("--policy", default="sac",)
+    parser.add_argument("--policy", default="pi_ppo",)
     parser.add_argument("--name", default="base")
-    parser.add_argument("--scenario", default="pst_v2g_profitmax")
+    parser.add_argument("--scenario", default="grid_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="PST_V2G_ProfixMax_150_300.yaml")
+    parser.add_argument("--config", default="v2g_grid_150_300.yaml")
     # parser.add_argument("--config", default="v2g_grid_3.yaml")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7
@@ -208,6 +209,7 @@ if __name__ == "__main__":
         args.start_timesteps = 301
         args.eval_freq = 96*5
         args.batch_size = 3
+        args.N_agents = 2
 
     device = args.device
 
@@ -513,6 +515,16 @@ if __name__ == "__main__":
                                                   device=device,
                                                   max_episode_length=args.K,
                                                   max_size=args.N_agents,)
+        
+    elif args.policy == "pi_ppo":
+
+        os.system(f'cp algorithms/pi_ppo.py {save_path}')
+        policy = PhysicsInformedPPO(**kwargs)
+        replay_buffer = ParallelEnvs_ReplayBuffer(state_dim,
+                                                  action_dim,
+                                                  device=device,
+                                                  max_episode_length=args.K,
+                                                  max_size=args.N_agents,)
 
     elif args.policy == "reinforce":
 
@@ -584,7 +596,7 @@ if __name__ == "__main__":
             entropy_traj = torch.zeros(
                 (simulation_length, action_dim)).to(device)
 
-    if args.policy in ['shac_op', 'sapo_op']:
+    if args.policy in ['shac_op', 'sapo_op', 'pi_ppo']:
 
         print(f'Using {args.N_agents} parallel environments.')
         envs = [gym.make('evs-v1') for _ in range(args.N_agents)]
@@ -605,7 +617,7 @@ if __name__ == "__main__":
                     if n == 0:
                         episode_timesteps += 1
 
-                    if args.policy == "shac_op":
+                    if args.policy in ["shac_op", "pi_ppo"]:
                         action = policy.select_action(
                             states[n], evaluate=False)
 
@@ -693,6 +705,7 @@ if __name__ == "__main__":
             if args.policy in ["sac", "shac", "pi_sac", "shac_op"]:
                 action = policy.select_action(state, evaluate=False)
                 next_state, reward, done, _, stats = env.step(action)
+                
             elif args.policy in ["sapo"]:
                 action, log_prob = policy.select_action(state, evaluate=False)
                 next_state, reward, done, _, stats = env.step(action)

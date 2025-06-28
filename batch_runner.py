@@ -1,7 +1,7 @@
 '''
 This script is used to run the batch of training sciprts for every algorithms evaluated
 #old command# srun --mpi=pmix --job-name=interactive-gpu --partition=gpu --gres=gpu:1 --qos=normal --time=01:00:00 --mem-per-cpu=4096 --pty /bin/bash -il
-srun --mpi=pmix --job-name=interactive-gpu --partition=gpu --gpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=4G --cpus-per-task=1 --ntasks=1 --pty /bin/bash -il
+srun --mpi=pmix --job-name=interactive-gpu --partition=gpu --gpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=5300 --cpus-per-task=3 --ntasks=1 --pty /bin/bash -il
 srun --mpi=pmix --job-name=interactive-gpu --partition=gpu-a100-small --gpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=7000 --cpus-per-task=1 --ntasks=1 --pty /bin/bash -il
 srun --mpi=pmix --job-name=interactive-gpu --partition=gpu-a100 --gpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=7000 --cpus-per-task=1 --ntasks=1 --pty /bin/bash -il
 srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --qos=normal --time=01:00:00 --mem-per-cpu=4G--ntasks=1 --pty /bin/bash -il
