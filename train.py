@@ -617,11 +617,11 @@ if __name__ == "__main__":
                     if n == 0:
                         episode_timesteps += 1
 
-                    if args.policy in ["shac_op", "pi_ppo"]:
+                    if args.policy in ["shac_op"]:
                         action = policy.select_action(
                             states[n], evaluate=False)
 
-                    elif args.policy == "sapo_op":
+                    elif args.policy in ["sapo_op", "pi_ppo"]:
                         action, log_prob = policy.select_action(
                             states[n], evaluate=False)
 

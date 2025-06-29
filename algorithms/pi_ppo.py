@@ -46,9 +46,9 @@ class PhysicsInformedPPO:
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         action, log_prob = self.actor(state)
         if evaluate:
-            return action.cpu().data.numpy().flatten()
+            return action.detach().cpu().data.numpy().flatten()
         else:
-            return action.cpu().data.numpy().flatten(), log_prob.cpu().data.numpy().flatten()
+            return action.detach().cpu().data.numpy().flatten(), log_prob.cpu().data.numpy().flatten()
 
     def physics_informed_rollout(self, states, dones):
         state_pred = states[:, 0, :]
@@ -56,8 +56,12 @@ class PhysicsInformedPPO:
 
         for t in range(states.shape[1] - 1):
             action_pred, log_prob = self.actor(state_pred)
-            next_state_pred = self.transition_fn(state_pred, states[:, t, :], action_pred)
-            reward_pred = self.reward_fn(state_pred, action_pred)
+            next_state_pred = self.transition_fn(state=state_pred,
+                                                 new_state=states[:, t, :],
+                                                 action=action_pred)
+
+            reward_pred = self.reward_fn(state=state_pred,
+                                         action=action_pred)
 
             value_pred = self.critic(state_pred)
 
@@ -77,7 +81,7 @@ class PhysicsInformedPPO:
 
     def compute_gae(self, rewards, values, dones):
         batch_size, horizon = rewards.shape
-        advantages = torch.zeros_like(rewards)
+        advantages = torch.zeros_like(rewards, device=self.device)
         gae = 0
 
         values = torch.cat([values, torch.zeros(batch_size, 1, device=self.device)], dim=1)
@@ -98,29 +102,29 @@ class PhysicsInformedPPO:
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        state_batch = states[:, :-1].reshape(-1, states.shape[-1])
+        state_batch = states[:, :-1].reshape(-1, states.shape[-1]).float()
         old_log_prob_batch = old_log_probs.reshape(-1)
-        advantage_batch = advantages.reshape(-1)
-        return_batch = returns.reshape(-1)
+        advantage_batch = advantages.reshape(-1).float()
+        return_batch = returns.reshape(-1).float().detach()
+        
+        action_batch, log_prob_batch = self.actor(state_batch)
+        log_prob_batch = log_prob_batch.reshape(-1)
+
+        ratio = torch.exp(log_prob_batch - old_log_prob_batch)
+
+        surr1 = ratio * advantage_batch
+        surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage_batch
+
+        actor_loss = -torch.min(surr1, surr2).mean() - self.entropy_coef * log_prob_batch.mean()
+
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+        self.actor_optimizer.step()
 
         for _ in range(epochs):
 
-            action_batch, log_prob_batch = self.actor(state_batch)
-            log_prob_batch = log_prob_batch.reshape(-1)
-
-            ratio = torch.exp(log_prob_batch - old_log_prob_batch)
-
-            surr1 = ratio * advantage_batch
-            surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage_batch
-
-            actor_loss = -torch.min(surr1, surr2).mean() - self.entropy_coef * log_prob_batch.mean()
-
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
-            self.actor_optimizer.step()
-
-            value_pred = self.critic(state_batch).squeeze(-1)
+            value_pred = self.critic(state_batch).squeeze(-1).float()
             critic_loss = F.mse_loss(value_pred, return_batch) * self.value_loss_coef
 
             self.critic_optimizer.zero_grad()
