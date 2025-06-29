@@ -48,7 +48,7 @@ for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac', 'shac','sapo
 
                         if K != 1 and algo in ['sac','td3']:
                             continue           
-                        elif K == 1:            
+                        elif K == 1 and algo not in ['sac','td3']:            
                             continue
 
                         if K <= 10:

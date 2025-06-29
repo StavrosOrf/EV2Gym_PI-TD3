@@ -117,10 +117,10 @@ if __name__ == "__main__":
     # shac
     parser.add_argument("--policy", default="pi_ppo",)
     parser.add_argument("--name", default="base")
-    parser.add_argument("--scenario", default="grid_v2g_profitmax")
+    parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")
     parser.add_argument("--env", default="EV2Gym")
-    parser.add_argument("--config", default="v2g_grid_150_300.yaml")
+    parser.add_argument("--config", default="PST_V2G_ProfixMax_150_300.yaml")
     # parser.add_argument("--config", default="v2g_grid_3.yaml")
     parser.add_argument("--seed", default=9, type=int)
     parser.add_argument("--max_timesteps", default=1e7, type=int)  # 1e7

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from algorithms.sapo import Actor, Critic
-
+torch.autograd.set_detect_anomaly(True)
 
 class PhysicsInformedPPO:
     def __init__(self,
@@ -51,13 +51,13 @@ class PhysicsInformedPPO:
             return action.detach().cpu().data.numpy().flatten(), log_prob.cpu().data.numpy().flatten()
 
     def physics_informed_rollout(self, states, dones):
-        state_pred = states[:, 0, :]
+        state_pred = states[:, 0, :].clone()  # Clone to avoid in-place modifications
         rewards, values, log_probs = [], [], []
 
         for t in range(states.shape[1] - 1):
             action_pred, log_prob = self.actor(state_pred)
             next_state_pred = self.transition_fn(state=state_pred,
-                                                 new_state=states[:, t, :],
+                                                 new_state=states[:, t+1, :],
                                                  action=action_pred)
 
             reward_pred = self.reward_fn(state=state_pred,
@@ -69,7 +69,7 @@ class PhysicsInformedPPO:
             values.append(value_pred.squeeze(-1))
             log_probs.append(log_prob.squeeze(-1))
 
-            state_pred = next_state_pred
+            state_pred = next_state_pred #.detach()  # Detach to break gradient flow
 
         rewards = torch.stack(rewards, dim=1)
         values = torch.stack(values, dim=1)
@@ -98,42 +98,41 @@ class PhysicsInformedPPO:
         states = replay_buffer.state.to(self.device).detach()
         dones = replay_buffer.dones.to(self.device).detach()
         old_log_probs = replay_buffer.log_probs.to(self.device).detach()
-
-        rtg = self.compute_rtgs(replay_buffer.rewards.to(self.device).detach())
-
-        advantages, returns, old_log_probs, _ = self.physics_informed_rollout(states, dones)
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-        advantages = advantages.detach()
         
-        old_log_prob_batch = old_log_probs.reshape(-1)
-        advantage_batch = advantages.reshape(-1).float()
+        with torch.no_grad():
+            # rtg_batch = self.compute_rtgs(replay_buffer.rewards.to(self.device).detach()[:, :-1]).float()
+            # rtg_batch = rtg_batch.reshape(replay_buffer.rewards.shape[0], -1).to(self.device)
 
-        for _ in range(epochs):
+            advantages, returns, old_log_probs_pi, _ = self.physics_informed_rollout(states, dones)
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            
+            old_log_prob_batch = old_log_probs_pi.reshape(-1).detach().float()
+            advantage_batch = advantages.reshape(-1).detach().float()
 
+        for epoch in range(epochs):
+            # print(f"Epoch {epoch + 1}/{epochs}")
+            
+            # Separate forward passes for actor and critic to avoid graph sharing
+            # Actor update
             _, _, log_probs, values = self.physics_informed_rollout(states, dones)
-            
-            log_prob_batch = log_probs[:, :-1].reshape(-1).float()
-            # state_batch = states[:, :-1].reshape(-1, states.shape[-1]).float()
-                        
-            rtg_batch = rtg.reshape(-1).float()
-            
-            # action_batch, log_prob_batch = self.actor(state_batch)
-            # log_prob_batch = log_prob_batch.reshape(-1)
+            log_prob_batch = log_probs.reshape(-1).float()
 
             ratio = torch.exp(log_prob_batch - old_log_prob_batch)
-
             surr1 = ratio * advantage_batch
             surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage_batch
-
             actor_loss = -torch.min(surr1, surr2).mean() - self.entropy_coef * log_prob_batch.mean()
-            critic_loss = F.mse_loss(values, rtg_batch) * self.value_loss_coef
 
             self.actor_optimizer.zero_grad()
-            actor_loss.backward(retain_graph=True)
+            actor_loss.backward()#retain_graph=True)
             nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
             self.actor_optimizer.step()
             
+            # Critic update with fresh forward pass
+            _, returns, _, values = self.physics_informed_rollout(states, dones)
+            rtg_batch = self.compute_rtgs(returns).float()
+            rtg_batch = rtg_batch.reshape(returns.shape[0], -1).to(self.device)
             
+            critic_loss = F.mse_loss(values.reshape(-1), rtg_batch.reshape(-1)) * self.value_loss_coef
 
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
@@ -146,31 +145,31 @@ class PhysicsInformedPPO:
         """
             Compute the Reward-To-Go of each timestep in a batch given the rewards.
 
-			Parameters:
-				batch_rews - the rewards in a batch, Shape: (number of episodes, number of timesteps per episode)
+            Parameters:
+                batch_rews - the rewards in a batch, Shape: (number of episodes, number of timesteps per episode)
 
-			Return:
-				batch_rtgs - the rewards to go, Shape: (number of timesteps in batch)
-		"""
-		# The rewards-to-go (rtg) per episode per batch to return.
-		# The shape will be (num timesteps per episode)
-		batch_rtgs = []
+            Return:
+                batch_rtgs - the rewards to go, Shape: (number of timesteps in batch)
+        """
+        # The rewards-to-go (rtg) per episode per batch to return.
+        # The shape will be (num timesteps per episode)
+        batch_rtgs = []
 
-		# Iterate through each episode
-		for ep_rews in reversed(batch_rews):
+        # Iterate through each episode
+        for ep_rews in reversed(batch_rews):
 
-			discounted_reward = 0 # The discounted reward so far
+            discounted_reward = 0 # The discounted reward so far
 
-			# Iterate through all rewards in the episode. We go backwards for smoother calculation of each
-			# discounted return (think about why it would be harder starting from the beginning)
-			for rew in reversed(ep_rews):
-				discounted_reward = rew + discounted_reward * self.gamma
-				batch_rtgs.insert(0, discounted_reward)
+            # Iterate through all rewards in the episode. We go backwards for smoother calculation of each
+            # discounted return (think about why it would be harder starting from the beginning)
+            for rew in reversed(ep_rews):
+                discounted_reward = rew + discounted_reward * self.discount
+                batch_rtgs.insert(0, discounted_reward)
 
-		# Convert the rewards-to-go into a tensor
-		batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float)
+        # Convert the rewards-to-go into a tensor
+        batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float)
 
-		return batch_rtgs
+        return batch_rtgs
 
     def save(self, filename):
         torch.save(self.actor.state_dict(), filename + "_actor")

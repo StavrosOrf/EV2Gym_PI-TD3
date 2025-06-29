@@ -51,7 +51,7 @@ for policy in ['pi_ppo']:
                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                         ' --group_name "NewModels_AblationTests_300"' + \
                         ' --name ' +\
-                        f'{policy}' + \
+                        f'Fixed_policy_{policy}' + \
                         f'LookaheadCriticReward={lookahead_critic_reward}_' + \
                         f'Critic={critic}_' + \
                         'K=' + str(K) + \
