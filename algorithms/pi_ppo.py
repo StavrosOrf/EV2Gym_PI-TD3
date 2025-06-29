@@ -94,38 +94,46 @@ class PhysicsInformedPPO:
         returns = advantages + values[:, :-1]
         return advantages, returns
 
-    def train(self, replay_buffer, epochs=1):
-        states = replay_buffer.state.to(self.device)
-        dones = replay_buffer.dones.to(self.device)
+    def train(self, replay_buffer, epochs=4):
+        states = replay_buffer.state.to(self.device).detach()
+        dones = replay_buffer.dones.to(self.device).detach()
+        old_log_probs = replay_buffer.log_probs.to(self.device).detach()
+
+        rtg = self.compute_rtgs(replay_buffer.rewards.to(self.device).detach())
 
         advantages, returns, old_log_probs, _ = self.physics_informed_rollout(states, dones)
-
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
-        state_batch = states[:, :-1].reshape(-1, states.shape[-1]).float()
+        advantages = advantages.detach()
+        
         old_log_prob_batch = old_log_probs.reshape(-1)
         advantage_batch = advantages.reshape(-1).float()
-        return_batch = returns.reshape(-1).float().detach()
-        
-        action_batch, log_prob_batch = self.actor(state_batch)
-        log_prob_batch = log_prob_batch.reshape(-1)
-
-        ratio = torch.exp(log_prob_batch - old_log_prob_batch)
-
-        surr1 = ratio * advantage_batch
-        surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage_batch
-
-        actor_loss = -torch.min(surr1, surr2).mean() - self.entropy_coef * log_prob_batch.mean()
-
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
-        self.actor_optimizer.step()
 
         for _ in range(epochs):
 
-            value_pred = self.critic(state_batch).squeeze(-1).float()
-            critic_loss = F.mse_loss(value_pred, return_batch) * self.value_loss_coef
+            _, _, log_probs, values = self.physics_informed_rollout(states, dones)
+            
+            log_prob_batch = log_probs[:, :-1].reshape(-1).float()
+            # state_batch = states[:, :-1].reshape(-1, states.shape[-1]).float()
+                        
+            rtg_batch = rtg.reshape(-1).float()
+            
+            # action_batch, log_prob_batch = self.actor(state_batch)
+            # log_prob_batch = log_prob_batch.reshape(-1)
+
+            ratio = torch.exp(log_prob_batch - old_log_prob_batch)
+
+            surr1 = ratio * advantage_batch
+            surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage_batch
+
+            actor_loss = -torch.min(surr1, surr2).mean() - self.entropy_coef * log_prob_batch.mean()
+            critic_loss = F.mse_loss(values, rtg_batch) * self.value_loss_coef
+
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward(retain_graph=True)
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+            self.actor_optimizer.step()
+            
+            
 
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
@@ -134,8 +142,40 @@ class PhysicsInformedPPO:
 
         return {'actor_loss': actor_loss.item(), 'critic_loss': critic_loss.item()}
 
+    def compute_rtgs(self, batch_rews):
+        """
+            Compute the Reward-To-Go of each timestep in a batch given the rewards.
+
+			Parameters:
+				batch_rews - the rewards in a batch, Shape: (number of episodes, number of timesteps per episode)
+
+			Return:
+				batch_rtgs - the rewards to go, Shape: (number of timesteps in batch)
+		"""
+		# The rewards-to-go (rtg) per episode per batch to return.
+		# The shape will be (num timesteps per episode)
+		batch_rtgs = []
+
+		# Iterate through each episode
+		for ep_rews in reversed(batch_rews):
+
+			discounted_reward = 0 # The discounted reward so far
+
+			# Iterate through all rewards in the episode. We go backwards for smoother calculation of each
+			# discounted return (think about why it would be harder starting from the beginning)
+			for rew in reversed(ep_rews):
+				discounted_reward = rew + discounted_reward * self.gamma
+				batch_rtgs.insert(0, discounted_reward)
+
+		# Convert the rewards-to-go into a tensor
+		batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float)
+
+		return batch_rtgs
+
     def save(self, filename):
         torch.save(self.actor.state_dict(), filename + "_actor")
         torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer")
         torch.save(self.critic.state_dict(), filename + "_critic")
         torch.save(self.critic_optimizer.state_dict(), filename + "_critic_optimizer")
+
+    

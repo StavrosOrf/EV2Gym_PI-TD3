@@ -638,7 +638,7 @@ if __name__ == "__main__":
                     replay_buffer.dones[n][step] = torch.FloatTensor(
                         [done]).to(device)
 
-                    if args.policy == "sapo_op":
+                    if args.policy in ["sapo_op", "pi_ppo"]:
                         replay_buffer.log_probs[n][step] = torch.FloatTensor(
                             log_prob).to(device)
 
