@@ -94,7 +94,7 @@ class PhysicsInformedPPO:
         returns = advantages + values[:, :-1]
         return advantages, returns
 
-    def train(self, replay_buffer, epochs=10):
+    def train(self, replay_buffer, epochs=1):
         states = replay_buffer.state.to(self.device)
         dones = replay_buffer.dones.to(self.device)
 
