@@ -111,7 +111,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # sac, pi_sac
-    # reinforce, ppo
+    # reinforce,
+    # ppo, pi_ppo
     # td3, pi_td3
     # pi_ddpg
     # shac
@@ -194,7 +195,15 @@ if __name__ == "__main__":
     parser.add_argument('--lookahead_critic_reward', type=int, default=4)
     parser.add_argument('--lambda_', type=float, default=0.95)
     parser.add_argument('--td_lambda_horizon', type=int, default=30)
-    parser.add_argument('--critic_update_steps', type=int, default=3)
+    parser.add_argument('--critic_update_steps', type=int, default=8)
+    parser.add_argument('--actor_update_steps', type=int, default=1)
+
+    #pi PPO parameters #############################################
+    parser.add_argument('--enable_entropy', action='store_true',
+                        default=False,
+                        help='Enable entropy in the policy.')       
+    parser.add_argument('--critic_update_method', type=str, default='td_lambda',
+                        choices=['td_lambda', 'soft_td_lambda'])
 
     # Parameters #############################################
     parser.add_argument('--mlp_hidden_dim', type=int, default=128)
@@ -515,7 +524,7 @@ if __name__ == "__main__":
                                                   device=device,
                                                   max_episode_length=args.K,
                                                   max_size=args.N_agents,)
-        
+
     elif args.policy == "pi_ppo":
 
         os.system(f'cp algorithms/pi_ppo.py {save_path}')
@@ -603,12 +612,13 @@ if __name__ == "__main__":
         states = [env.reset()[0] for env in envs]
         rewards = np.zeros(args.N_agents)
         episode_num = 0
-        
-        print(f'RAM usage: {os.getpid()} {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB')
+
+        print(
+            f'RAM usage: {os.getpid()} {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB')
 
         print(f'Starting training...')
         for t in range(start_timestep_training, int(args.max_timesteps)):
-            
+
             start_time = time.time()
             #  exploration phase
             for n, env in enumerate(envs):
@@ -621,8 +631,12 @@ if __name__ == "__main__":
                         action = policy.select_action(
                             states[n], evaluate=False)
 
-                    elif args.policy in ["sapo_op", "pi_ppo"]:
+                    elif args.policy in ["sapo_op"]:
                         action, log_prob = policy.select_action(
+                            states[n], evaluate=False)
+                        
+                    elif args.policy in ["pi_ppo"]:
+                        action, log_prob, _ = policy.select_action(
                             states[n], evaluate=False)
 
                     next_state, reward, done, _, stats = env.step(action)
@@ -646,8 +660,8 @@ if __name__ == "__main__":
                         states[n], _ = env.reset()
                     else:
                         states[n] = next_state
-            
-            #  training phase            
+
+            #  training phase
             loss_dict = policy.train(
                 replay_buffer, args.batch_size)
 
@@ -656,7 +670,7 @@ if __name__ == "__main__":
                 print(
                     f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} AvgReward: {np.mean(rewards):.3f}" +
                     f" Time: {time.time() - start_time:.3f}")
-                
+
                 if args.log_to_wandb:
                     wandb.log({'train_ep/episode_reward': np.mean(rewards),
                                'train_ep/episode_num': episode_num},
@@ -697,7 +711,8 @@ if __name__ == "__main__":
                               step=t)
 
     else:
-        print(f'RAM usage: {os.getpid()} {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB')
+        print(
+            f'RAM usage: {os.getpid()} {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.2f} GB')
         for t in range(start_timestep_training, int(args.max_timesteps)):
 
             episode_timesteps += 1
@@ -705,7 +720,7 @@ if __name__ == "__main__":
             if args.policy in ["sac", "shac", "pi_sac", "shac_op"]:
                 action = policy.select_action(state, evaluate=False)
                 next_state, reward, done, _, stats = env.step(action)
-                
+
             elif args.policy in ["sapo"]:
                 action, log_prob = policy.select_action(state, evaluate=False)
                 next_state, reward, done, _, stats = env.step(action)

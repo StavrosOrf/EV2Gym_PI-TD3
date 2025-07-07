@@ -1,4 +1,7 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Normal
 
 def td_lambda_forward_view(
     rewards, dones, states, actions, critic, gamma=0.99, lambda_=0.95, horizon = -1, avg=True,
@@ -111,3 +114,39 @@ def compute_target_values(rewards, next_values, dones, gamma=0.99, lam=0.95, dev
         target_values[:, t] = (1. - lam) * Ai + lam_tensor * Bi
 
     return target_values
+
+
+class ActorWithEntropy(nn.Module):
+    def __init__(self, state_dim, action_dim, max_action, mlp_hidden_dim):
+        super(ActorWithEntropy, self).__init__()
+        self.l1 = nn.Linear(state_dim, mlp_hidden_dim)
+        self.ln1 = nn.LayerNorm(mlp_hidden_dim)
+        self.l2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
+        self.ln2 = nn.LayerNorm(mlp_hidden_dim)
+        self.l3_mu = nn.Linear(mlp_hidden_dim, action_dim)
+        self.l3_log_std = nn.Linear(mlp_hidden_dim, action_dim)
+        self.max_action = max_action
+
+    def forward(self, state):
+        x = F.silu(self.ln1(self.l1(state)))
+        x = F.silu(self.ln2(self.l2(x)))
+        mu = self.l3_mu(x)
+        log_std = self.l3_log_std(x).clamp(-5, 2)
+        std = log_std.exp()
+        
+        # create Gaussian
+        normal = Normal(mu, std)
+        # sample using reparameterization
+        y = normal.rsample()
+        # action via tanh
+        action = torch.tanh(y) * self.max_action
+        
+        # log probability with tanh correction
+        log_prob = normal.log_prob(y).sum(dim=-1, keepdim=True)
+        # correction: derivative of tanh(y)*max_action is max_action*(1-tanh(y)^2)
+        log_prob -= torch.log(self.max_action * (1 - torch.tanh(y)**2) + 1e-6).sum(dim=-1, keepdim=True)
+        
+        # entropy of base gaussian
+        entropy = normal.entropy().sum(dim=-1, keepdim=True)
+        
+        return action, log_prob, entropy

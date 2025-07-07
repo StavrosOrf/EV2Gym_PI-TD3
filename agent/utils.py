@@ -5,6 +5,7 @@ import torch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Normal
 
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
@@ -301,6 +302,7 @@ class ParallelEnvs_ReplayBuffer(object):
         # print(f'dones: {dones.shape}')
         # input(f'states: {states.shape}')
         return states_new.detach(), actions_new.detach(), rewards_new.detach(), dones_new.detach(), log_probs_new.detach()
+
 
 class ThreeStep_Action(gym.ActionWrapper, gym.utils.RecordConstructorArgs):
     """
