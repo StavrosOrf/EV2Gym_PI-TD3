@@ -27,7 +27,7 @@ for policy in ['pi_ppo']:
                     continue
                 for actor_update_steps in [1]:  # , 4, 8]:
                     for critic in [True]:
-                        for K in [20]:  # 512
+                        for K in [20, 40]:  # 512
                             for seed in [9]:
 
                                 if policy == 'pi_td3':
@@ -61,8 +61,8 @@ for policy in ['pi_ppo']:
                                     ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                                     ' --group_name "NewModels_AblationTests_300"' + \
                                     ' --name ' +\
-                                    f'ValueGrads_Entropy={enable_entropy}_' + \
-                                    f'CriticUpdateMethod={critic_update_method}_' + \
+                                    f'NoAdvantageGrads_Entropy={enable_entropy}_' + \
+                                    f'CriticUM={critic_update_method}_' + \
                                     f'ActorUpdateSteps={actor_update_steps}_' + \
                                     f'{policy}_' + \
                                     f'LCR={lookahead_critic_reward}_' + \

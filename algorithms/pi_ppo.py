@@ -52,12 +52,12 @@ class PhysicsInformedPPO:
         self.critic_epochs = critic_update_steps
 
         # Actor with entropy output
-        self.actor = ActorWithEntropy(
+        self.actor = Actor(
             state_dim, action_dim, max_action, mlp_hidden_dim).to(device)
         self.actor_optimizer = torch.optim.AdamW(
             self.actor.parameters(), lr=2e-3, betas=(0.7, 0.95))
 
-        self.old_actor = ActorWithEntropy(
+        self.old_actor = Actor(
             state_dim, action_dim, max_action, mlp_hidden_dim).to(device)
         hard_update(self.old_actor, self.actor)  # Initialize old actor for PPO
 
@@ -65,7 +65,7 @@ class PhysicsInformedPPO:
         self.critic = Critic(state_dim, mlp_hidden_dim).to(device)
         self.critic_optimizer = torch.optim.AdamW(
             self.critic.parameters(), lr=5e-4, betas=(0.7, 0.95))
-        
+
         # Initialize log_alpha for entropy regularization
         self.log_alpha = torch.tensor([0.0], requires_grad=True, device=device)
         self.alpha_optimizer = torch.optim.AdamW(
@@ -81,27 +81,33 @@ class PhysicsInformedPPO:
 
     def select_action(self, state, evaluate=False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-        action, log_prob, entropy = self.actor(state)
+        action, log_prob = self.actor(state)
         if evaluate:
             return action.cpu().data.numpy().flatten()
-        return action.detach().cpu().numpy().flatten(), log_prob.detach().cpu().numpy().flatten(), entropy.detach().cpu().numpy().flatten()
+        return action.detach().cpu().numpy().flatten(), log_prob.detach().cpu().numpy().flatten()
 
     def compute_gae(self, rewards, values, dones):
         batch_size, horizon = rewards.shape
         advantages = torch.zeros_like(rewards, device=self.device)
-        gae = 0
 
-        # values = torch.cat([values, torch.zeros(batch_size, 1, device=self.device)], dim=1)
+        values = torch.cat([values, torch.zeros(
+            batch_size, 1, device=self.device)], dim=1)
 
-        for t in reversed(range(horizon-1)):
-            # print(f"Computing GAE at timestep {t}")
-            delta = rewards[:, t] + self.discount * \
-                values[:, t + 1] * (1 - dones[:, t]) - values[:, t]
-            gae = delta + self.discount * self.lam * (1 - dones[:, t]) * gae
+        # running buffer for GAE per batch element
+        gae = torch.zeros(batch_size, device=self.device)
+
+        for t in reversed(range(horizon)):
+            # zero out bootstrap when episode ends
+            mask = 1.0 - dones[:, t]
+            delta = (
+                rewards[:, t]
+                + self.discount * values[:, t + 1] * mask
+                - values[:, t]
+            )
+            gae = delta + self.discount * self.lam * mask * gae
             advantages[:, t] = gae
 
-        # returns = advantages + values[:, :-1]
-        return advantages  # , returns
+        return advantages
 
     def compute_actor_loss(self, states, dones):
         state_pred = states[:, 0, :]
@@ -117,7 +123,7 @@ class PhysicsInformedPPO:
         for t in range(self.horizon):
 
             # done = dones[:, t]
-            action_pred, log_prob, _ = self.actor(state_pred)
+            action_pred, log_prob = self.actor(state_pred)
 
             next_state_pred = self.transition_fn(state=state_pred,
                                                  new_state=states[:, t, :],
@@ -131,14 +137,14 @@ class PhysicsInformedPPO:
             rewards.append(reward_pred)
             log_probs.append(log_prob.squeeze(-1))  # Store log probabilities
 
-            _, old_log_prob, _ = self.old_actor(
+            _, old_log_prob = self.old_actor(
                 state_pred)  # Get old log probabilities
             old_log_probs[:, t] = old_log_prob.squeeze(-1)
             state_pred = next_state_pred
 
         # Detach old log probabilities to avoid gradient flow
         old_log_probs = old_log_probs.detach()
-        values = values#.detach()  # Detach critic values to avoid gradient flow
+        values = values.detach()  # Detach critic values to avoid gradient flow
 
         # Compute GAE advantages
         rewards = torch.stack(rewards, dim=1)  # Shape: [N, K]
@@ -149,6 +155,8 @@ class PhysicsInformedPPO:
         # Normalize advantages
         advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / \
             (advantages.std(dim=1, keepdim=True) + 1e-8)
+
+        advantages = advantages.detach()  # Detach advantages to avoid gradient flow
 
         ratio = torch.exp(log_probs - old_log_probs)  # Shape: [N, K]
         surr1 = ratio * advantages
@@ -235,10 +243,11 @@ class PhysicsInformedPPO:
             # loss /= len(self.critics)
             self.critic_optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(
+            critic_grad_norm = nn.utils.clip_grad_norm_(
                 [p for p in self.critic.parameters()], 0.5)
+
             self.critic_optimizer.step()
-        return loss
+        return loss, critic_grad_norm
 
     def train(self, replay_buffer, batch_size):
         # Extract data
@@ -256,7 +265,10 @@ class PhysicsInformedPPO:
             self.actor_optimizer.zero_grad()
             actor_loss, log_prob = self.compute_actor_loss(states, dones)
             actor_loss.backward()
-            nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
+            # nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
+            # monitor gradient norm
+            actor_grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.max_grad_norm)
             self.actor_optimizer.step()
 
             if self.entropy_enabled:
@@ -270,7 +282,7 @@ class PhysicsInformedPPO:
         # Critic update: mini-epoch K
 
         if self.critic_update_method == "soft_td_lambda":
-            critic_loss = self.update_critics(
+            critic_loss, critic_grad_norm = self.update_critics(
                 replay_buffer, batch_size, K=self.critic_epochs)
 
         elif self.critic_update_method == "td_lambda":
@@ -298,11 +310,15 @@ class PhysicsInformedPPO:
 
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
+                critic_grad_norm = nn.utils.clip_grad_norm_(
+                    self.critic.parameters(), self.max_grad_norm)
                 self.critic_optimizer.step()
 
         return {
             'actor_loss': actor_loss.item(),
             # 'alpha_loss': alpha_loss.item(),
+            'actor_grad_norm': actor_grad_norm,
+            'critic_grad_norm': critic_grad_norm,
             'critic_loss': critic_loss.item(),
             # 'alpha': self.log_alpha.exp().item()
         }

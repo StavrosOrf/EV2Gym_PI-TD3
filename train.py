@@ -636,7 +636,7 @@ if __name__ == "__main__":
                             states[n], evaluate=False)
                         
                     elif args.policy in ["pi_ppo"]:
-                        action, log_prob, _ = policy.select_action(
+                        action, log_prob = policy.select_action(
                             states[n], evaluate=False)
 
                     next_state, reward, done, _, stats = env.step(action)
