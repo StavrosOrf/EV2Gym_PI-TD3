@@ -138,7 +138,7 @@ class PhysicsInformedPPO:
 
         # Detach old log probabilities to avoid gradient flow
         old_log_probs = old_log_probs.detach()
-        values = values.detach()  # Detach critic values to avoid gradient flow
+        values = values#.detach()  # Detach critic values to avoid gradient flow
 
         # Compute GAE advantages
         rewards = torch.stack(rewards, dim=1)  # Shape: [N, K]

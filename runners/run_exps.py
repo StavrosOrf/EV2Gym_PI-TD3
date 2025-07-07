@@ -21,11 +21,11 @@ N_agents = 24
 # for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
 for policy in ['pi_ppo']:
     for lookahead_critic_reward in [3]:
-        for enable_entropy in [True, False]:
-            for critic_update_method in ['td_lambda', 'soft_td_lambda']:
+        for enable_entropy in [False]:
+            for critic_update_method in ['td_lambda']:#, 'soft_td_lambda']:
                 if not enable_entropy and critic_update_method == 'soft_td_lambda':
                     continue
-                for actor_update_steps in [4]:  # , 4, 8]:
+                for actor_update_steps in [1]:  # , 4, 8]:
                     for critic in [True]:
                         for K in [20]:  # 512
                             for seed in [9]:
@@ -61,11 +61,11 @@ for policy in ['pi_ppo']:
                                     ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                                     ' --group_name "NewModels_AblationTests_300"' + \
                                     ' --name ' +\
-                                    f'Entropy={enable_entropy}_' + \
+                                    f'ValueGrads_Entropy={enable_entropy}_' + \
                                     f'CriticUpdateMethod={critic_update_method}_' + \
                                     f'ActorUpdateSteps={actor_update_steps}_' + \
                                     f'{policy}_' + \
-                                    f'LookaheadCriticReward={lookahead_critic_reward}_' + \
+                                    f'LCR={lookahead_critic_reward}_' + \
                                     f'Critic={critic}_' + \
                                     'K=' + str(K) + \
                                     '_seed=' + str(seed) + \
