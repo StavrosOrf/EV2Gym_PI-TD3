@@ -52,12 +52,6 @@ import warnings
 # Suppress all UserWarnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
-
-# GNN-based models evaluations
-# from DT.evaluation.evaluate_episodes import evaluate_episode_rtg_from_replays
-# from DT.models.decision_transformer import DecisionTransformer
-# from DT.load_model import load_DT_model
-
 # set seeds
 seed = 9
 np.random.seed(seed)
@@ -69,7 +63,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 10
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -77,16 +71,12 @@ def evaluator():
     # config_file = "./config_files/v2g_grid_150.yaml"
     # config_file = "./config_files/v2g_grid_50.yaml"
 
-    # if "V2G_ProfixMaxWithLoads" in config_file:
     state_function_Normal = V2G_grid_state_ModelBasedRL
-    # state_function_GNN = V2G_ProfitMax_with_Loads_GNN
-    # reward_function = V2G_grid_simple_reward, V2G_profitmax
     reward_function = Grid_V2G_profitmaxV2
 
     # Algorithms to compare:
     # Use algorithm name or the saved RL model path as string
-    algorithms = [
-        # 'DT_whole_last_iteration.dt_ph_coeff=0_run_42_K=12_batch=128_dataset=random_1000_embed_dim=128_n_layer=3_n_head=437070_939246',
+    algorithms = [        
         ChargeAsFastAsPossible,
         DoNothing,
         RandomAgent,
@@ -124,7 +114,7 @@ def evaluator():
     simulation_length = config["simulation_length"]
     scenario = config_file.split("/")[-1].split(".")[0]
     
-    eval_replay_path = f'./replay/{config["number_of_charging_stations"]}cs_APEN_PST/'
+    eval_replay_path = f'./replay/{config["number_of_charging_stations"]}cs_{scenario}/'
 
     print(f'Looking for replay files in {eval_replay_path}')
     try:
@@ -183,67 +173,6 @@ def evaluator():
     if not replays_exist:
         eval_replay_files = [generate_replay(
             eval_replay_path) for _ in range(n_test_cycles)]
-    
-    
-
-    # scenario = config_file.split("/")[-1].split(".")[0]
-    # eval_replay_path = f'./replay/{number_of_charging_stations}cs_{n_transformers}tr_{scenario}/'
-    # print(f'Looking for replay files in {eval_replay_path}')
-    # try:
-    #     eval_replay_files = [f for f in os.listdir(
-    #         eval_replay_path) if os.path.isfile(os.path.join(eval_replay_path, f))]
-
-    #     print(
-    #         f'Found {len(eval_replay_files)} replay files in {eval_replay_path}')
-    #     if n_test_cycles > len(eval_replay_files):
-    #         n_test_cycles = len(eval_replay_files)
-
-    #     replay_to_print = 1
-    #     replay_to_print = min(replay_to_print, len(eval_replay_files)-1)
-    #     replays_exist = True
-
-    # except:
-    #     n_test_cycles = n_test_cycles
-    #     replays_exist = False
-
-    # print(f'Number of test cycles: {n_test_cycles}')
-
-    # if SAVE_EV_PROFILES:
-    #     ev_profiles = []
-
-    # def generate_replay(evaluation_name):
-    #     env = EV2Gym(config_file=config_file,
-    #                  generate_rnd_game=True,
-    #                  save_replay=True,
-    #                  replay_save_path=f"replay/{evaluation_name}/",
-    #                  )
-    #     replay_path = f"replay/{evaluation_name}/replay_{env.sim_name}.pkl"
-
-    #     for _ in range(env.simulation_length):
-    #         actions = np.ones(env.cs)
-
-    #         new_state, reward, done, truncated, _ = env.step(
-    #             actions, visualize=False)  # takes action
-
-    #         if done:
-    #             break
-
-    #     if SAVE_EV_PROFILES:
-    #         ev_profiles.append(env.EVs_profiles)
-    #     return replay_path
-
-    # evaluation_name = f'eval_{number_of_charging_stations}cs_{n_transformers}tr_{scenario}_{len(algorithms)}_algos' +\
-    #     f'_{n_test_cycles}_exp_' +\
-    #     f'{datetime.datetime.now().strftime("%Y_%m_%d_%f")}'
-
-    # # make a directory for the evaluation
-    # save_path = f'./results/{evaluation_name}/'
-    # os.makedirs(save_path, exist_ok=True)
-    # os.system(f'cp {config_file} {save_path}')
-
-    # if not replays_exist:
-    #     eval_replay_files = [generate_replay(
-    #         evaluation_name) for _ in range(n_test_cycles)]
 
     # save the list of EV profiles to a pickle file
     if SAVE_EV_PROFILES:
@@ -520,6 +449,7 @@ def evaluator():
                                           'battery_degradation_cycling': stats['battery_degradation_cycling'],
                                           'voltage_violation': stats['voltage_violation'],
                                           'voltage_violation_counter': stats['voltage_violation_counter'],
+                                          'voltage_violation_counter_per_step': stats['voltage_violation_counter_per_step'],
                                           'total_reward': sum(rewards),
                                           'time': time.time() - timer,
                                           }, index=[counter])
@@ -592,13 +522,13 @@ def evaluator():
     print(results_grouped[[
         'total_profits',
         'total_ev_served',
-        # 'voltage_violation',
         'average_user_satisfaction',
         'total_energy_charged',
         'total_energy_discharged',
         'total_reward',
         'voltage_violation',
-        'voltage_violation_counter'
+        'voltage_violation_counter',
+        'voltage_violation_counter_per_step',
     ]])
 
     with gzip.open(save_path + 'plot_results_dict.pkl.gz', 'wb') as f:

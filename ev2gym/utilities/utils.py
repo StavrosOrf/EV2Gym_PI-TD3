@@ -71,6 +71,11 @@ def get_statistics(env) -> Dict:
             np.zeros_like(v_m), 0.05 - np.abs(1-v_m)).sum()
         # calculate how many times the voltage is outside 0.95-1.05 p.u.
         voltage_violation_counter = np.sum(v_m < 0.95) + np.sum(v_m > 1.05)
+                
+        v_m = env.node_voltage
+        # count how many steps have at least one node with voltage outside 0.95-1.05 p.u.
+        voltage_violation_counter_per_step = np.sum(
+            np.any((v_m < 0.95) | (v_m > 1.05), axis=1))
 
     stats = {'total_ev_served': total_ev_served,
              'total_profits': total_profits,
@@ -95,10 +100,12 @@ def get_statistics(env) -> Dict:
         stats['saved_grid_energy'] = saved_grid_energy,
         stats['voltage_violation'] = voltage_violation,
         stats['voltage_violation_counter'] = voltage_violation_counter
+        stats['voltage_violation_counter_per_step'] = voltage_violation_counter_per_step
     else:
         stats['saved_grid_energy'] = 0
         stats['voltage_violation'] = 0
         stats['voltage_violation_counter'] = 0
+        stats['voltage_violation_counter_per_step'] = 0
 
     if env.eval_mode != "optimal" and env.replay is not None:
         if env.replay.optimal_stats is not None:
