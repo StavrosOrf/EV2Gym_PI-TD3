@@ -197,12 +197,12 @@ class TD3(object):
                    filename + "_actor_optimizer")
 
     def load(self, filename):
-        self.critic.load_state_dict(torch.load(filename + "_critic"))
+        self.critic.load_state_dict(torch.load(filename + "_critic", weights_only=True))
         self.critic_optimizer.load_state_dict(
-            torch.load(filename + "_critic_optimizer"))
+            torch.load(filename + "_critic_optimizer", weights_only=True))
         self.critic_target = copy.deepcopy(self.critic)
 
-        self.actor.load_state_dict(torch.load(filename + "_actor"))
+        self.actor.load_state_dict(torch.load(filename + "_actor", weights_only=True))
         self.actor_optimizer.load_state_dict(
-            torch.load(filename + "_actor_optimizer"))
+            torch.load(filename + "_actor_optimizer", weights_only=True))
         self.actor_target = copy.deepcopy(self.actor)

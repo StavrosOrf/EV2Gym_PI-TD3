@@ -161,3 +161,12 @@ class SHAC:
         torch.save(self.actor.state_dict(), filename + "_actor")
         torch.save(self.actor_optimizer.state_dict(),
                    filename + "_actor_optimizer")
+
+    def load(self, filename):
+        # self.critic.load_state_dict(torch.load(filename + "_critic"))
+        # self.critic_optimizer.load_state_dict(
+        #     torch.load(filename + "_critic_optimizer"))
+
+        self.actor.load_state_dict(torch.load(filename + "_actor", weights_only=True))
+        # self.actor_optimizer.load_state_dict(
+        #     torch.load(filename + "_actor_optimizer"))

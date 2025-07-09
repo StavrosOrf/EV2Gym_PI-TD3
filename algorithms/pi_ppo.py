@@ -174,7 +174,8 @@ class PhysicsInformedPPO:
                             self.epsilon) * advantages
         actor_loss = -torch.min(surr1, surr2).mean()
         
-        actor_loss += reward_loss * self.reward_loss_coeff        
+        # actor_loss += reward_loss * self.reward_loss_coeff        
+        actor_loss = reward_loss * self.reward_loss_coeff        
 
         if self.entropy_enabled:
             # Compute entropy target

@@ -21,11 +21,14 @@ N_agents = 24
 # for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
 for policy in ['pi_ppo']:
     for lookahead_critic_reward in [3]:
-        for reward_loss_coeff in [0, 1.0, 100, 10000]:  # , 0.1, 0.01]:
-            for enable_entropy in [False]:
-                for critic_update_method in ['td_lambda']:#, 'soft_td_lambda']:
-                    if not enable_entropy and critic_update_method == 'soft_td_lambda':
-                        continue
+        for reward_loss_coeff in [1.0]:  # , 0.1, 0.01]:
+            # for enable_entropy in [False]:
+                for critic_update_method in ['td_lambda','soft_td_lambda']:
+                    if critic_update_method == 'soft_td_lambda':
+                        enable_entropy = True
+                    else:
+                        enable_entropy = False
+                        
                     for actor_update_steps in [4]:  # , 4, 8]:
                         for critic in [True]:
                             for K in [20]:  # 512
@@ -56,17 +59,18 @@ for policy in ['pi_ppo']:
                                         ' --critic_update_method ' + critic_update_method + \
                                         ' --actor_update_steps ' + str(actor_update_steps) + \
                                         ' --N_agents ' + str(N_agents) + \
+                                        ' --reward_loss_coeff ' + str(reward_loss_coeff) + \
                                         ' --K ' + str(K) + \
                                         ' --disable_development_mode' + \
                                         extra_args + \
                                         ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                                         ' --group_name "NewModels_AblationTests_300"' + \
                                         ' --name ' +\
+                                        f'JustL_RewardLossCoeff={reward_loss_coeff}_' + \
                                         f'Entropy={enable_entropy}_' + \
                                         f'CriticUM={critic_update_method}_' + \
                                         f'ActorS={actor_update_steps}_' + \
                                         f'{policy}_' + \
-                                        f'LCR={lookahead_critic_reward}_' + \
                                         f'Critic={critic}_' + \
                                         'K=' + str(K) + \
                                         '_seed=' + str(seed) + \
