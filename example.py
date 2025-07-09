@@ -31,17 +31,19 @@ def eval():
     replay_path = None
 
     # config_file = "./config_files/v2g_grid_50.yaml"
-    config_file = "./config_files/PST_V2G_ProfixMax_150.yaml"
+    # config_file = "./config_files/PST_V2G_ProfixMax_150.yaml"
+    # config_file = "./config_files/v2g_grid_150.yaml"
+    config_file = "./config_files/v2g_grid_150_bus_123.yaml"
     # config_file = "./config_files/v2g_grid_3.yaml"
-    
+
     # config_file = "./config_files/v2g_grid_50.yaml"
-    
+
     seed = 0
-    
+
     if "v2g_grid" in config_file:
         state_function = V2G_grid_state_ModelBasedRL
         reward_function = Grid_V2G_profitmaxV2
-        
+
     elif "PST_V2G" in config_file:
         state_function = V2G_grid_state_ModelBasedRL
         reward_function = pst_V2G_profitmaxV2
@@ -53,7 +55,7 @@ def eval():
                  load_from_replay_path=replay_path,
                  verbose=False,
                  save_replay=True,
-                 save_plots=False,
+                 save_plots=True,
                  state_function=state_function,
                  reward_function=reward_function,
                  )
@@ -62,8 +64,8 @@ def eval():
     print(env.observation_space)
     new_replay_path = f"replay/replay_{env.sim_name}.pkl"
 
-    # agent = ChargeAsFastAsPossible()
-    agent = RandomAgent()
+    agent = ChargeAsFastAsPossible()
+    # agent = RandomAgent()
     # agent = ChargeAsFastAsPossibleToDesiredCapacity()
 
     max_cs_power = env.charging_stations[0].get_max_power()
@@ -74,47 +76,46 @@ def eval():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if "grid" in config_file:
-    
+        print(f'number of buses: {env.grid.net.nb}')
+        print(f'number of charging stations: {len(env.charging_stations)}')
+
         loss_fn = V2GridLoss(K=env.grid.net._K_,
-                            L=env.grid.net._L_,
-                            s_base=env.grid.net.s_base,
-                            num_buses=env.grid.net.nb,
-                            max_cs_power=max_cs_power,
-                            min_cs_power=min_cs_power,
-                            ev_battery_capacity=ev_battery_capacity,
-                            ev_min_battery_capacity=ev_min_battery_capacity,
-                            device=device,
-                            verbose=False,
-                            )
+                             L=env.grid.net._L_,
+                             s_base=env.grid.net.s_base,
+                             num_buses=env.grid.net.nb,
+                             max_cs_power=max_cs_power,
+                             min_cs_power=min_cs_power,
+                             ev_battery_capacity=ev_battery_capacity,
+                             ev_min_battery_capacity=ev_min_battery_capacity,
+                             device=device,
+                             verbose=False,
+                             )
+
         state_transition = V2G_Grid_StateTransition(verbose=False,
-                                            device=device,
-                                            num_buses=env.grid.net.nb
-                                            )
+                                                    device=device,
+                                                    num_buses=env.grid.net.nb
+                                                    )
         loss_fn = loss_fn.grid_profit_maxV2
-        
+
     else:
         loss_fn = V2GridLoss(K=np.zeros(1),
-                                       L=np.zeros(1),
-                                       s_base=-1,
-                                       num_buses=34,
-                                       max_cs_power=max_cs_power,
-                                       min_cs_power=min_cs_power,
-                                       ev_battery_capacity=ev_battery_capacity,
-                                       ev_min_battery_capacity=ev_min_battery_capacity,
-                                       device=device,
-                                       verbose=False,
-                                       )
+                             L=np.zeros(1),
+                             s_base=-1,
+                             num_buses=34,
+                             max_cs_power=max_cs_power,
+                             min_cs_power=min_cs_power,
+                             ev_battery_capacity=ev_battery_capacity,
+                             ev_min_battery_capacity=ev_min_battery_capacity,
+                             device=device,
+                             verbose=False,
+                             )
         state_transition = V2G_Grid_StateTransition(verbose=False,
-                                            device=device,
-                                            num_buses=34
-                                            )
-        
+                                                    device=device,
+                                                    num_buses=34
+                                                    )
+
         loss_fn = loss_fn.pst_V2G_profit_maxV2
 
-
-
-    
-    
     succesful_runs = 0
     failed_runs = 0
 
@@ -162,9 +163,9 @@ def eval():
 
             # print("============================================================================")
             timer = time.time()
-            
+
             loss = loss_fn(action=torch.tensor(actions, device=device).reshape(1, -1),
-                                        state=torch.tensor(state, device=device).reshape(1, -1))
+                           state=torch.tensor(state, device=device).reshape(1, -1))
             total_timer += time.time() - timer
 
             # v = loss_fn.voltage_real_operations(state=torch.tensor(state, device=device).reshape(1, -1),
@@ -187,11 +188,11 @@ def eval():
 
             reward_loss = np.abs(reward - loss.cpu().detach().numpy())
 
-            if reward_loss > 1: #0.01:
+            if reward_loss > 1:  # 0.01:
                 print(
                     f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
                 input(f'Error in reward calculation')
-            
+
             # input(f'Reward Loss: {reward_loss} | Reward: {reward} | Loss: {loss}')
             state = new_state
 

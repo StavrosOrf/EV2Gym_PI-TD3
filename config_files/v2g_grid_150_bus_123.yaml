@@ -38,7 +38,7 @@ discharge_price_factor: 1 # how many times more abs(expensive/cheaper) it is to 
 # Distribution Network Settings
 ##############################################################################
 v2g_enabled: True # True or False
-number_of_charging_stations: 150 # Play somewhere 5-20
+number_of_charging_stations: 500 # Play somewhere 5-20
 number_of_transformers: -1
 number_of_ports_per_cs: 1
 # Provide path if you want to load a specific charging topology
@@ -50,12 +50,10 @@ simulate_grid: True # True or False
 network_info: 
   vm_pu: 1.0 # Voltage magnitude in per unit
   s_base: 1000 # Base power in kVA
-  load_multiplier: 1 # Load multiplier for the grid
+  load_multiplier: 3 # Load multiplier for the grid
   pv_scale: 80 # Percentage% of maximum PV power with respect to the total load of the bus
-  bus_info_file: './ev2gym/data/network_data/node_34/Nodes_34.csv'
-  branch_info_file: './ev2gym/data/network_data/node_34/Lines_34.csv'
-  # bus_info_file: './ev2gym/data/network_data/node_123/Nodes_123.csv'
-  # branch_info_file: './ev2gym/data/network_data/node_123/Lines_123.csv'
+  bus_info_file: './ev2gym/data/network_data/node_123/Nodes_123.csv'
+  branch_info_file: './ev2gym/data/network_data/node_123/Lines_123.csv'
 
 pf_solver: 'Laurent' # 'Laurent' or 'PandaPower'
 
