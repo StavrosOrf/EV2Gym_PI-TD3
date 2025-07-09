@@ -31,7 +31,7 @@ class PhysicsInformedPPO:
                  entropy_enabled=False,
                  epsilon=0.2,
                  entropy_coef=0.01,
-                 value_loss_coef=0.5,
+                 reward_loss_coeff=0.5,
                  max_grad_norm=0.5,
                  policy_epochs=1,
                  actor_update_steps=1,
@@ -46,7 +46,7 @@ class PhysicsInformedPPO:
         self.entropy_enabled = entropy_enabled
         self.epsilon = epsilon
         self.entropy_coef = entropy_coef
-        self.value_loss_coef = value_loss_coef
+        self.reward_loss_coeff = reward_loss_coeff
         self.max_grad_norm = max_grad_norm
         self.policy_epochs = actor_update_steps
         self.critic_epochs = critic_update_steps
@@ -119,10 +119,12 @@ class PhysicsInformedPPO:
         old_log_probs = torch.zeros(states.size(
             0), self.horizon, device=self.device)
         log_probs = []
+        
+        total_reward = torch.zeros(states.size(0), device=self.device)
 
         for t in range(self.horizon):
 
-            # done = dones[:, t]
+            done = dones[:, t]
             action_pred, log_prob = self.actor(state_pred)
 
             next_state_pred = self.transition_fn(state=state_pred,
@@ -131,6 +133,10 @@ class PhysicsInformedPPO:
 
             reward_pred = self.reward_fn(state=state_pred,
                                          action=action_pred)
+            
+            total_reward += (self.discount**t) * \
+                reward_pred * (1.0 - done)
+            
 
             # Critic value prediction
             values[:, t] = self.critic(state_pred).squeeze(-1)
@@ -141,6 +147,9 @@ class PhysicsInformedPPO:
                 state_pred)  # Get old log probabilities
             old_log_probs[:, t] = old_log_prob.squeeze(-1)
             state_pred = next_state_pred
+
+        v_next = self.critic(state_pred).squeeze(-1)  # Last value prediction
+        reward_loss = -(total_reward + self.discount * v_next.squeeze()).mean()
 
         # Detach old log probabilities to avoid gradient flow
         old_log_probs = old_log_probs.detach()
@@ -156,13 +165,16 @@ class PhysicsInformedPPO:
         advantages = (advantages - advantages.mean(dim=1, keepdim=True)) / \
             (advantages.std(dim=1, keepdim=True) + 1e-8)
 
-        advantages = advantages.detach()  # Detach advantages to avoid gradient flow
+        # advantages = advantages.detach()  # Detach advantages to avoid gradient flow
 
         ratio = torch.exp(log_probs - old_log_probs)  # Shape: [N, K]
+        # ratio = torch.exp(log_probs)  # Shape: [N, K]
         surr1 = ratio * advantages
         surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 +
                             self.epsilon) * advantages
         actor_loss = -torch.min(surr1, surr2).mean()
+        
+        actor_loss += reward_loss * self.reward_loss_coeff        
 
         if self.entropy_enabled:
             # Compute entropy target

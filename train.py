@@ -203,7 +203,9 @@ if __name__ == "__main__":
                         default=False,
                         help='Enable entropy in the policy.')       
     parser.add_argument('--critic_update_method', type=str, default='td_lambda',
-                        choices=['td_lambda', 'soft_td_lambda'])
+                        choices=['td_lambda', 'soft_td_lambda'])    
+    parser.add_argument('--reward_loss_coeff', type=float, default=1.0,
+                        help='Coefficient for the reward loss in the critic update.')
 
     # Parameters #############################################
     parser.add_argument('--mlp_hidden_dim', type=int, default=128)
@@ -450,6 +452,10 @@ if __name__ == "__main__":
         'N_agents': args.N_agents,
         'action_space': env.action_space,
         'critic_update_steps': args.critic_update_steps,
+        'enable_entropy': args.enable_entropy,
+        'reward_loss_coeff': args.reward_loss_coeff,
+        'critic_update_method': args.critic_update_method,
+        'actor_update_steps': args.actor_update_steps,
     }
 
     # Save kwargs to local path
