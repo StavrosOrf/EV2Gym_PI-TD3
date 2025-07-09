@@ -33,8 +33,8 @@ def eval():
     # config_file = "./config_files/v2g_grid_50.yaml"
     # config_file = "./config_files/PST_V2G_ProfixMax_150.yaml"
     # config_file = "./config_files/v2g_grid_150.yaml"
-    config_file = "./config_files/v2g_grid_150_bus_123.yaml"
-    # config_file = "./config_files/v2g_grid_3.yaml"
+    # config_file = "./config_files/v2g_grid_150_bus_123.yaml"
+    config_file = "./config_files/v2g_grid_3.yaml"
 
     # config_file = "./config_files/v2g_grid_50.yaml"
 
