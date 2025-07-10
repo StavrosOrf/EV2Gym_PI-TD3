@@ -9,7 +9,7 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [10]
+seeds = [0]
 
 batch_size = 64
 N_agents = 16
@@ -21,14 +21,13 @@ if not os.path.exists('./slurm_logs'):
     os.makedirs('./slurm_logs')
 
 # td3, sac, pi_sac, pi_td3, shac
-# for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
-for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac', 'shac','sapo']:
-    # for K in [30, 40, 80]:
-    for K in [1, 5, 10, 20]:
+# for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac', 'shac','sapo']:
+for algo in ['pi_td3']:    
+    for K in [20, 40]:
         for scenario in [
                         #  'v2g_profitmax',
-                        #  'grid_v2g_profitmax',
-                         'pst_v2g_profitmax'
+                         'grid_v2g_profitmax',
+                        #  'pst_v2g_profitmax'
                          ]:
             
             if 'pst' in scenario:
@@ -80,6 +79,8 @@ for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac', 'shac','sapo
                         run_name = f'{algo}_run_{seed}_K={K}_scenario={scenario}_'
                         run_name += str(random.randint(0, 100000))
                         
+                        group_name  = f'{scenario}_PI_RL'
+                        
                         if not critic_enabled:
 
                             extra_args = ' --disable_critic'
@@ -125,13 +126,14 @@ previous=$(/usr/bin/nvidia-smi --query-accounted-apps='gpu_utilization,mem_utili
                     ' --K ' + str(K) + \
                     ' --device cuda:0' + \
                     ' --policy ' + algo + \
-                    ' --group_name ' + '"NewModels_AblationTests_300"' + \
+                    ' --group_name ' + str(group_name) + \
                     ' --seed ' + str(seed) + \
                     ' --disable_development_mode' + \
+                    ' --lightweight_wandb' + \
                     ' --lookahead_critic_reward ' + str(lookahead_critic_reward) + \
                     ' --N_agents ' + str(N_agents) + \
                     ' --batch_size ' + str(batch_size) + \
-                    ' --project_name ' + '"EVs4Grid"' + \
+                    ' --project_name ' + '"EVs4Grid_PES"' + \
                     ' --config ' + config + \
                     ' --name ' + str(run_name) + \
                     extra_args + \

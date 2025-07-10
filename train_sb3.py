@@ -1,16 +1,11 @@
-# this file is used to evalaute the performance of the ev2gym environment with various stable baselines algorithms.
-
 from stable_baselines3 import PPO, A2C, DDPG, SAC, TD3, DQN
-from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import EvalCallback
 from sb3_contrib import TQC, TRPO, ARS, RecurrentPPO, MaskablePPO, QRDQN
-from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
-from sb3_contrib.common.wrappers import ActionMasker
 
 
 from ev2gym.models.ev2gym_env import EV2Gym
-from agent.reward import V2G_grid_reward, V2G_grid_simple_reward
-from agent.state import V2G_grid_state, V2G_grid_state_ModelBasedRL
+from agent.reward import Grid_V2G_profitmaxV2
+from agent.state import V2G_grid_state_ModelBasedRL
 
 import gymnasium as gym
 import argparse
@@ -28,23 +23,26 @@ if __name__ == "__main__":
     parser.add_argument('--run_name', type=str, default="")
     parser.add_argument('--group_name', type=str, default="")
     parser.add_argument('--train_steps', type=int, default=2_000_000)        
-    parser.add_argument('--config_file', type=str,
-                        default="./config_files/v2g_grid.yaml")
+    parser.add_argument('--seed', type=int, default=0)
 
-    algorithm = parser.parse_args().algorithm
-    device = parser.parse_args().device
-    run_name = parser.parse_args().run_name
-    config_file = parser.parse_args().config_file
-
+    args = parser.parse_args()
+    algorithm = args.algorithm
+    device = args.device
+    run_name = args.run_name
+    config_file = "./config_files/v2g_grid_150_300.yaml"
+    
+    #seed the random number generator for reproducibility
+    random.seed(args.seed)    
+    
     config = yaml.load(open(config_file, 'r'), Loader=yaml.FullLoader)
 
     group_name = "150_SB3_tests"
-    reward_function = V2G_grid_simple_reward    
+    reward_function = Grid_V2G_profitmaxV2    
     state_function = V2G_grid_state_ModelBasedRL    
 
     run_name = f'{run_name}_{reward_function.__name__}_{state_function.__name__}'
 
-    run = wandb.init(project='EVs4Grid',
+    run = wandb.init(project='EVs4Grid_PES',
                      sync_tensorboard=True,
                      group=group_name,
                      entity='stavrosorf',
@@ -54,9 +52,6 @@ if __name__ == "__main__":
 
     gym.envs.register(id='evs-v0', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                       kwargs={'config_file': config_file,
-                              'verbose': False,
-                              'save_plots': False,
-                              'generate_rnd_game': True,
                               'reward_function': reward_function,
                               'state_function': state_function,
                               })

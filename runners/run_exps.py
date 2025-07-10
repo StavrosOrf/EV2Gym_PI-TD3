@@ -17,19 +17,23 @@ counter = 0
 batch_size = 64  # 256 # 512
 N_agents = 24
 
+enable_entropy = False
+critic_update_method = 'td_lambda'  # 'soft_td_lambda' # 'td_lambda'
+actor_update_steps = 4  # 8
+reward_loss_coeff = 1.0  # 0.1 # 0.01
 
-# for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
-for policy in ['pi_ppo']:
+for policy in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac', 'shac','sapo','td3', 'sac']:
+# for policy in ['pi_ppo']:
     for lookahead_critic_reward in [3]:
-        for reward_loss_coeff in [1.0]:  # , 0.1, 0.01]:
+        # for reward_loss_coeff in [1.0]:  # , 0.1, 0.01]:
             # for enable_entropy in [False]:
-                for critic_update_method in ['td_lambda','soft_td_lambda']:
-                    if critic_update_method == 'soft_td_lambda':
-                        enable_entropy = True
-                    else:
-                        enable_entropy = False
+                # for critic_update_method in ['td_lambda','soft_td_lambda']:
+                #     if critic_update_method == 'soft_td_lambda':
+                #         enable_entropy = True
+                #     else:
+                #         enable_entropy = False
                         
-                    for actor_update_steps in [4]:  # , 4, 8]:
+                #     for actor_update_steps in [4]:  # , 4, 8]:
                         for critic in [True]:
                             for K in [20]:  # 512
                                 for seed in [9]:
