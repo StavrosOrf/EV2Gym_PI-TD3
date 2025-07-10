@@ -9,12 +9,12 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [0, 10]
+seeds = [20,30]
 
 batch_size = 64
 N_agents = 24
 
-gpu = 'gpu' #gpu-a100 # gpu-a100-small # gpu
+gpu = 'gpu-a100' #gpu-a100 # gpu-a100-small # gpu
 
 # if directory does not exist, create it
 if not os.path.exists('./slurm_logs'):
@@ -22,7 +22,7 @@ if not os.path.exists('./slurm_logs'):
 
 # td3, sac, pi_sac, pi_td3, shac
 # for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac', 'shac','sapo']:
-for algo in ['shac_op']:    
+for algo in ['shac_op','pi_sac','shac_op']:    
     for K in [20, 40, 60]:
         for scenario in [
                         #  'v2g_profitmax',
@@ -76,7 +76,7 @@ for algo in ['shac_op']:
                             cpu_cores = 2
                             time = 46
                         
-                        if config == "PST_V2G_ProfixMax_150_300.yaml":
+                        if config == "v2g_grid_500_bus_123.yaml":
                             cpu_cores = 6
                             time = 46                                                        
 
