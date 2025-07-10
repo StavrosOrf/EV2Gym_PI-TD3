@@ -855,7 +855,7 @@ class V2GridLoss(nn.Module):
         #     torch.zeros_like(v0_clamped, device=self.device),
         #     0.05 - smooth_abs(1 - v0_clamped)
         # ).sum(axis=1)
-
+    
         if self.verbose:
             print(f'Voltage Loss: {voltage_loss}')
             print(f'voltage shape {v0_clamped.real.shape}')

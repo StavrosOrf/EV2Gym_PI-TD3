@@ -80,7 +80,7 @@ def evaluator():
         ChargeAsFastAsPossible,
         DoNothing,
         RandomAgent,
-        # V2GProfitMaxOracleGB,
+        V2GProfitMaxOracleGB,
         'pi_td3_run_10_K=30_scenario=grid_v2g_profitmax_80448-188243',
         'td3LookaheadCriticReward=3_Critic=True__K=40_td_lambda_horizon=20_seed=9-563606',
         'shac_run_0_K=20_scenario=grid_v2g_profitmax_97200-432696',

@@ -99,7 +99,7 @@ class PowerGrid():
             self.load_data = (self.load_data - self.load_data.min()) / \
                 (self.load_data.max() - self.load_data.min())
 
-            self.load_data = self.load_data * self.net.p_values
+            self.load_data = self.load_data * self.net.p_values * self.network_info['load_multiplier']
             self.load_data = self.load_data.round(1)
 
             self.pv_data = get_pv_load(self.pv_profile,
