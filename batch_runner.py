@@ -32,8 +32,10 @@ for algo in ['pi_td3']:
             
             if 'pst' in scenario:
                 config = "PST_V2G_ProfixMax_150_300.yaml"
+                # config = "PST_V2G_ProfixMax_500_bus_123.yaml"
             else:
-                config = "v2g_grid_150_300.yaml"
+                config = "v2g_grid_500_300.yaml"
+                # config = "v2g_grid_500_bus_123.yaml"
             
             for lookahead_critic_reward in [0]: # 2 is the default value
                 
@@ -45,19 +47,19 @@ for algo in ['pi_td3']:
                 for critic_enabled in [True]:
                     for counter, seed in enumerate(seeds):
 
-                        if K != 1 and algo in ['sac','td3']:
-                            continue           
-                        elif K == 1 and algo not in ['sac','td3']:            
-                            continue
+                        # if K != 1 and algo in ['sac','td3']:
+                        #     continue           
+                        # elif K == 1 and algo not in ['sac','td3']:            
+                        #     continue
 
                         if K <= 10:
-                            time = 15
-                        # elif K <= 20:
-                        #     time = 24
-                        # elif K <= 30:
-                        #     time = 24
+                            time = 24
+                        elif K <= 20:
+                            time = 36
+                        elif K <= 30:
+                            time = 46
                         else:
-                            time = 23
+                            time = 46
 
                         if K <= 10:
                             if algo in ['pi_td3', 'pi_sac']:
@@ -151,5 +153,5 @@ conda deactivate
                         with open(f'./slurm_logs/{run_name}.sh', 'w') as f:
                             f.write(command)
 
-                        os.system('sbatch run_tmp.sh')
+                        # os.system('sbatch run_tmp.sh')
 
