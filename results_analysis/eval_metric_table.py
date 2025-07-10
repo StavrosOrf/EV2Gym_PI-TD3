@@ -2,7 +2,7 @@ import pandas as pd
 
 
 data = pd.read_csv(
-    './results/eval_150cs_-1tr_v2g_grid_150_5_algos_100_exp_2025_04_11_446409/data.csv')
+    './results/eval_150cs_-1tr_v2g_grid_150_300_7_algos_1_exp_2025_07_09_130793/data.csv')
 
 
 print(data.shape)
@@ -21,6 +21,7 @@ columns_to_keep = ['Algorithm',
                    'total_profits',
                    'voltage_violation',
                    'voltage_violation_counter',
+                   'voltage_violation_counter_per_step',
                    'average_user_satisfaction',                                      
                    'total_energy_charged',
                    'total_energy_discharged',
@@ -59,13 +60,16 @@ data_grouped['voltage_violation'] = data_grouped['voltage_violation']\
     .apply(lambda x: f"${x['mean']:.3f}$ ±${x['std']:.3f}$", axis=1)
 data_grouped['voltage_violation_counter'] = data_grouped['voltage_violation_counter']\
     .apply(lambda x: f"${x['mean']:.1f}$ ±${x['std']:.1f}$", axis=1)
+data_grouped['voltage_violation_counter_per_step'] = data_grouped['voltage_violation_counter_per_step']\
+    .apply(lambda x: f"${x['mean']:.1f}$ ±${x['std']:.1f}$", axis=1)
 data_grouped['total_reward'] = data_grouped['total_reward']\
     .apply(lambda x: f"${x['mean']/100000:.3f}$ ±${x['std']/100000:.3f}$", axis=1)
 data_grouped['time'] = data_grouped['time']\
     .apply(lambda x: f"${x['mean']/300:.3f}$", axis=1)
 
 # rearange rows
-
+# print algorithm names
+print(data_grouped.index)
 
 # drop the mean and std columns
 data_grouped = data_grouped.droplevel(1, axis=1)
@@ -76,6 +80,7 @@ data_grouped = data_grouped.loc[:, ~data_grouped.columns.duplicated()]
 data_grouped.columns = ['Costs [€]',
                         'Voltage Violation [p.u.]',
                         'V. V. Counter [-]',
+                        'V. V. Counter per Step [-]',
                         'User Satisfaction [\%]',
                         'Energy Ch. [MWh]',
                         'Energy Dis. [MWh]',
@@ -90,9 +95,11 @@ data_grouped.index = data_grouped.index.str.replace(
     'ChargeAsFastAsPossible', 'CAFAP')
 # data_grouped.index = data_grouped.index.str.replace(
 #     'QT', 'Q-DT')
-data_grouped.index = data_grouped.index.str.replace('MB_TD3', 'MB-TD3')
+data_grouped.index = data_grouped.index.str.replace('PI_TD3', 'PI-TD3')
 data_grouped.index = data_grouped.index.str.replace(
     'RandomAgent', 'Random Charging')
+data_grouped.index = data_grouped.index.str.replace(
+    'V2GProfitMaxOracleGB', 'MPC max. profit')
 # data_grouped.index = data_grouped.index.str.replace('GNN_act_emb_DT', 'GNN-DT')
 
 
@@ -101,7 +108,8 @@ data_grouped = data_grouped.reindex(['CAFAP',
                                      'Random Charging',
                                      'DoNothing',
                                      'TD3',
-                                     'MB-TD3',
+                                     'PI-TD3',
+                                     'MPC max. profit'
                                     #  'Optimal (Offline)'
                                      ])
 
