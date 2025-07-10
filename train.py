@@ -133,7 +133,8 @@ if __name__ == "__main__":
     parser.add_argument('--disable_development_mode', action='store_true',
                         default=False)
 
-    parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
+    parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)        
+    parser.add_argument('--lightweight_wandb', action='store_true')
     parser.add_argument("--eval_episodes", default=50, type=int)
     parser.add_argument("--start_timesteps", default=5000,
                         type=int)  # original 25e5
@@ -398,23 +399,17 @@ if __name__ == "__main__":
 
     if args.log_to_wandb:
 
-        if args.load_model != "":
-            resume_mode = "must"
-        else:
-            resume_mode = "never"
-
         wandb.init(
             name=exp_prefix,
             group=group_name,
             id=exp_prefix,
             project=args.project_name,
             entity='stavrosorf',
-            save_code=True,
-            config=config,
-            resume=resume_mode,
+            save_code= (not args.lightweight_wandb),
+            config=config,            
         )
-
-        wandb.run.log_code(".")
+        if not args.lightweight_wandb:
+            wandb.run.log_code(".")
 
     state_dim = env.observation_space.shape[0]
     kwargs = {
@@ -464,7 +459,7 @@ if __name__ == "__main__":
         yaml.dump(kwargs, file)
 
     if args.policy == "td3":
-        os.system(f'cp algorithms/TD3.py {save_path}')
+        # os.system(f'cp algorithms/TD3.py {save_path}')
         policy = TD3(**kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
 
@@ -474,7 +469,7 @@ if __name__ == "__main__":
                      action_space=env.action_space,
                      args=kwargs)
         replay_buffer = ReplayBuffer(state_dim, action_dim)
-        os.system(f'cp algorithms/SAC/sac.py {save_path}')
+        # os.system(f'cp algorithms/SAC/sac.py {save_path}')
 
     elif args.policy == 'pi_sac':
 
@@ -486,10 +481,10 @@ if __name__ == "__main__":
                                                 action_dim,
                                                 device=device,
                                                 max_episode_length=simulation_length,)
-        os.system(f'cp algorithms/SAC/pi_SAC.py {save_path}')
+        # os.system(f'cp algorithms/SAC/pi_SAC.py {save_path}')
 
     elif args.policy == "pi_td3":
-        os.system(f'cp algorithms/pi_TD3.py {save_path}')
+        # os.system(f'cp algorithms/pi_TD3.py {save_path}')
         policy = PI_TD3(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -498,7 +493,7 @@ if __name__ == "__main__":
 
     elif args.policy == "shac":
 
-        os.system(f'cp algorithms/shac.py {save_path}')
+        # os.system(f'cp algorithms/shac.py {save_path}')
         policy = SHAC(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -506,7 +501,7 @@ if __name__ == "__main__":
                                                 max_episode_length=simulation_length,)
     elif args.policy == "sapo":
 
-        os.system(f'cp algorithms/sapo.py {save_path}')
+        # os.system(f'cp algorithms/sapo.py {save_path}')
         policy = SAPO(**kwargs)
         replay_buffer = SAPO_Trajectory_ReplayBuffer(state_dim,
                                                      action_dim,
@@ -515,7 +510,7 @@ if __name__ == "__main__":
 
     elif args.policy == "shac_op":
 
-        os.system(f'cp algorithms/shac_onpolicy.py {save_path}')
+        # os.system(f'cp algorithms/shac_onpolicy.py {save_path}')
         policy = SHAC_OnPolicy(**kwargs)
         replay_buffer = ParallelEnvs_ReplayBuffer(state_dim,
                                                   action_dim,
@@ -524,7 +519,7 @@ if __name__ == "__main__":
                                                   max_size=args.N_agents,)
     elif args.policy == "sapo_op":
 
-        os.system(f'cp algorithms/sapo_onpolicy.py {save_path}')
+        # os.system(f'cp algorithms/sapo_onpolicy.py {save_path}')
         policy = SAPO_OnPolicy(**kwargs)
         replay_buffer = ParallelEnvs_ReplayBuffer(state_dim,
                                                   action_dim,
@@ -534,7 +529,7 @@ if __name__ == "__main__":
 
     elif args.policy == "pi_ppo":
 
-        os.system(f'cp algorithms/pi_ppo.py {save_path}')
+        # os.system(f'cp algorithms/pi_ppo.py {save_path}')
         policy = PhysicsInformedPPO(**kwargs)
         replay_buffer = ParallelEnvs_ReplayBuffer(state_dim,
                                                   action_dim,
@@ -544,7 +539,7 @@ if __name__ == "__main__":
 
     elif args.policy == "reinforce":
 
-        os.system(f'cp algorithms/reinforce.py {save_path}')
+        # os.system(f'cp algorithms/reinforce.py {save_path}')
         policy = Reinforce(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -552,11 +547,11 @@ if __name__ == "__main__":
                                                 max_episode_length=simulation_length,)
 
     elif args.policy == "ppo":
-        os.system(f'cp algorithms/ppo.py {save_path}')
+        # os.system(f'cp algorithms/ppo.py {save_path}')
         policy = PPO(**kwargs)
 
     elif args.policy == "pi_DDPG":
-        os.system(f'cp algorithms/pi_DDPG.py {save_path}')
+        # os.system(f'cp algorithms/pi_DDPG.py {save_path}')
         policy = PI_DDPG(**kwargs)
         replay_buffer = Trajectory_ReplayBuffer(state_dim,
                                                 action_dim,
@@ -679,16 +674,16 @@ if __name__ == "__main__":
                     f" Time: {time.time() - start_time:.3f}")
 
                 if args.log_to_wandb:
-                    wandb.log({'train_ep/episode_reward': np.mean(rewards),
-                               'train_ep/episode_num': episode_num},
-                              step=t)
-
+                    
+                    train_logs = {                     
+                        'train_ep/episode_num': episode_num + 1,
+                        'train_ep/episode_reward': np.mean(rewards),
+                        'train/time': time.time() - ep_start_time,
+                    }                    
                     for key in loss_dict.keys():
-                        wandb.log({f'train/{key}': loss_dict[key]},
-                                  step=t)
-                    wandb.log({
-                        'train/time': time.time() - start_time, },
-                        step=t)
+                        train_logs[f'train/{key}'] = loss_dict[key]
+
+                    wandb.log(train_logs, step=t)
 
                 episode_num += 1
                 episode_timesteps = -1
@@ -710,9 +705,8 @@ if __name__ == "__main__":
                     policy.save(f'saved_models/{exp_prefix}/model.best')
 
                 if args.log_to_wandb:
-                    wandb.log({'eval_a/mean_reward': evaluations[-1],
-                               'eval_a/best_reward': best_reward, },
-                              step=t)
+                    eval_stats['eval/mean_reward'] = evaluations[-1]
+                    eval_stats['eval/best_reward'] = best_reward
 
                     wandb.log(eval_stats,
                               step=t)
@@ -724,7 +718,7 @@ if __name__ == "__main__":
 
             episode_timesteps += 1
 
-            if args.policy in ["sac", "shac", "pi_sac", "shac_op"]:
+            if args.policy in ["sac", "shac", "pi_sac"]:
                 action = policy.select_action(state, evaluate=False)
                 next_state, reward, done, _, stats = env.step(action)
 
@@ -756,7 +750,7 @@ if __name__ == "__main__":
                 policy.buffer.rewards.append(reward)
                 policy.buffer.is_terminals.append(done)
 
-            elif args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op', 'sapo']:
+            elif args.policy not in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'sapo']:
                 # Store data in replay buffer
                 replay_buffer.add(state, action, next_state,
                                   reward, float(done))
@@ -814,16 +808,18 @@ if __name__ == "__main__":
 
                 if args.log_to_wandb and policy != "reinforce" and loss_dict is not None:
 
-                    for key in loss_dict.keys():
-                        wandb.log({f'train/{key}': loss_dict[key]},
-                                  step=t)
-                    wandb.log({
-                        'train/time': time.time() - start_time, },
-                        step=t)
+                    if not args.lightweight_wandb:
+                        for key in loss_dict.keys():
+                            wandb.log({f'train/{key}': loss_dict[key]},
+                                    step=t)
+                                                                            
+                        wandb.log({
+                            'train/time': time.time() - start_time, },
+                            step=t)
 
             if done:
 
-                if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac', 'shac_op', 'sapo']:
+                if args.policy in ["pi_td3", "pi_DDPG", "shac", 'reinforce', 'pi_sac','sapo']:
                     # Store trajectory in replay buffer
 
                     if args.policy == "sapo":
@@ -864,7 +860,7 @@ if __name__ == "__main__":
                     log_probs_traj.zero_()
                     entropy_traj.zero_()
 
-                    if args.log_to_wandb:
+                    if args.log_to_wandb and not args.lightweight_wandb:
 
                         # log all loss_dict keys, but add train/ in front of their name
                         for key in loss_dict.keys():
@@ -872,23 +868,6 @@ if __name__ == "__main__":
                                       step=t)
                         wandb.log({
                             #    'train/physics_loss': loss_dict['physics_loss'],
-                            'train/time': time.time() - start_time, },
-                            step=t)
-
-                elif args.policy == "shac_op" and episode_num % args.N_agents == 0 and episode_num > 0:
-                    print(
-                        f"Training SHAC on-policy at timestep {t} for episode {episode_num}...")
-                    start_time = time.time()
-                    loss_dict = policy.train(replay_buffer, args.batch_size)
-                    shac_trained = True
-
-                    if args.log_to_wandb:
-
-                        # log all loss_dict keys, but add train/ in front of their name
-                        for key in loss_dict.keys():
-                            wandb.log({f'train/{key}': loss_dict[key]},
-                                      step=t)
-                        wandb.log({
                             'train/time': time.time() - start_time, },
                             step=t)
 
@@ -911,11 +890,7 @@ if __name__ == "__main__":
                 episode_timesteps = -1
 
             # Evaluate episode
-            if ((t + 1) % args.eval_freq == 0 and t + 100 >= args.start_timesteps) or shac_trained:
-                if shac_trained:
-                    shac_trained = False
-                elif args.policy == "shac_op":
-                    continue
+            if ((t + 1) % args.eval_freq == 0 and t + 100 >= args.start_timesteps):
 
                 avg_reward, eval_stats = eval_policy(policy=policy,
                                                      args=args,
@@ -930,9 +905,8 @@ if __name__ == "__main__":
                     policy.save(f'saved_models/{exp_prefix}/model.best')
 
                 if args.log_to_wandb:
-                    wandb.log({'eval_a/mean_reward': evaluations[-1],
-                               'eval_a/best_reward': best_reward, },
-                              step=t)
+                    eval_stats['eval_a/mean_reward'] = evaluations[-1]
+                    eval_stats['eval_a/best_reward'] = best_reward
 
                     wandb.log(eval_stats,
                               step=t)
