@@ -9,10 +9,10 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [0]
+seeds = [0, 10]
 
 batch_size = 64
-N_agents = 16
+N_agents = 24
 
 gpu = 'gpu' #gpu-a100 # gpu-a100-small # gpu
 
@@ -22,8 +22,8 @@ if not os.path.exists('./slurm_logs'):
 
 # td3, sac, pi_sac, pi_td3, shac
 # for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac', 'shac','sapo']:
-for algo in ['pi_td3']:    
-    for K in [20, 40]:
+for algo in ['shac_op']:    
+    for K in [20, 40, 60]:
         for scenario in [
                         #  'v2g_profitmax',
                          'grid_v2g_profitmax',
@@ -34,7 +34,7 @@ for algo in ['pi_td3']:
                 config = "PST_V2G_ProfixMax_150_300.yaml"
                 # config = "PST_V2G_ProfixMax_500_bus_123.yaml"
             else:
-                config = "v2g_grid_500_300.yaml"
+                config = "v2g_grid_150_300.yaml"
                 # config = "v2g_grid_500_bus_123.yaml"
             
             for lookahead_critic_reward in [0]: # 2 is the default value
@@ -71,7 +71,14 @@ for algo in ['pi_td3']:
                             cpu_cores = 3
                         else:
                             cpu_cores = 4
-                                                        
+                            
+                        if algo in ['shac_op', 'sapo_op']:
+                            cpu_cores = 2
+                            time = 46
+                        
+                        if config == "PST_V2G_ProfixMax_150_300.yaml":
+                            cpu_cores = 6
+                            time = 46                                                        
 
                         if time > 46:
                             time = 46
@@ -153,5 +160,5 @@ conda deactivate
                         with open(f'./slurm_logs/{run_name}.sh', 'w') as f:
                             f.write(command)
 
-                        # os.system('sbatch run_tmp.sh')
+                        os.system('sbatch run_tmp.sh')
 

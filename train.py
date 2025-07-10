@@ -407,7 +407,9 @@ if __name__ == "__main__":
             entity='stavrosorf',
             save_code= (not args.lightweight_wandb),
             config=config,            
+            mode="offline"
         )
+        
         if not args.lightweight_wandb:
             wandb.run.log_code(".")
 
