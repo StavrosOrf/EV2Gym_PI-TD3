@@ -63,7 +63,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 10
+    n_test_cycles = 1
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
 
@@ -210,6 +210,7 @@ def evaluator():
                          load_from_replay_path=replay_path,
                          state_function=state_function,
                          reward_function=reward_function,
+                         lightweight_plots=False,
                          )
 
             # initialize the timer
