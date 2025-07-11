@@ -164,7 +164,6 @@ cython_debug/
 
 results/
 replay/
-custom_llm_end2end/
 wandb/
 logs/
 eval_logs/
@@ -177,3 +176,6 @@ slurm_logs/
 run_tmp.sh
 checkpoints/
 .lprof/
+results_analysis/old_data/
+results_analysis/figs/
+results_analysis/pes/

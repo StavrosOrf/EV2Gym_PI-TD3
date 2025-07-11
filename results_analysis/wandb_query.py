@@ -12,16 +12,16 @@ os.environ['WANDB_HTTP_TIMEOUT'] = '300'
 api = wandb.Api()
 
 # Replace 'your_project_name' and 'your_entity_name' with your actual project and entity
-project_name = "EVs4Grid_Exps"
+project_name = "EVs4Grid_PES"
 entity_name = "stavrosorf"
-# group_name = "ProofExps_grid_v2g_profitmax_150cs_-1tr"
+group_name = "grid_v2g_profitmax_PI_RL_grid_v2g_profitmax_150cs_-1tr"
 
 
 # Fetch runs from the specified project
 runs = api.runs(f"{entity_name}/{project_name}")
 print(f"Total runs fetched: {len(runs)}")
 
-# runs = [run for run in runs if run.group == group_name]
+runs = [run for run in runs if run.group == group_name]
 print(f"Total runs fetched: {len(runs)}")
 
 # Display the filtered runs with group names
@@ -46,15 +46,19 @@ for i, run in tqdm.tqdm(enumerate(runs), total=len(runs)):
 
     config = run.config
     name = run.name
+    print(f"Processing run {i+1}/{len(runs)}: {name} - Group: {group_name}")
 
-    if "mb_traj" in name:
-        algorithm = "MB-TD3"
+    if "pi_td3" in name:
+        algorithm = "PI-TD3"
+    elif "pi_sac" in name:
+        algorithm = "PI-SAC"
     else:
         algorithm = name.split("_")[0]
 
-    if algorithm == "MB-TD3":
+    if algorithm in ["PI-TD3", "PI-SAC"]:
         K = name.split("_")[4].split("K=")[1]
         seed = name.split("_")[3]
+        continue
     else:
         K = name.split("_")[3].split("K=")[1]
         seed = name.split("_")[2]
