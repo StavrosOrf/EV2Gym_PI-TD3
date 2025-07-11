@@ -397,7 +397,7 @@ def evaluator():
                     if any(algo in algorithm for algo in ['a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
                         action, _ = model.predict(
                             state, deterministic=True)
-                        obs, reward, done, stats = env.step(action)
+                        state, reward, done, stats = env.step(action)
 
                         if i == simulation_length - 2:
                             saved_env = deepcopy(
