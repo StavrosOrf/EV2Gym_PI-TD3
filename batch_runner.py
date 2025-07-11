@@ -9,7 +9,7 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [20,30]
+seeds = [0,10,20,30,40]
 
 batch_size = 64
 N_agents = 24
@@ -22,8 +22,8 @@ if not os.path.exists('./slurm_logs'):
 
 # td3, sac, pi_sac, pi_td3, shac
 # for algo in ['pi_td3', 'sapo_op', 'shac_op', 'pi_sac','td3', 'sac', 'shac','sapo']:
-for algo in ['shac_op','pi_sac','shac_op']:    
-    for K in [20, 40, 60]:
+for algo in ['td3','sac']:    
+    for K in [1]:
         for scenario in [
                         #  'v2g_profitmax',
                          'grid_v2g_profitmax',
@@ -53,7 +53,7 @@ for algo in ['shac_op','pi_sac','shac_op']:
                         #     continue
 
                         if K <= 10:
-                            time = 24
+                            time = 23
                         elif K <= 20:
                             time = 36
                         elif K <= 30:

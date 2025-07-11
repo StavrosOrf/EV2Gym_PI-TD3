@@ -116,7 +116,7 @@ if __name__ == "__main__":
     # td3, pi_td3
     # pi_ddpg
     # shac
-    parser.add_argument("--policy", default="pi_ppo",)
+    parser.add_argument("--policy", default="sac",)
     parser.add_argument("--name", default="base")
     parser.add_argument("--scenario", default="pst_v2g_profitmax")
     parser.add_argument("--project_name", default="EVs4Grid")

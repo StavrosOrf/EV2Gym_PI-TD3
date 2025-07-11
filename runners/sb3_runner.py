@@ -7,8 +7,8 @@ import time
 import random
 
 counter = 0
-n_runs = 1
-strt_run = 0
+n_runs = 2
+strt_run = 1
 
 for algorithm in ['td3', 'ppo','sac']:
     for run in range(strt_run, strt_run+n_runs):
