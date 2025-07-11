@@ -10,7 +10,7 @@ import os
 import sys
 
 # Add the project root to Python path to import ev2gym
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -126,7 +126,7 @@ def plot_grid_metrics(results_path,
             env.node_active_power[node, :] + env.node_ev_power[node, :],
             label=label,
             where='post',
-            linewidth=1,
+            linewidth=1.5,
             color=color,
             marker=marker,
             markevery=20,
@@ -193,7 +193,7 @@ def plot_grid_metrics(results_path,
             env.node_voltage[node, :],
             label=label,
             where='post',
-            linewidth=1,
+            linewidth=1.5,
             color=color,
             marker=marker,
             markevery=20,
@@ -386,7 +386,7 @@ if __name__ == "__main__":
             algorithm_names = [line.strip() for line in f.readlines()]
 
     # Plot grid metrics (power and voltage)
-    # plot_grid_metrics(results_path, algorithm_names, save_path)
+    plot_grid_metrics(results_path, algorithm_names, save_path)
     
     # Plot EV SoC with the same styling and algorithms
     plot_comparable_EV_SoC_single(results_path, save_path, algorithm_names)
