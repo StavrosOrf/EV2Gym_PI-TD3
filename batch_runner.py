@@ -9,12 +9,12 @@ srun --mpi=pmix --job-name=interactive --partition=compute --cpus-per-task=1 --q
 import os
 import random
 
-seeds = [0,10,20,30,40]
+seeds = [0,10,20]
 
 batch_size = 64
 N_agents = 24
 
-gpu = 'gpu-a100' #gpu-a100 # gpu-a100-small # gpu
+gpu = 'gpu' #gpu-a100 # gpu-a100-small # gpu
 
 # if directory does not exist, create it
 if not os.path.exists('./slurm_logs'):
@@ -34,8 +34,8 @@ for algo in ['td3','sac']:
                 config = "PST_V2G_ProfixMax_150_300.yaml"
                 # config = "PST_V2G_ProfixMax_500_bus_123.yaml"
             else:
-                config = "v2g_grid_150_300.yaml"
-                # config = "v2g_grid_500_bus_123.yaml"
+                # config = "v2g_grid_150_300.yaml"
+                config = "v2g_grid_500_bus_123.yaml"
             
             for lookahead_critic_reward in [0]: # 2 is the default value
                 
