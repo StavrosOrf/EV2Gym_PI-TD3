@@ -63,7 +63,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 3
+    n_test_cycles = 5
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
     SAVE_VOLTAGE_MINIMUM = False
@@ -85,10 +85,10 @@ def evaluator():
         # RandomAgent,
         # V2GProfitMaxOracleGB,
 
-        # "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
+        "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
         "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
-        # "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
-        # "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",
+        "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
+        "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",
         "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
 
         # 'pi_td3_run_10_K=30_scenario=grid_v2g_profitmax_80448-188243',

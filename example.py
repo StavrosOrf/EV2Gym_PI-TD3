@@ -34,7 +34,7 @@ def eval():
     # config_file = "./config_files/PST_V2G_ProfixMax_150.yaml"
     # config_file = "./config_files/v2g_grid_150.yaml"
     # config_file = "./config_files/v2g_grid_150_bus_123.yaml"
-    config_file = "./config_files/v2g_grid_3.yaml"
+    config_file = "./config_files/v2g_grid_35.yaml"
 
     # config_file = "./config_files/v2g_grid_50.yaml"
 
@@ -234,22 +234,23 @@ def eval():
 
 def evaluate_optimal(new_replay_path):
 
-    # agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
+    agent = V2GProfitMax_Grid_OracleGB(replay_path=new_replay_path)
 
     # # Profit maximization optimizer
     # agent = V2GProfitMaxOracleGB(replay_path=new_replay_path)
-    agent = ChargeAsFastAsPossible()
+    # agent = ChargeAsFastAsPossible()
     # # Simulate in the gym environment and get the rewards
-    # config_file = "./config_files/v2g_grid_3.yaml"
-    config_file = "./config_files/v2g_grid_50.yaml"
+    config_file = "./config_files/v2g_grid_35.yaml"
+    # config_file = "./config_files/v2g_grid_50.yaml"
 
     env = EV2Gym(config_file=config_file,
                  load_from_replay_path=new_replay_path,
                  verbose=False,
-                 save_plots=False,
+                 save_plots=True,
                  state_function=V2G_grid_state_ModelBasedRL,
                  reward_function=V2G_profitmaxV2,
                  )
+    
     new_state, _ = env.reset()
     rewards_opt = []
 
@@ -275,8 +276,9 @@ def evaluate_optimal(new_replay_path):
 
 if __name__ == "__main__":
     # while True:
-    new_replay_path = eval()
-    exit()
+    # new_replay_path = eval()
+    # exit()
 
-    new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
+    # new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
+    new_replay_path = './replay/replay_sim_2025_07_13_216595.pkl'
     evaluate_optimal(new_replay_path)
