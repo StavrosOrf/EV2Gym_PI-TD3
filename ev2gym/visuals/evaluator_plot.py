@@ -176,7 +176,10 @@ def plot_grid_metrics(results_path, save_path=None, algorithm_names=None):
         
         # Plot voltage limits (same for all algorithms)
         ax.plot(date_range, [0.95] * len(date_range), 'r--',linewidth=0.5)
-        ax.plot(date_range, [1.05] * len(date_range), 'r--',linewidth=0.5)
+        # ax.plot(date_range, [1.05] * len(date_range), 'r--',linewidth=0.5)
+        
+        #set ylim
+        ax.set_ylim([0.92, 1.02])
 
         ax.set_title(f'Node {node}', fontsize=6)
         if node % dim_x == 0:

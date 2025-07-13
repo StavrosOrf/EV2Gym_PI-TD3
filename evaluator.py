@@ -10,7 +10,7 @@ from ev2gym.baselines.gurobi_models.tracking_error import PowerTrackingErrorrMin
 
 from algorithms.SAC.sac import SAC
 from algorithms.SAC.pi_SAC import PI_SAC
-from algorithms.ppo import PPO
+# from algorithms.ppo import PPO
 from algorithms.TD3 import TD3
 from algorithms.pi_TD3 import PI_TD3
 from algorithms.pi_DDPG import PI_DDPG
@@ -22,7 +22,7 @@ from algorithms.sapo import SAPO
 from algorithms.sapo_onpolicy import SAPO_OnPolicy
 
 # from sb3_contrib import TQC, TRPO, ARS, RecurrentPPO
-# from stable_baselines3 import PPO, A2C, DDPG, SAC
+from stable_baselines3 import PPO
 # from stable_baselines3 import TD3 as TD3_SB3
 from ev2gym.baselines.mpc.V2GProfitMax import V2GProfitMaxOracle, V2GProfitMaxLoadsOracle
 from ev2gym.baselines.mpc.eMPC_v2 import eMPC_V2G_v2
@@ -63,9 +63,10 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 100
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
+    SAVE_VOLTAGE_MINIMUM = False
 
     config_file = "./config_files/v2g_grid_150_300.yaml"
     # config_file = "./config_files/v2g_grid_150.yaml"
@@ -81,9 +82,17 @@ def evaluator():
         DoNothing,
         RandomAgent,
         V2GProfitMaxOracleGB,
-        'pi_td3_run_10_K=30_scenario=grid_v2g_profitmax_80448-188243',
-        'td3LookaheadCriticReward=3_Critic=True__K=40_td_lambda_horizon=20_seed=9-563606',
-        'shac_run_0_K=20_scenario=grid_v2g_profitmax_97200-432696',
+        "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
+        "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
+        "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
+        "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",
+        "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
+        
+        # 'pi_td3_run_10_K=30_scenario=grid_v2g_profitmax_80448-188243',
+        # 'td3LookaheadCriticReward=3_Critic=True__K=40_td_lambda_horizon=20_seed=9-563606',
+        # 'shac_run_0_K=20_scenario=grid_v2g_profitmax_97200-432696',
+        
+        
         # 'mb_traj_run_70_K=70_scenario=grid_v2g_profitmax_47956-289507',
         # 'TD3_run_50_K=1_scenario=grid_v2g_profitmax_36803-857049',
     ]
@@ -140,6 +149,13 @@ def evaluator():
 
     if SAVE_EV_PROFILES:
         ev_profiles = []
+        
+    if SAVE_VOLTAGE_MINIMUM:
+        voltage_minimum = {}
+        for i in algorithms:
+            voltage_minimum[i] = {}
+            for j in range(34):#nbuses
+                voltage_minimum[i][j] = []
 
     def generate_replay(evaluation_name):
         env = EV2Gym(config_file=config_file,
@@ -243,38 +259,33 @@ def evaluator():
 
                     algorithm_name = algorithm.__name__
 
-                elif any(algo in algorithm for algo in ['a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
+                elif any(algo in algorithm for algo in ['ppo', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
 
                     gym.envs.register(id='evs-v0', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
                                       kwargs={'config_file': config_file,
-                                              'generate_rnd_game': True,
                                               'state_function': state_function_Normal,
                                               'reward_function': reward_function,
                                               'load_from_replay_path': replay_path,
                                               })
                     env = gym.make('evs-v0')
 
-                    load_path = f'./saved_models/{algorithm}/best_model.zip'
+                    load_path = f'./eval_models/{algorithm}/best_model.zip'
 
                     # initialize the timer
                     timer = time.time()
                     algorithm_name = algorithm.split('_')[0]
 
-                    if 'rppo' in algorithm:
-                        sb3_algo = RecurrentPPO
-                    elif 'ppo' in algorithm:
+                    # if 'rppo' in algorithm:
+                    #     sb3_algo = RecurrentPPO
+                    # el
+                    if 'ppo' in algorithm:
                         sb3_algo = PPO
-                    elif 'a2c' in algorithm:
-                        sb3_algo = A2C
-                    elif 'ddpg' in algorithm:
-                        sb3_algo = DDPG
-                    elif 'tqc' in algorithm:
-                        sb3_algo = TQC
-                    elif 'trpo' in algorithm:
-                        sb3_algo = TRPO
-                    elif 'td3' in algorithm:
-                        print("Loading TD3-SB3 model")
-                        sb3_algo = TD3_SB3
+                    # elif 'a2c' in algorithm:
+                    #     sb3_algo = A2C
+                    # elif 'tqc' in algorithm:
+                    #     sb3_algo = TQC
+                    # elif 'trpo' in algorithm:
+                    #     sb3_algo = TRPO
 
                     else:
                         exit()
@@ -285,25 +296,43 @@ def evaluator():
                                           )
                     # set replay buffer to None
 
-                    if 'tqc' in algorithm or 'ddpg' in algorithm:
-                        model.replay_buffer = model.replay_buffer.__class__(1,
-                                                                            model.observation_space,
-                                                                            model.action_space,
-                                                                            device=model.device,
-                                                                            optimize_memory_usage=model.replay_buffer.optimize_memory_usage)
-
                     env = model.get_env()
                     state = env.reset()
 
-                elif "SAC" in algorithm:
-                    # remove _SL from the algorithm name
-
+                elif "pi_sac" in algorithm:
                     algorithm_path = algorithm
                     load_model_path = f'./eval_models/{algorithm_path}/'
                     # Load kwargs.yaml as a dictionary
                     with open(f'{load_model_path}kwargs.yaml') as file:
                         kwargs = yaml.load(
-                            file, Loader=yaml.FullLoader)
+                            file, Loader=yaml.UnsafeLoader)
+
+                    state_dim = env.observation_space.shape[0]
+                    model = PI_SAC(num_inputs=state_dim,
+                                   action_space=env.action_space,
+                                   args=kwargs)
+
+                    algorithm_name = "PI_SAC"
+                    model.load(ckpt_path=f'{load_model_path}model.best',
+                               evaluate=True)
+
+                    if k == 0:
+                        actor_model = model.policy
+                        model_parameters = filter(
+                            lambda p: p.requires_grad, actor_model.parameters())
+                        params = sum([np.prod(p.size())
+                                      for p in model_parameters])
+                        print(
+                            f'Actor model has {params} trainable parameters')
+                
+                elif "sac" in algorithm:
+                    algorithm_path = algorithm
+                    load_model_path = f'./eval_models/{algorithm_path}/'
+                    print(f'Loading SAC model from {load_model_path}')
+                    # Load kwargs.yaml as a dictionary
+                    with open(f'{load_model_path}kwargs.yaml') as file:
+                        kwargs = yaml.load(
+                            file, Loader=yaml.UnsafeLoader)
 
                     state_dim = env.observation_space.shape[0]
                     model = SAC(num_inputs=state_dim,
@@ -395,7 +424,7 @@ def evaluator():
             for i in range(simulation_length):
 
                 if type(algorithm) == str:
-                    if any(algo in algorithm for algo in ['a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
+                    if any(algo in algorithm for algo in ['ppo', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
                         action, _ = model.predict(
                             state, deterministic=True)
                         state, reward, done, stats = env.step(action)
@@ -460,14 +489,23 @@ def evaluator():
                     if k == n_test_cycles - 1:
                         replay_buffers[algorithm_name] = replay_buffers.pop(
                             algorithm)
+                        
+                if SAVE_VOLTAGE_MINIMUM:
+                    voltages = env.node_voltage
+                    print(f'Voltages: {voltages.shape}')
+                    for i_bus in range(len(voltages)):
+                        voltage_minimum[algorithm][i_bus].append(
+                            #just empty values of the voltage
+                            voltages[i_bus].tolist())                            
 
                 if counter == 1:
                     results = results_i
                 else:
                     results = pd.concat([results, results_i])
-
-                # if algorithm in [PPO, A2C, DDPG, SAC, TD3, TQC, TRPO, ARS, RecurrentPPO]:
-                #     env = saved_env
+                
+                if type(algorithm) == str:
+                    if "ppo" in algorithm:
+                        env = saved_env
 
                 if k == 0:
                     plot_results_dict[str(
@@ -503,6 +541,19 @@ def evaluator():
         "<class 'ev2gym.baselines.gurobi_models.tracking_error.PowerTrackingErrorrMin'>",
         'Oracle'
     )
+    
+    if SAVE_VOLTAGE_MINIMUM:
+        #print the sizes
+        for algo in voltage_minimum:
+            print(f'Voltage minimum for {algo}: {len(voltage_minimum[algo])} runs')
+            for i_bus in voltage_minimum[algo]:
+                print(f'Bus {i_bus}: {len(voltage_minimum[algo][i_bus])} voltages')
+            
+        with gzip.open(save_path + 'voltage_minimum.pkl.gz', 'wb') as f:
+            pickle.dump(voltage_minimum, f)
+            print(f'Saving voltage minimum to {save_path}voltage_minimum.pkl.gz')
+        exit()
+    
     print(results['algorithm_version'].unique())
 
     # save the results to a csv file
@@ -522,7 +573,7 @@ def evaluator():
 
     print(results_grouped[[
         'total_profits',
-        'total_ev_served',
+        # 'total_ev_served',
         'average_user_satisfaction',
         'total_energy_charged',
         'total_energy_discharged',
