@@ -29,6 +29,7 @@ from ev2gym.baselines.mpc.eMPC_v2 import eMPC_V2G_v2
 from ev2gym.baselines.mpc.eMPC import eMPC_V2G, eMPC_G2V
 from ev2gym.baselines.mpc.ocmf_mpc import OCMF_V2G, OCMF_G2V
 from ev2gym.baselines.heuristics import RandomAgent, DoNothing, ChargeAsFastAsPossible
+from ev2gym.baselines.gurobi_models.v2g_grid_old import V2GProfitMax_Grid_OracleGB
 
 from agent.state import V2G_grid_state_ModelBasedRL
 from agent.reward import Grid_V2G_profitmaxV2
@@ -63,7 +64,7 @@ def evaluator():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ############# Simulation Parameters #################
-    n_test_cycles = 5
+    n_test_cycles = 10
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
     SAVE_VOLTAGE_MINIMUM = False
@@ -82,22 +83,15 @@ def evaluator():
     algorithms = [
         ChargeAsFastAsPossible,
         DoNothing,
+        V2GProfitMax_Grid_OracleGB,
         # RandomAgent,
-        # V2GProfitMaxOracleGB,
+        V2GProfitMaxOracleGB,
 
         "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
-        "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
-        "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
+        # "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
+        # "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
         "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",
-        "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
-
-        # 'pi_td3_run_10_K=30_scenario=grid_v2g_profitmax_80448-188243',
-        # 'td3LookaheadCriticReward=3_Critic=True__K=40_td_lambda_horizon=20_seed=9-563606',
-        # 'shac_run_0_K=20_scenario=grid_v2g_profitmax_97200-432696',
-
-
-        # 'mb_traj_run_70_K=70_scenario=grid_v2g_profitmax_47956-289507',
-        # 'TD3_run_50_K=1_scenario=grid_v2g_profitmax_36803-857049',
+        # "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
     ]
 
     # create a AnalysisReplayBuffer object for each algorithm

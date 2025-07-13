@@ -10,7 +10,7 @@ from agent.reward import Grid_V2G_profitmaxV2, V2G_grid_simple_reward, V2G_profi
 from agent.transition_fn import VoltageViolationLoss, V2G_Grid_StateTransition
 from agent.loss_fn import V2GridLoss
 
-from ev2gym.baselines.gurobi_models.v2g_grid import V2GProfitMax_Grid_OracleGB
+from ev2gym.baselines.gurobi_models.v2g_grid_old import V2GProfitMax_Grid_OracleGB
 from ev2gym.baselines.gurobi_models.profit_max import V2GProfitMaxOracleGB
 
 import numpy as np

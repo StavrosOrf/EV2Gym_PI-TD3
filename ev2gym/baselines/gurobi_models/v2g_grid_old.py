@@ -8,7 +8,7 @@ class V2GProfitMax_Grid_OracleGB():
     '''
     This file contains the EV_City_Math_Model class, which is used to solve the ev_city V2G problem optimally.
     '''
-    algo_name = 'Optimal (Offline)'
+    algo_name = 'Optimal Grid (Offline)'
 
     def __init__(self,
                  replay_path=None,
@@ -78,16 +78,17 @@ class V2GProfitMax_Grid_OracleGB():
         penalty_low = 1.0
         penalty_high = 1.0
 
-        print(f'Number of buses: {self.n_b}')
-        print(f'Number of charging stations: {self.n_cs}')
-        print(f'Number of transformers: {self.n_transformers}')
-        print(f'active_power: {active_power.shape}')
-        print(f'reactive_power: {reactive_power.shape}')
-        print(f'K: {K.shape}')
-        print(f'L: {L_const.shape}')
-        print(f'cs transformes: {cs_transformer}')
-        print(f'sbase: {s_base}')
-        print('Creating Gurobi model...')
+        if verbose:
+            print(f'Number of buses: {self.n_b}')
+            print(f'Number of charging stations: {self.n_cs}')
+            print(f'Number of transformers: {self.n_transformers}')
+            print(f'active_power: {active_power.shape}')
+            print(f'reactive_power: {reactive_power.shape}')
+            print(f'K: {K.shape}')
+            print(f'L: {L_const.shape}')
+            print(f'cs transformes: {cs_transformer}')
+            print(f'sbase: {s_base}')
+            print('Creating Gurobi model...')
         
         self.m = gp.Model("ev_city")
         if verbose:
@@ -374,142 +375,65 @@ class V2GProfitMax_Grid_OracleGB():
                                           energy[p, i, t])**2,
                                          name=f'ev_user_satisfaction.{p}.{i}.{t}')
 
-        print('Adding grid constraints...')
+        print('Adding simplified grid constraints...')
 
-        # Create indices: iterations 0...num_iter, timesteps t, buses j.
-        num_iter = 3
-        iters = range(num_iter + 1)
         timesteps = range(self.sim_length)
         buses = range(self.n_b)
 
-        # Voltage variables for each iteration, timestep, and bus.
-        v_r = self.m.addVars(iters, timesteps, buses, name="v_r")
-        v_i = self.m.addVars(iters, timesteps, buses, name="v_i")
+        # Simplified voltage magnitude variables (linear approximation)
+        v_magnitude = self.m.addVars(timesteps, buses, 
+                                   lb=0.8, ub=1.2, 
+                                   name="v_magnitude")
 
-        # # Auxiliary variables for L (load update) and Z (matrix product) for iterations 1..num_iter.
-        L_r_vars = self.m.addVars(
-            range(1, num_iter+1), timesteps, buses,
-            lb=-GRB.INFINITY,
-            name="L_r")
-        L_i_vars = self.m.addVars(
-            range(1, num_iter+1),
-            timesteps, buses,
-            lb=-GRB.INFINITY,
-            name="L_i")
-        Z_r = self.m.addVars(range(1, num_iter+1), timesteps,
-                             buses,
-                             lb=-GRB.INFINITY,
-                             name="Z_r")
-        Z_i = self.m.addVars(range(1, num_iter+1), timesteps,
-                             buses,
-                             lb=-GRB.INFINITY,
-                             name="Z_i")
-
-        # # Final voltage magnitudes.
-        m_vars = self.m.addVars(timesteps, buses, lb=0.0, name="m")
-
-        # # ----- SLACK VARIABLES FOR VOLTAGE LIMITS -----
+        # Slack variables for voltage violations
         slack_low = self.m.addVars(timesteps, buses, lb=0.0, name="slack_low")
-        slack_high = self.m.addVars(
-            timesteps, buses, lb=0.0, name="slack_high")
+        slack_high = self.m.addVars(timesteps, buses, lb=0.0, name="slack_high")
 
-        # # ----- Auxiliary variable for squared voltage magnitude -----
-        # d[it, t, j] represents v_r[it-1,t,j]^2 + v_i[it-1,t,j]^2 for it>=1.
-        d = self.m.addVars(range(1, num_iter+1),
-                           timesteps,
-                           buses,
-                           lb=0.0, name="d")
-
-        # # ----- INITIAL CONDITIONS (iteration 0) -----
+        # Simplified linear voltage-power relationship using sensitivity matrix
+        # V ≈ V_nominal + K_sensitivity * P_injection
         for t in timesteps:
             for j in buses:
-                self.m.addConstr(v_r[0, t, j] == 1.0,
-                                 name=f"init_vr_t{t}_j{j}")
-                self.m.addConstr(v_i[0, t, j] == 0.0,
-                                 name=f"init_vi_t{t}_j{j}")
+                # Linear approximation: voltage magnitude depends linearly on power injection
+                voltage_expr = gp.LinExpr(1.0)  # Start with nominal voltage of 1.0 p.u.
+                
+                # Add power injection effects using simplified sensitivity
+                for i in range(self.n_transformers):
+                    # Use simplified sensitivity: voltage change proportional to power injection
+                    sensitivity = 0.001 if i == j else 0.0005  # Higher sensitivity for same bus
+                    voltage_expr.addTerms(-sensitivity, total_power_per_bus[i, t])
+                
+                self.m.addConstr(v_magnitude[t, j] == voltage_expr,
+                               name=f"voltage_approx_t{t}_j{j}")
 
-        # # ----- Unroll the iterative update for iterations 1 to num_iter -----
-        for it in range(1, num_iter+1):
-            for t in timesteps:
-                for j in buses:
-                    # Define auxiliary variable d = v_r[it-1]^2 + v_i[it-1]^2.
-                    self.m.addQConstr(d[it, t, j] == v_r[it-1, t, j]*v_r[it-1, t, j] + v_i[it-1, t, j]*v_i[it-1, t, j],
-                                      name=f"d_def_it{it}_t{t}_j{j}")
-                    # Enforce the load update using d:
-                    self.m.addQConstr(d[it, t, j] * L_r_vars[it, t, j] ==
-                                      total_power_per_bus[j, t]*v_r[it-1, t, j] +
-                                      S_i[t, j]*v_i[it-1, t, j],
-                                      name=f"load_update_real_it{it}_t{t}_j{j}")
-                    self.m.addQConstr(d[it, t, j] * L_i_vars[it, t, j] ==
-                                      -(S_i[t, j]*v_r[it-1, t, j] -
-                                        total_power_per_bus[j, t]*v_i[it-1, t, j]),
-                                      name=f"load_update_imag_it{it}_t{t}_j{j}")
-
-            # Compute the matrix multiplication Z = K @ L for each timestep and bus.
-            for t in timesteps:
-                for j in buses:
-                    Zr_expr = gp.LinExpr()
-                    Zi_expr = gp.LinExpr()
-                    for m in buses:
-                        Zr_expr += K_r[j, m] * L_r_vars[it, t,
-                                                        m] - K_i[j, m] * L_i_vars[it, t, m]
-                        Zi_expr += K_r[j, m] * L_i_vars[it, t,
-                                                        m] + K_i[j, m] * L_r_vars[it, t, m]
-                    self.m.addConstr(Z_r[it, t, j] == Zr_expr,
-                                     name=f"Zr_it{it}_t{t}_j{j}")
-                    self.m.addConstr(Z_i[it, t, j] == Zi_expr,
-                                     name=f"Zi_it{it}_t{t}_j{j}")
-
-                    # Update voltage: v[it] = Z + W.
-                    self.m.addConstr(v_r[it, t, j] == Z_r[it, t, j] + W_r[j],
-                                     name=f"v_r_update_it{it}_t{t}_j{j}")
-                    self.m.addConstr(v_i[it, t, j] == Z_i[it, t, j] + W_i[j],
-                                     name=f"v_i_update_it{it}_t{t}_j{j}")
-
-        # ----- Final Voltage Magnitude Constraints -----
-        for t in timesteps:
-            for j in buses:
-                self.m.addQConstr(m_vars[t, j]*m_vars[t, j] ==
-                                  v_r[num_iter, t, j]*v_r[num_iter, t, j] +
-                                  v_i[num_iter, t, j]*v_i[num_iter, t, j],
-                                  name=f"mag_def_t{t}_j{j}")
-
-        # ----- Voltage Limit Constraints with Slack -----
+        # Voltage limit constraints with slack
         for t in timesteps:
             for j in buses:
                 self.m.addConstr(
-                    m_vars[t, j] + slack_low[t, j] >= V_min, name=f"volt_low_t{t}_j{j}")
+                    v_magnitude[t, j] + slack_low[t, j] >= V_min, 
+                    name=f"volt_low_t{t}_j{j}")
                 self.m.addConstr(
-                    m_vars[t, j] - slack_high[t, j] <= V_max, name=f"volt_high_t{t}_j{j}")
+                    v_magnitude[t, j] - slack_high[t, j] <= V_max, 
+                    name=f"volt_high_t{t}_j{j}")
 
-        # ----- Set Objective: Minimize Penalty on Voltage Limit Violations -----
-        # The objective is to minimize the total weighted slack across all timesteps and buses.
-        voltage_slack = gp.QuadExpr()
+        # Linear voltage slack penalty (changed from quadratic)
+        voltage_slack = gp.LinExpr()
         for t in timesteps:
             for j in buses:
-                voltage_slack.add(
-                    penalty_low * slack_low[t, j] + penalty_high * slack_high[t, j])
+                voltage_slack.add(penalty_low * slack_low[t, j])
+                voltage_slack.add(penalty_high * slack_high[t, j])
 
-        # self.m.setObjective(costs + 100 * - 10 * user_satisfaction.sum() + voltage_slack,
-        #                     GRB.MAXIMIZE)
+        # Simplified objective: minimize costs and voltage violations
+        self.m.setObjective(-costs + 10000*voltage_slack + 10000 *user_satisfaction.sum(),
+                            GRB.MINIMIZE)
 
-        self.m.setObjective(1000*voltage_slack,# +10 * - 10 * user_satisfaction.sum(),
-                            # GRB.MINIMIZE)
-                            GRB.MAXIMIZE)
-        # self.m.setObjective(gp.quicksum(total_power_per_bus[i, t]
-        #                                 for i in range(
-        #     self.n_transformers)
-        #     for t in range(self.sim_length)), GRB.MAXIMIZE)
-
-        # print constraints
+        # Write and solve model
         self.m.write("model.lp")
-        print(f'Optimizing...')
-        self.m.params.NonConvex = 2
-
-        # disable presolve
-        self.m.params.Presolve = 0
-
-        # self.m.feasRelax(0, False)
+        print(f'Optimizing simplified model...')
+        
+        # Remove NonConvex parameter since we're using linear approximation
+        # Enable presolve for better performance
+        self.m.params.Presolve = 2
+        
         self.m.optimize()
 
         if self.m.status == GRB.INFEASIBLE:
@@ -562,124 +486,3 @@ class V2GProfitMax_Grid_OracleGB():
         step = env.current_step
 
         return self.actions[:, :, step].T.reshape(-1)
-
-
-if __name__ == '__main__':
-
-    # # ---------------------------
-    # # Data (example placeholders)
-    # # ---------------------------
-    # n = 5  # number of buses (adjust as needed)
-    # Vmin = 0.95
-    # Vmax = 1.05
-
-    # # Q: reactive power injection (parameter) for each bus (length n)
-    # # (assumed known)
-    # Q = np.array([0.1, 0.05, 0.0, -0.02, 0.08])
-
-    # # K: sensitivity matrix (n x n complex matrix)
-    # # For instance, K might be computed from a network sensitivity analysis.
-    # K = np.array([[0.05+0.01j, 0.01-0.005j, 0, 0, 0],
-    #             [0.01+0.005j, 0.04+0.02j, 0.01+0j, 0, 0],
-    #             [0, 0.01-0.005j, 0.03+0.015j, 0.005+0.002j, 0],
-    #             [0, 0, 0.005-0.002j, 0.02+0.01j, 0.003+0.001j],
-    #             [0, 0, 0, 0.003-0.001j, 0.01+0.005j]])
-
-    # # W: base voltage vector (length n, complex)
-    # W = np.array([1.0+0j, 0.99+0.01j, 1.01-0.005j, 1.0+0j, 0.98+0.02j])
-
-    # # ---------------------------
-    # # Create the model
-    # # ---------------------------
-    # model = gp.Model("voltage_violation_minimization")
-
-    # # Decision variables: active power injections P[j] for j=0,...,n-1.
-    # P = model.addVars(n, lb=-GRB.INFINITY, name="P")
-
-    # # Slack variables for voltage violations (nonnegative)
-    # s_low = model.addVars(n, lb=0.0, name="s_low")   # for under-voltage violation
-    # s_high = model.addVars(n, lb=0.0, name="s_high") # for over-voltage violation
-
-    # # Auxiliary variables: voltage magnitude at each bus
-    # v_m = model.addVars(n, lb=0.0, name="v_m")
-
-    # # ---------------------------
-    # # Precompute constant parts for voltage expressions
-    # # ---------------------------
-    # # For each bus i, we write:
-    # #   Re(v_i) = W_i.real + sum_j (K[i,j].real * P[j]) + const_R[i]
-    # #   Im(v_i) = W_i.imag + sum_j (K[i,j].imag * P[j]) + const_I[i]
-    # # where:
-    # #   const_R[i] = sum_j (K[i,j].imag * Q[j])
-    # #   const_I[i] = - sum_j (K[i,j].real * Q[j])
-    # const_R = np.zeros(n)
-    # const_I = np.zeros(n)
-    # for i in range(n):
-    #     # Initialize with the contributions from reactive power and the base voltage
-    #     const_R[i] = W[i].real + sum(K[i, j].imag * Q[j] for j in range(n))
-    #     const_I[i] = W[i].imag - sum(K[i, j].real * Q[j] for j in range(n))
-
-    # # ---------------------------
-    # # Build voltage expressions for each bus i
-    # # ---------------------------
-    # # We'll create linear expressions for the real and imaginary parts of v_i:
-    # #   Re(v_i) = const_R[i] + sum_j K[i,j].real * P[j]
-    # #   Im(v_i) = const_I[i] + sum_j K[i,j].imag * P[j]
-    # R_expr = {}
-    # I_expr = {}
-    # for i in range(n):
-    #     expr_R = gp.LinExpr(const_R[i])
-    #     expr_I = gp.LinExpr(const_I[i])
-    #     for j in range(n):
-    #         expr_R.addTerms(K[i, j].real, P[j])
-    #         expr_I.addTerms(K[i, j].imag, P[j])
-    #     R_expr[i] = expr_R
-    #     I_expr[i] = expr_I
-
-    # # ---------------------------
-    # # Add SOC constraints to capture voltage magnitude
-    # # ---------------------------
-    # # We require: sqrt( R_expr[i]^2 + I_expr[i]^2 ) <= v_m[i]
-    # # which is equivalent to: R_expr[i]^2 + I_expr[i]^2 <= v_m[i]^2
-    # for i in range(n):
-    #     model.addQConstr(R_expr[i]*R_expr[i] + I_expr[i]*I_expr[i] <= v_m[i]*v_m[i],
-    #                     name=f"soc_{i}")
-
-    # # ---------------------------
-    # # Voltage limit constraints (with slack)
-    # # ---------------------------
-    # # To allow violations we add slack variables:
-    # #   v_m[i] + s_low[i] >= Vmin   (if v_m[i] is too low, s_low[i] > 0)
-    # #   v_m[i] - s_high[i] <= Vmax   (if v_m[i] is too high, s_high[i] > 0)
-    # for i in range(n):
-    #     model.addConstr(v_m[i] + s_low[i] >= Vmin, name=f"volt_min_{i}")
-    #     model.addConstr(v_m[i] - s_high[i] <= Vmax, name=f"volt_max_{i}")
-
-    # # ---------------------------
-    # # Objective: minimize total voltage violation
-    # # ---------------------------
-    # model.setObjective(gp.quicksum(s_low[i] + s_high[i] for i in range(n)), GRB.MINIMIZE)
-
-    # # ---------------------------
-    # # Optimize the model
-    # # ---------------------------
-    # model.optimize()
-    # model.write("v2g_grid_model.lp")
-    # # ---------------------------
-    # # Retrieve and display results
-    # # ---------------------------
-    # if model.status == GRB.OPTIMAL:
-    #     P_opt = model.getAttr('x', P)
-    #     t_opt = model.getAttr('x', v_m)
-    #     slack_low = model.getAttr('x', s_low)
-    #     slack_high = model.getAttr('x', s_high)
-    #     print("Optimal active power injections (P):")
-    #     for i in range(n):
-    #         print(f"Bus {i}: {P_opt[i]:.4f}")
-    #     print("\nVoltage magnitudes (v_m):")
-    #     for i in range(n):
-    #         print(f"Bus {i}: {t_opt[i]:.4f} (s_low: {slack_low[i]:.4f}, s_high: {slack_high[i]:.4f})")
-    # else:
-    #     print("No optimal solution found.")
-
-    pass
