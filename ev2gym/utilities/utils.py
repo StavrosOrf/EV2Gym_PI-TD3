@@ -75,7 +75,11 @@ def get_statistics(env) -> Dict:
         v_m = env.node_voltage
         # count how many steps have at least one node with voltage outside 0.95-1.05 p.u.
         voltage_violation_counter_per_step = np.sum(
-            np.any((v_m < 0.95) | (v_m > 1.05), axis=1))
+            np.any((v_m < 0.95) | (v_m > 1.05), axis=0))
+        #compare dimensions
+        # print(f"Voltage violation counter per step: {voltage_violation_counter_per_step}, shape: {v_m.shape}")
+        # print(f"bool shape: {np.any((v_m < 0.95) | (v_m > 1.05), axis=0).shape}")
+
 
     stats = {'total_ev_served': total_ev_served,
              'total_profits': total_profits,

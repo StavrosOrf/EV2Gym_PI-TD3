@@ -274,8 +274,8 @@ def evaluate_optimal(new_replay_path):
 
 
 if __name__ == "__main__":
-    while True:
-        new_replay_path = eval()
+    # while True:
+    new_replay_path = eval()
     exit()
 
     new_replay_path = 'replay/v2g_grid_50_1evals/replay_sim_2025_03_04_313926.pkl'
