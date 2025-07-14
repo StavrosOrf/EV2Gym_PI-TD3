@@ -238,6 +238,10 @@ def plot_grid_metrics(results_path,
     ax.plot(date_range, [0.95] * len(date_range),
             linestyle='--', color='grey', linewidth=2,
             label='Voltage Limit (0.95 p.u.)', zorder=0)
+    
+    for spine in ax.spines.values():
+        spine.set_linewidth(1.2)
+        spine.set_color('#666666')
 
     # Formatting main axes
     ax.set_ylim(0.94, 1.005)
@@ -248,6 +252,8 @@ def plot_grid_metrics(results_path,
     ax.set_xticklabels(
         [f'{d.hour:02d}:{d.minute:02d}' for d in date_range_print], fontsize=10)
     ax.tick_params(axis='y', labelsize=10)
+    ax.minorticks_on()
+    
     # ax.legend(fontsize=10)
     leg = ax.legend(
         fontsize=12,
