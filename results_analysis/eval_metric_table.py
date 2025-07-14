@@ -2,7 +2,7 @@ import pandas as pd
 
 
 data = pd.read_csv(
-    './results/eval_150cs_-1tr_v2g_grid_150_300_7_algos_1_exp_2025_07_09_130793/data.csv')
+    './results_analysis/pes/eval_150cs_-1tr_v2g_grid_150_300_7_algos_100_exp_2025_07_14_535032/data.csv')
 
 
 print(data.shape)
