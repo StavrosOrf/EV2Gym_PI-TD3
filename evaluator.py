@@ -60,11 +60,65 @@ torch.manual_seed(seed)
 random.seed(seed)
 
 
+def safe_device_check():
+    """
+    Safely determine the device to use, ensuring CUDA is actually available and working
+    """
+    try:
+        if torch.cuda.is_available():
+            # Test if we can actually create a tensor on CUDA
+            test_tensor = torch.tensor([1.0]).cuda()
+            device = "cuda"
+            print(f"CUDA is available and working. Using device: {device}")
+            return device
+        else:
+            device = "cpu"
+            print(f"CUDA not available. Using device: {device}")
+            return device
+    except (RuntimeError, AssertionError) as e:
+        device = "cpu"
+        print(f"CUDA detection failed ({e}). Falling back to CPU. Using device: {device}")
+        return device
+
+def safe_load_yaml_with_device(file_path, device):
+    """
+    Safely load YAML file with PyTorch objects, mapping them to the correct device
+    """
+    import io
+    
+    # Custom constructor for PyTorch tensors
+    def torch_constructor(loader, node):
+        # Get the tensor data
+        data = loader.construct_python_object(node)
+        # If it's a tensor, map it to the correct device
+        if hasattr(data, 'to'):
+            return data.to(device)
+        return data
+    
+    # Temporarily set device mapping for torch.load
+    original_load = torch.load
+    
+    def custom_torch_load(*args, **kwargs):
+        kwargs['map_location'] = device
+        return original_load(*args, **kwargs)
+    
+    # Monkey patch torch.load
+    torch.load = custom_torch_load
+    
+    try:
+        with open(file_path, 'r') as file:
+            data = yaml.load(file, Loader=yaml.UnsafeLoader)
+        return data
+    finally:
+        # Restore original torch.load
+        torch.load = original_load
+
 def evaluator():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # More robust device detection
+    device = safe_device_check()
 
     ############# Simulation Parameters #################
-    n_test_cycles = 10
+    n_test_cycles = 1
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
     SAVE_VOLTAGE_MINIMUM = False
@@ -81,17 +135,19 @@ def evaluator():
     # Algorithms to compare:
     # Use algorithm name or the saved RL model path as string
     algorithms = [
-        ChargeAsFastAsPossible,
-        DoNothing,
-        V2GProfitMax_Grid_OracleGB,
-        # RandomAgent,
-        V2GProfitMaxOracleGB,
-
         "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
         # "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
         # "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
         "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",
         # "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
+        
+        ChargeAsFastAsPossible,
+        DoNothing,
+        V2GProfitMax_Grid_OracleGB,
+        # RandomAgent,
+        # V2GProfitMaxOracleGB,
+
+        
     ]
 
     # create a AnalysisReplayBuffer object for each algorithm
@@ -103,12 +159,14 @@ def evaluator():
                  )
 
     if SAVE_REPLAY_BUFFER:
-        replay_buffers = {}
-        for algorithm in algorithms:
-
-            replay_buffers[algorithm] = AnalysisReplayBuffer(state_dim=env.observation_space.shape[0],
-                                                             action_dim=env.action_space.shape[0],
-                                                             max_size=int(1e4))
+        # Note: AnalysisReplayBuffer import is commented out
+        # Uncomment the import at the top if you need this functionality
+        print("Warning: SAVE_REPLAY_BUFFER is True but AnalysisReplayBuffer is not imported")
+        # replay_buffers = {}
+        # for algorithm in algorithms:
+        #     replay_buffers[algorithm] = AnalysisReplayBuffer(state_dim=env.observation_space.shape[0],
+        #                                                      action_dim=env.action_space.shape[0],
+        #                                                      max_size=int(1e4))
 
     #####################################################
 
@@ -275,9 +333,11 @@ def evaluator():
                     algorithm_path = algorithm
                     load_model_path = f'./eval_models/{algorithm_path}/'
                     # Load kwargs.yaml as a dictionary
-                    with open(f'{load_model_path}kwargs.yaml') as file:
-                        kwargs = yaml.load(
-                            file, Loader=yaml.UnsafeLoader)
+                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                    # Ensure device in kwargs matches our safe device
+                    if 'device' in kwargs:
+                        kwargs['device'] = device
 
                     state_dim = env.observation_space.shape[0]
                     model = PI_SAC(num_inputs=state_dim,
@@ -286,7 +346,8 @@ def evaluator():
 
                     algorithm_name = "PI_SAC"
                     model.load(ckpt_path=f'{load_model_path}model.best',
-                               evaluate=True)
+                               evaluate=True,
+                               map_location=device)
 
                     if k == 0:
                         actor_model = model.policy
@@ -302,9 +363,11 @@ def evaluator():
                     load_model_path = f'./eval_models/{algorithm_path}/'
                     # print(f'Loading SAC model from {load_model_path}')
                     # Load kwargs.yaml as a dictionary
-                    with open(f'{load_model_path}kwargs.yaml') as file:
-                        kwargs = yaml.load(
-                            file, Loader=yaml.UnsafeLoader)
+                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                    # Ensure device in kwargs matches our safe device
+                    if 'device' in kwargs:
+                        kwargs['device'] = device
 
                     state_dim = env.observation_space.shape[0]
                     model = SAC(num_inputs=state_dim,
@@ -313,7 +376,8 @@ def evaluator():
 
                     algorithm_name = "SAC"
                     model.load(ckpt_path=f'{load_model_path}model.best',
-                               evaluate=True)
+                               evaluate=True,
+                               map_location=device)
 
                     if k == 0:
                         actor_model = model.policy
@@ -327,16 +391,18 @@ def evaluator():
                 elif "pi_td3" in algorithm and k == 0:
                     algorithm_path = algorithm
                     load_model_path = f'./eval_models/{algorithm_path}/'
-                    with open(f'{load_model_path}kwargs.yaml') as file:
-                        kwargs = yaml.load(
-                            file, Loader=yaml.UnsafeLoader)
+                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
 
+                    # Ensure device in kwargs matches our safe device
+                    kwargs['device'] = device
+                    
                     # else:
                     print("Loading PI_TD3 model")
                     model = PI_TD3(**kwargs)
                     algorithm_name = "PI_TD3"
                     model.load(
-                        filename=f'{load_model_path}model.best')
+                        filename=f'{load_model_path}model.best',
+                        map_location=device)
 
                     if k == 0:
                         actor_model = model.actor
@@ -350,15 +416,17 @@ def evaluator():
                 elif "td3" in algorithm and k == 0:
                     algorithm_path = algorithm
                     load_model_path = f'./eval_models/{algorithm_path}/'
-                    with open(f'{load_model_path}kwargs.yaml') as file:
-                        kwargs = yaml.load(
-                            file, Loader=yaml.UnsafeLoader)
+                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                    # Ensure device in kwargs matches our safe device
+                    kwargs['device'] = device
 
                     print("Loading TD3 model")
                     model = TD3(**kwargs)
                     algorithm_name = "TD3"
                     model.load(
-                        filename=f'{load_model_path}model.best')
+                        filename=f'{load_model_path}model.best',
+                        map_location=device)
 
                     if k == 0:
                         actor_model = model.actor
@@ -372,15 +440,17 @@ def evaluator():
                 elif "shac" in algorithm and k == 0:
                     algorithm_path = algorithm
                     load_model_path = f'./eval_models/{algorithm_path}/'
-                    with open(f'{load_model_path}kwargs.yaml') as file:
-                        kwargs = yaml.load(
-                            file, Loader=yaml.UnsafeLoader)
+                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                    # Ensure device in kwargs matches our safe device
+                    kwargs['device'] = device
 
                     print("Loading SHAC model")
                     model = SHAC(**kwargs)
                     algorithm_name = "SHAC"
                     model.load(
-                        filename=f'{load_model_path}model.best')
+                        filename=f'{load_model_path}model.best',
+                        map_location=device)
 
                 # else:
                 #     raise ValueError(
@@ -456,9 +526,11 @@ def evaluator():
 
                 # change name of key to algorithm_name
                 if SAVE_REPLAY_BUFFER:
-                    if k == n_test_cycles - 1:
-                        replay_buffers[algorithm_name] = replay_buffers.pop(
-                            algorithm)
+                    # Note: replay_buffers functionality disabled
+                    pass
+                    # if k == n_test_cycles - 1:
+                    #     replay_buffers[algorithm_name] = replay_buffers.pop(
+                    #         algorithm)
 
                 if SAVE_VOLTAGE_MINIMUM:
                     voltages = env.node_voltage
@@ -483,8 +555,10 @@ def evaluator():
 
     # save the replay buffers to a pickle file
     if SAVE_REPLAY_BUFFER:
-        with open(save_path + 'replay_buffers.pkl', 'wb') as f:
-            pickle.dump(replay_buffers, f)
+        # Note: replay_buffers functionality disabled
+        print("Warning: SAVE_REPLAY_BUFFER is True but replay_buffers is not available")
+        # with open(save_path + 'replay_buffers.pkl', 'wb') as f:
+        #     pickle.dump(replay_buffers, f)
 
     # save the plot_results_dict to a pickle file
     # with open(save_path + 'plot_results_dict.pkl', 'wb') as f:

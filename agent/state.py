@@ -2,8 +2,6 @@ import math
 import numpy as np
 import math
 
-from torch_geometric.data import Data
-
 def V2G_grid_state_ModelBasedRL(env, *args):
     '''
     This is the state function for the V2GProfitMax scenario with loads

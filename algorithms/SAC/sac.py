@@ -157,10 +157,10 @@ class SAC(object):
                     'policy_optimizer_state_dict': self.policy_optim.state_dict()}, save_path)
 
     # Load model parameters
-    def load(self, ckpt_path, evaluate=False):
+    def load(self, ckpt_path, evaluate=False, map_location=None):
         print('Loading models from {}'.format(ckpt_path))
         if ckpt_path is not None:
-            checkpoint = torch.load(ckpt_path)
+            checkpoint = torch.load(ckpt_path, map_location=map_location)
             self.policy.load_state_dict(checkpoint['policy_state_dict'])
             self.critic.load_state_dict(checkpoint['critic_state_dict'])
             self.critic_target.load_state_dict(

@@ -358,13 +358,13 @@ class PI_TD3(object):
         # torch.save(self.actor_optimizer.state_dict(),
         #            filename + "_actor_optimizer")
 
-    def load(self, filename):
+    def load(self, filename, map_location=None):
         # self.critic.load_state_dict(torch.load(filename + "_critic", weights_only=True))
         # self.critic_optimizer.load_state_dict(
         #     torch.load(filename + "_critic_optimizer"))
         # self.critic_target = copy.deepcopy(self.critic)
 
-        self.actor.load_state_dict(torch.load(filename + "_actor", weights_only=True))
+        self.actor.load_state_dict(torch.load(filename + "_actor", weights_only=True, map_location=map_location))
         # self.actor_optimizer.load_state_dict(
         #     torch.load(filename + "_actor_optimizer"))
         # self.actor_target = copy.deepcopy(self.actor)
