@@ -96,21 +96,22 @@ data_grouped.index = data_grouped.index.str.replace(
 # data_grouped.index = data_grouped.index.str.replace(
 #     'QT', 'Q-DT')
 data_grouped.index = data_grouped.index.str.replace('PI_TD3', 'PI-TD3')
+data_grouped.index = data_grouped.index.str.replace('ppo', 'PPO')
 data_grouped.index = data_grouped.index.str.replace(
-    'RandomAgent', 'Random Charging')
+    'DoNothing', 'No Charging')
 data_grouped.index = data_grouped.index.str.replace(
-    'V2GProfitMaxOracleGB', 'MPC max. profit')
+    'V2GProfitMax_Grid_OracleGB', 'MPC (Oracle)')
 # data_grouped.index = data_grouped.index.str.replace('GNN_act_emb_DT', 'GNN-DT')
 
 
 # change order of rows
-data_grouped = data_grouped.reindex(['CAFAP',
-                                     'Random Charging',
-                                     'DoNothing',
+data_grouped = data_grouped.reindex(['CAFAP',                                     
+                                     'No Charging',
+                                     'SAC',
+                                     'PPO',
                                      'TD3',
                                      'PI-TD3',
-                                     'MPC max. profit'
-                                    #  'Optimal (Offline)'
+                                     'MPC (Oracle)',
                                      ])
 
 
