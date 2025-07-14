@@ -53,8 +53,18 @@ import warnings
 # Suppress all UserWarnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+# Configure pandas display options to avoid truncation
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None) 
+pd.set_option('display.width', None)
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.expand_frame_repr', False)
+
+# Configure numpy print options to show full arrays
+np.set_printoptions(threshold=np.inf, linewidth=np.inf)
+
 # set seeds
-seed = 9
+seed = 91
 np.random.seed(seed)
 torch.manual_seed(seed)
 random.seed(seed)
@@ -118,7 +128,7 @@ def evaluator():
     device = safe_device_check()
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 100
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
     SAVE_VOLTAGE_MINIMUM = False
@@ -135,15 +145,17 @@ def evaluator():
     # Algorithms to compare:
     # Use algorithm name or the saved RL model path as string
     algorithms = [
+        
+        "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
+        V2GProfitMax_Grid_OracleGB,
+        "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
+        "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",        
         "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
-        # "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
-        # "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
-        "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",
         # "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
         
         ChargeAsFastAsPossible,
         DoNothing,
-        V2GProfitMax_Grid_OracleGB,
+        
         # RandomAgent,
         # V2GProfitMaxOracleGB,
 
@@ -259,299 +271,309 @@ def evaluator():
     for i_a, algorithm in enumerate(algorithms):
         print(' +------- Evaluating', algorithm, " -------+")
         for k in range(n_test_cycles):
-            print(f' Test cycle {k+1}/{n_test_cycles} -- {algorithm}')
-            counter += 1
-            h = -1
+            
+            try:
+            
+                print(f' Test cycle {k+1}/{n_test_cycles} -- {algorithm}')
+                counter += 1
+                h = -1
 
-            if replays_exist:
-                replay_path = eval_replay_path + eval_replay_files[k]
-            else:
-                replay_path = eval_replay_files[k]
-
-            if type(algorithm) == str:
-                if "GNN" in algorithm:
-                    # state_function = state_function_GNN
-                    pass
+                if replays_exist:
+                    replay_path = eval_replay_path + eval_replay_files[k]
                 else:
-                    state_function = state_function_Normal
-            else:
-                state_function = state_function_Normal
-
-            env = EV2Gym(config_file=config_file,
-                         load_from_replay_path=replay_path,
-                         state_function=state_function,
-                         reward_function=reward_function,
-                         lightweight_plots=False,
-                         )
-
-            # initialize the timer
-            timer = time.time()
-            state, _ = env.reset()
-            # try:
-            if type(algorithm) == str:
-                if any(algo in algorithm for algo in ['ppo', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
-                    gym.envs.register(id='evs-v0', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
-                                      kwargs={'config_file': config_file,
-                                              'state_function': state_function_Normal,
-                                              'reward_function': reward_function,
-                                              'load_from_replay_path': replay_path,
-                                              })
-                    env = gym.make('evs-v0')
-
-                    load_path = f'./eval_models/{algorithm}/best_model.zip'
-
-                    # initialize the timer
-                    timer = time.time()
-                    algorithm_name = algorithm.split('_')[0]
-
-                    # if 'rppo' in algorithm:
-                    #     sb3_algo = RecurrentPPO
-                    # el
-                    if 'ppo' in algorithm:
-                        sb3_algo = PPO
-                    # elif 'a2c' in algorithm:
-                    #     sb3_algo = A2C
-                    # elif 'tqc' in algorithm:
-                    #     sb3_algo = TQC
-                    # elif 'trpo' in algorithm:
-                    #     sb3_algo = TRPO
-
-                    else:
-                        exit()
-
-                    model = sb3_algo.load(load_path,
-                                          env,
-                                          device=device
-                                          )
-                    # set replay buffer to None
-
-                    env = model.get_env()
-                    state = env.reset()
-
-                elif "pi_sac" in algorithm and k == 0:
-
-                    algorithm_path = algorithm
-                    load_model_path = f'./eval_models/{algorithm_path}/'
-                    # Load kwargs.yaml as a dictionary
-                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
-
-                    # Ensure device in kwargs matches our safe device
-                    if 'device' in kwargs:
-                        kwargs['device'] = device
-
-                    state_dim = env.observation_space.shape[0]
-                    model = PI_SAC(num_inputs=state_dim,
-                                   action_space=env.action_space,
-                                   args=kwargs)
-
-                    algorithm_name = "PI_SAC"
-                    model.load(ckpt_path=f'{load_model_path}model.best',
-                               evaluate=True,
-                               map_location=device)
-
-                    if k == 0:
-                        actor_model = model.policy
-                        model_parameters = filter(
-                            lambda p: p.requires_grad, actor_model.parameters())
-                        params = sum([np.prod(p.size())
-                                      for p in model_parameters])
-                        print(
-                            f'Actor model has {params} trainable parameters')
-
-                elif "sac" in algorithm and k == 0:
-                    algorithm_path = algorithm
-                    load_model_path = f'./eval_models/{algorithm_path}/'
-                    # print(f'Loading SAC model from {load_model_path}')
-                    # Load kwargs.yaml as a dictionary
-                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
-
-                    # Ensure device in kwargs matches our safe device
-                    if 'device' in kwargs:
-                        kwargs['device'] = device
-
-                    state_dim = env.observation_space.shape[0]
-                    model = SAC(num_inputs=state_dim,
-                                action_space=env.action_space,
-                                args=kwargs)
-
-                    algorithm_name = "SAC"
-                    model.load(ckpt_path=f'{load_model_path}model.best',
-                               evaluate=True,
-                               map_location=device)
-
-                    if k == 0:
-                        actor_model = model.policy
-                        model_parameters = filter(
-                            lambda p: p.requires_grad, actor_model.parameters())
-                        params = sum([np.prod(p.size())
-                                      for p in model_parameters])
-                        print(
-                            f'Actor model has {params} trainable parameters')
-
-                elif "pi_td3" in algorithm and k == 0:
-                    algorithm_path = algorithm
-                    load_model_path = f'./eval_models/{algorithm_path}/'
-                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
-
-                    # Ensure device in kwargs matches our safe device
-                    kwargs['device'] = device
-                    
-                    # else:
-                    print("Loading PI_TD3 model")
-                    model = PI_TD3(**kwargs)
-                    algorithm_name = "PI_TD3"
-                    model.load(
-                        filename=f'{load_model_path}model.best',
-                        map_location=device)
-
-                    if k == 0:
-                        actor_model = model.actor
-                        model_parameters = filter(
-                            lambda p: p.requires_grad, actor_model.parameters())
-                        params = sum([np.prod(p.size())
-                                      for p in model_parameters])
-                        print(
-                            f'Actor model has {params} trainable parameters')
-
-                elif "td3" in algorithm and k == 0:
-                    algorithm_path = algorithm
-                    load_model_path = f'./eval_models/{algorithm_path}/'
-                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
-
-                    # Ensure device in kwargs matches our safe device
-                    kwargs['device'] = device
-
-                    print("Loading TD3 model")
-                    model = TD3(**kwargs)
-                    algorithm_name = "TD3"
-                    model.load(
-                        filename=f'{load_model_path}model.best',
-                        map_location=device)
-
-                    if k == 0:
-                        actor_model = model.actor
-                        model_parameters = filter(
-                            lambda p: p.requires_grad, actor_model.parameters())
-                        params = sum([np.prod(p.size())
-                                      for p in model_parameters])
-                        print(
-                            f'Actor model has {params} trainable parameters')
-
-                elif "shac" in algorithm and k == 0:
-                    algorithm_path = algorithm
-                    load_model_path = f'./eval_models/{algorithm_path}/'
-                    kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
-
-                    # Ensure device in kwargs matches our safe device
-                    kwargs['device'] = device
-
-                    print("Loading SHAC model")
-                    model = SHAC(**kwargs)
-                    algorithm_name = "SHAC"
-                    model.load(
-                        filename=f'{load_model_path}model.best',
-                        map_location=device)
-
-                # else:
-                #     raise ValueError(
-                #         f'Unknown algorithm {algorithm}')
-            else:
-                model = algorithm(env=env,
-                                  replay_path=replay_path,
-                                  verbose=False)
-                algorithm_name = algorithm.__name__
-
-            rewards = []
-
-            for i in range(simulation_length):
+                    replay_path = eval_replay_files[k]
 
                 if type(algorithm) == str:
-                    if any(algo in algorithm for algo in ['ppo', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
-                        action, _ = model.predict(
-                            state, deterministic=True)
-                        state, reward, done, stats = env.step(action)
-
-                        if i == simulation_length - 2:
-                            saved_env = deepcopy(
-                                env.get_attr('env')[0])
-
-                        stats = stats[0]
+                    if "GNN" in algorithm:
+                        # state_function = state_function_GNN
+                        pass
                     else:
-                        action = model.select_action(state,
-                                                     return_mapped_action=True)
+                        state_function = state_function_Normal
+                else:
+                    state_function = state_function_Normal
 
-                        state, reward, done, _, stats = env.step(
-                            action)
+                env = EV2Gym(config_file=config_file,
+                            load_from_replay_path=replay_path,
+                            state_function=state_function,
+                            reward_function=reward_function,
+                            lightweight_plots=False,
+                            )
+
+                # Store the original environment for plotting
+                original_env = env
+                
+                # initialize the timer
+                timer = time.time()
+                state, _ = env.reset()
+                # try:
+                if type(algorithm) == str:
+                    if any(algo in algorithm for algo in ['ppo', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
+                        gym.envs.register(id='evs-v0', entry_point='ev2gym.models.ev2gym_env:EV2Gym',
+                                        kwargs={'config_file': config_file,
+                                                'state_function': state_function_Normal,
+                                                'reward_function': reward_function,
+                                                'load_from_replay_path': replay_path,
+                                                })
+                        env = gym.make('evs-v0')
+
+                        load_path = f'./eval_models/{algorithm}/best_model.zip'
+
+                        # initialize the timer
+                        timer = time.time()
+                        algorithm_name = algorithm.split('_')[0]
+
+                        # if 'rppo' in algorithm:
+                        #     sb3_algo = RecurrentPPO
+                        # el
+                        if 'ppo' in algorithm:
+                            sb3_algo = PPO
+                        # elif 'a2c' in algorithm:
+                        #     sb3_algo = A2C
+                        # elif 'tqc' in algorithm:
+                        #     sb3_algo = TQC
+                        # elif 'trpo' in algorithm:
+                        #     sb3_algo = TRPO
+
+                        else:
+                            exit()
+
+                        model = sb3_algo.load(load_path,
+                                            env,
+                                            device=device
+                                            )
+                        # set replay buffer to None
+
+                        env = model.get_env()
+                        state = env.reset()
+
+                    elif "pi_sac" in algorithm and k == 0:
+
+                        algorithm_path = algorithm
+                        load_model_path = f'./eval_models/{algorithm_path}/'
+                        # Load kwargs.yaml as a dictionary
+                        kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                        # Ensure device in kwargs matches our safe device
+                        if 'device' in kwargs:
+                            kwargs['device'] = device
+
+                        state_dim = env.observation_space.shape[0]
+                        model = PI_SAC(num_inputs=state_dim,
+                                    action_space=env.action_space,
+                                    args=kwargs)
+
+                        algorithm_name = "PI_SAC"
+                        model.load(ckpt_path=f'{load_model_path}model.best',
+                                evaluate=True,
+                                map_location=device)
+
+                        if k == 0:
+                            actor_model = model.policy
+                            model_parameters = filter(
+                                lambda p: p.requires_grad, actor_model.parameters())
+                            params = sum([np.prod(p.size())
+                                        for p in model_parameters])
+                            print(
+                                f'Actor model has {params} trainable parameters')
+
+                    elif "sac" in algorithm and k == 0:
+                        algorithm_path = algorithm
+                        load_model_path = f'./eval_models/{algorithm_path}/'
+                        # print(f'Loading SAC model from {load_model_path}')
+                        # Load kwargs.yaml as a dictionary
+                        kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                        # Ensure device in kwargs matches our safe device
+                        if 'device' in kwargs:
+                            kwargs['device'] = device
+
+                        state_dim = env.observation_space.shape[0]
+                        model = SAC(num_inputs=state_dim,
+                                    action_space=env.action_space,
+                                    args=kwargs)
+
+                        algorithm_name = "SAC"
+                        model.load(ckpt_path=f'{load_model_path}model.best',
+                                evaluate=True,
+                                map_location=device)
+
+                        if k == 0:
+                            actor_model = model.policy
+                            model_parameters = filter(
+                                lambda p: p.requires_grad, actor_model.parameters())
+                            params = sum([np.prod(p.size())
+                                        for p in model_parameters])
+                            print(
+                                f'Actor model has {params} trainable parameters')
+
+                    elif "pi_td3" in algorithm and k == 0:
+                        algorithm_path = algorithm
+                        load_model_path = f'./eval_models/{algorithm_path}/'
+                        kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                        # Ensure device in kwargs matches our safe device
+                        kwargs['device'] = device
+                        
+                        # else:
+                        print("Loading PI_TD3 model")
+                        model = PI_TD3(**kwargs)
+                        algorithm_name = "PI_TD3"
+                        model.load(
+                            filename=f'{load_model_path}model.best',
+                            map_location=device)
+
+                        if k == 0:
+                            actor_model = model.actor
+                            model_parameters = filter(
+                                lambda p: p.requires_grad, actor_model.parameters())
+                            params = sum([np.prod(p.size())
+                                        for p in model_parameters])
+                            print(
+                                f'Actor model has {params} trainable parameters')
+
+                    elif "td3" in algorithm and k == 0:
+                        algorithm_path = algorithm
+                        load_model_path = f'./eval_models/{algorithm_path}/'
+                        kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                        # Ensure device in kwargs matches our safe device
+                        kwargs['device'] = device
+
+                        print("Loading TD3 model")
+                        model = TD3(**kwargs)
+                        algorithm_name = "TD3"
+                        model.load(
+                            filename=f'{load_model_path}model.best',
+                            map_location=device)
+
+                        if k == 0:
+                            actor_model = model.actor
+                            model_parameters = filter(
+                                lambda p: p.requires_grad, actor_model.parameters())
+                            params = sum([np.prod(p.size())
+                                        for p in model_parameters])
+                            print(
+                                f'Actor model has {params} trainable parameters')
+
+                    elif "shac" in algorithm and k == 0:
+                        algorithm_path = algorithm
+                        load_model_path = f'./eval_models/{algorithm_path}/'
+                        kwargs = safe_load_yaml_with_device(f'{load_model_path}kwargs.yaml', device)
+
+                        # Ensure device in kwargs matches our safe device
+                        kwargs['device'] = device
+
+                        print("Loading SHAC model")
+                        model = SHAC(**kwargs)
+                        algorithm_name = "SHAC"
+                        model.load(
+                            filename=f'{load_model_path}model.best',
+                            map_location=device)
 
                     # else:
                     #     raise ValueError(
                     #         f'Unknown algorithm {algorithm}')
-
                 else:
+                    model = algorithm(env=env,
+                                    replay_path=replay_path,
+                                    verbose=False)
+                    algorithm_name = algorithm.__name__
 
-                    action = model.get_action(env=env)
-                    new_state, reward, done, _, stats = env.step(
-                        action)
+                rewards = []
 
-                rewards.append(reward)
+                for i in range(simulation_length):
 
-            if done:
+                    if type(algorithm) == str:
+                        if any(algo in algorithm for algo in ['ppo', 'a2c', 'ddpg', 'tqc', 'trpo', 'ars', 'rppo']):
+                            action, _ = model.predict(
+                                state, deterministic=True)
+                            state, reward, done, stats = env.step(action)
 
-                results_i = pd.DataFrame({'run': k,
-                                          'Algorithm': algorithm_name,
-                                          'algorithm_version': algorithm,
-                                          'control_horizon': h,
-                                          'discharge_price_factor': config['discharge_price_factor'],
-                                          'total_ev_served': stats['total_ev_served'],
-                                          'total_profits': stats['total_profits'],
-                                          'total_energy_charged': stats['total_energy_charged'],
-                                          'total_energy_discharged': stats['total_energy_discharged'],
-                                          'average_user_satisfaction': stats['average_user_satisfaction'],
-                                          'power_tracker_violation': stats['power_tracker_violation'],
-                                          'tracking_error': stats['tracking_error'],
-                                          'energy_tracking_error': stats['energy_tracking_error'],
-                                          'energy_user_satisfaction': stats['energy_user_satisfaction'],
-                                          'min_energy_user_satisfaction': stats['min_energy_user_satisfaction'],
-                                          'std_energy_user_satisfaction': stats['std_energy_user_satisfaction'],
-                                          'total_transformer_overload': stats['total_transformer_overload'],
-                                          'battery_degradation': stats['battery_degradation'],
-                                          'battery_degradation_calendar': stats['battery_degradation_calendar'],
-                                          'battery_degradation_cycling': stats['battery_degradation_cycling'],
-                                          'voltage_violation': stats['voltage_violation'],
-                                          'voltage_violation_counter': stats['voltage_violation_counter'],
-                                          'voltage_violation_counter_per_step': stats['voltage_violation_counter_per_step'],
-                                          'total_reward': sum(rewards),
-                                          'time': time.time() - timer,
-                                          }, index=[counter])
+                            if i == simulation_length - 2:
+                                saved_env = deepcopy(
+                                    env.get_attr('env')[0])
 
-                # change name of key to algorithm_name
-                if SAVE_REPLAY_BUFFER:
-                    # Note: replay_buffers functionality disabled
-                    pass
-                    # if k == n_test_cycles - 1:
-                    #     replay_buffers[algorithm_name] = replay_buffers.pop(
-                    #         algorithm)
+                            stats = stats[0]
+                        else:
+                            action = model.select_action(state,
+                                                        return_mapped_action=True)
 
-                if SAVE_VOLTAGE_MINIMUM:
-                    voltages = env.node_voltage
-                    print(f'Voltages: {voltages.shape}')
-                    for i_bus in range(len(voltages)):
-                        voltage_minimum[algorithm][i_bus].append(
-                            # just empty values of the voltage
-                            voltages[i_bus].tolist())
+                            state, reward, done, _, stats = env.step(
+                                action)
 
-                if counter == 1:
-                    results = results_i
-                else:
-                    results = pd.concat([results, results_i])
+                        # else:
+                        #     raise ValueError(
+                        #         f'Unknown algorithm {algorithm}')
 
-                if type(algorithm) == str:
-                    if "ppo" in algorithm:
-                        env = saved_env
+                    else:
 
-                if k == 0:
-                    plot_results_dict[str(
-                        algorithm)] = deepcopy(env)
+                        action = model.get_action(env=env)
+                        new_state, reward, done, _, stats = env.step(
+                            action)
+
+                    rewards.append(reward)
+
+                if done:
+
+                    results_i = pd.DataFrame({'run': k,
+                                            'Algorithm': algorithm_name,
+                                            'algorithm_version': algorithm,
+                                            'control_horizon': h,
+                                            'discharge_price_factor': config['discharge_price_factor'],
+                                            'total_ev_served': stats['total_ev_served'],
+                                            'total_profits': stats['total_profits'],
+                                            'total_energy_charged': stats['total_energy_charged'],
+                                            'total_energy_discharged': stats['total_energy_discharged'],
+                                            'average_user_satisfaction': stats['average_user_satisfaction'],
+                                            'power_tracker_violation': stats['power_tracker_violation'],
+                                            'tracking_error': stats['tracking_error'],
+                                            'energy_tracking_error': stats['energy_tracking_error'],
+                                            'energy_user_satisfaction': stats['energy_user_satisfaction'],
+                                            'min_energy_user_satisfaction': stats['min_energy_user_satisfaction'],
+                                            'std_energy_user_satisfaction': stats['std_energy_user_satisfaction'],
+                                            'total_transformer_overload': stats['total_transformer_overload'],
+                                            'battery_degradation': stats['battery_degradation'],
+                                            'battery_degradation_calendar': stats['battery_degradation_calendar'],
+                                            'battery_degradation_cycling': stats['battery_degradation_cycling'],
+                                            'voltage_violation': stats['voltage_violation'],
+                                            'voltage_violation_counter': stats['voltage_violation_counter'],
+                                            'voltage_violation_counter_per_step': stats['voltage_violation_counter_per_step'],
+                                            'total_reward': sum(rewards),
+                                            'time': time.time() - timer,
+                                            }, index=[counter])
+
+                    # change name of key to algorithm_name
+                    if SAVE_REPLAY_BUFFER:
+                        # Note: replay_buffers functionality disabled
+                        pass
+                        # if k == n_test_cycles - 1:
+                        #     replay_buffers[algorithm_name] = replay_buffers.pop(
+                        #         algorithm)
+
+                    if SAVE_VOLTAGE_MINIMUM:
+                        voltages = env.node_voltage
+                        print(f'Voltages: {voltages.shape}')
+                        for i_bus in range(len(voltages)):
+                            voltage_minimum[algorithm][i_bus].append(
+                                # just empty values of the voltage
+                                voltages[i_bus].tolist())
+
+                    if counter == 1:
+                        results = results_i
+                    else:
+                        results = pd.concat([results, results_i])
+
+                    if type(algorithm) == str:
+                        if "ppo" in algorithm:
+                            env = saved_env
+
+                    if k == 0:
+                        # Store the original unwrapped environment for plotting
+                        plot_results_dict[str(algorithm)] = deepcopy(original_env)
+                        
+            except Exception as e:
+                print(f"Error during evaluation of {algorithm} on cycle {k}: {e}")
+                continue
 
     # save the replay buffers to a pickle file
     if SAVE_REPLAY_BUFFER:
@@ -601,7 +623,12 @@ def evaluator():
                 f'Saving voltage minimum to {save_path}voltage_minimum.pkl.gz')
         exit()
 
-    print(results['algorithm_version'].unique())
+    # Print unique algorithm versions without truncation
+    unique_algorithms = results['algorithm_version'].unique()
+    print("Unique algorithm versions:")
+    for i, algo in enumerate(unique_algorithms):
+        print(f"  {i+1}: {algo}")
+    print(f"Total: {len(unique_algorithms)} unique algorithm versions\n")
 
     # save the results to a csv file
     results.to_csv(save_path + 'data.csv')
@@ -618,7 +645,10 @@ def evaluator():
     results_grouped = results_grouped.sort_values(
         by=('voltage_violation', 'mean'), ascending=False)
 
-    print(results_grouped[[
+    # Print results with full output (no truncation)
+    print("\nDetailed Results Summary:")
+    print("=" * 80)
+    result_cols = [
         'total_profits',
         # 'total_ev_served',
         'average_user_satisfaction',
@@ -628,7 +658,9 @@ def evaluator():
         'voltage_violation',
         'voltage_violation_counter',
         'voltage_violation_counter_per_step',
-    ]])
+    ]
+    print(results_grouped[result_cols])
+    print("=" * 80)
 
     with gzip.open(save_path + 'plot_results_dict.pkl.gz', 'wb') as f:
         pickle.dump(plot_results_dict, f)
@@ -654,6 +686,12 @@ def evaluator():
     with open(save_path + 'algorithm_names.txt', 'w') as f:
         for item in algorithm_names:
             f.write("%s\n" % item)
+
+    # Print algorithm names without truncation
+    print(f"\nAlgorithms being evaluated ({len(algorithm_names)} total):")
+    for i, name in enumerate(algorithm_names):
+        print(f"  {i+1}: {name}")
+    print()
 
     print(f'Plottting results at {save_path}')
 

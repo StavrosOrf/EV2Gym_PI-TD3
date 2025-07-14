@@ -166,6 +166,8 @@ class EV2Gym(gym.Env):
             self.heterogeneous_specs = self.config['heterogeneous_ev_specs']
 
         self.stats = None
+        
+        # self.lightweight_plots = False
         if self.cs > 100:
             self.lightweight_plots = True
 

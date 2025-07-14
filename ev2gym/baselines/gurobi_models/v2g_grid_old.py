@@ -8,15 +8,16 @@ class V2GProfitMax_Grid_OracleGB():
     '''
     This file contains the EV_City_Math_Model class, which is used to solve the ev_city V2G problem optimally.
     '''
-    algo_name = 'Optimal Grid (Offline)'
+    algo_name = 'MPC'
 
     def __init__(self,
                  replay_path=None,
-                 timelimit=None,
+                 timelimit=60,
                  MIPGap=None,
                  verbose=True,
                  **kwargs):
-
+        
+        verbose = True
         replay = pickle.load(open(replay_path, 'rb'))
 
         self.sim_length = replay.sim_length
@@ -70,8 +71,11 @@ class V2GProfitMax_Grid_OracleGB():
         S_i = reactive_power.T / s_base
         K_r = np.real(K)
         K_i = np.imag(K)
-        W_r = np.real(L_const)  # constant offset, shape (n,)
-        W_i = np.imag(L_const)
+        W_r = np.real(L_const).reshape(-1)  # constant offset, shape (n,)
+        W_i = np.imag(L_const).reshape(-1)
+        
+        #test formula for voltages 
+        # print(compute_voltage_magnitudes(K,L_const, active_power/s_base, reactive_power/s_base))
 
         V_min = 0.95
         V_max = 1.05
@@ -84,8 +88,10 @@ class V2GProfitMax_Grid_OracleGB():
             print(f'Number of transformers: {self.n_transformers}')
             print(f'active_power: {active_power.shape}')
             print(f'reactive_power: {reactive_power.shape}')
-            print(f'K: {K.shape}')
-            print(f'L: {L_const.shape}')
+            print(f'K: {K.shape if hasattr(K, "shape") else "scalar"}')
+            print(f'L: {L_const.shape if hasattr(L_const, "shape") else "scalar"}')
+            print(f'W_r: {W_r.shape}')
+            print(f'W_i: {W_i.shape}')
             print(f'cs transformes: {cs_transformer}')
             print(f'sbase: {s_base}')
             print('Creating Gurobi model...')
@@ -388,32 +394,44 @@ class V2GProfitMax_Grid_OracleGB():
         # Slack variables for voltage violations
         slack_low = self.m.addVars(timesteps, buses, lb=0.0, name="slack_low")
         slack_high = self.m.addVars(timesteps, buses, lb=0.0, name="slack_high")
-
-        # Simplified linear voltage-power relationship using sensitivity matrix
-        # V ≈ V_nominal + K_sensitivity * P_injection
+        
+        total_reactive_per_bus = self.m.addVars(
+            self.n_b, self.sim_length,
+            lb=-GRB.INFINITY, ub=GRB.INFINITY,
+            vtype=GRB.CONTINUOUS,
+            name='total_reactive_per_bus'
+        )
+        
+        self.m.addConstrs(
+            (total_reactive_per_bus[i, t]
+                == reactive_power[i, t] / s_base
+            for i in buses for t in timesteps),
+            name = 'reactive_per_bus'
+        )
+        
         for t in timesteps:
             for j in buses:
-                # Linear approximation: voltage magnitude depends linearly on power injection
-                voltage_expr = gp.LinExpr(1.0)  # Start with nominal voltage of 1.0 p.u.
-                
-                # Add power injection effects using simplified sensitivity
-                for i in range(self.n_transformers):
-                    # Use simplified sensitivity: voltage change proportional to power injection
-                    sensitivity = 0.001 if i == j else 0.0005  # Higher sensitivity for same bus
-                    voltage_expr.addTerms(-sensitivity, total_power_per_bus[i, t])
-                
-                self.m.addConstr(v_magnitude[t, j] == voltage_expr,
-                               name=f"voltage_approx_t{t}_j{j}")
+                # start from the real part of your L_const offset
+                expr = gp.LinExpr(W_r[j])
+                # add P‐sensitivities
+                for i in buses:
+                    expr.addTerms(K_r[j, i], total_power_per_bus[i, t])
+                    expr.addTerms(K_i[j, i], total_reactive_per_bus[i, t])
+                # link to our decision variable
+                self.m.addConstr(
+                    v_magnitude[t, j] == expr,
+                    name = f"voltage_approx_t{t}_bus{j}"
+                )
+                # enforce limits via slacks
+                self.m.addConstr(
+                    v_magnitude[t, j] + slack_low[t, j]  >= V_min,
+                    name = f"volt_low_t{t}_bus{j}"
+                )
+                self.m.addConstr(
+                    v_magnitude[t, j] - slack_high[t, j] <= V_max,
+                    name = f"volt_high_t{t}_bus{j}"
+                )
 
-        # Voltage limit constraints with slack
-        for t in timesteps:
-            for j in buses:
-                self.m.addConstr(
-                    v_magnitude[t, j] + slack_low[t, j] >= V_min, 
-                    name=f"volt_low_t{t}_j{j}")
-                self.m.addConstr(
-                    v_magnitude[t, j] - slack_high[t, j] <= V_max, 
-                    name=f"volt_high_t{t}_j{j}")
 
         # Linear voltage slack penalty (changed from quadratic)
         voltage_slack = gp.LinExpr()
@@ -423,7 +441,8 @@ class V2GProfitMax_Grid_OracleGB():
                 voltage_slack.add(penalty_high * slack_high[t, j])
 
         # Simplified objective: minimize costs and voltage violations
-        self.m.setObjective(-costs + 10000*voltage_slack + 10000 *user_satisfaction.sum(),
+        self.m.setObjective( -costs +
+                            10000*voltage_slack + 10000 *user_satisfaction.sum(),
                             GRB.MINIMIZE)
 
         # Write and solve model
@@ -486,3 +505,24 @@ class V2GProfitMax_Grid_OracleGB():
         step = env.current_step
 
         return self.actions[:, :, step].T.reshape(-1)
+
+
+
+def compute_voltage_magnitudes(K, L, P, Q):
+    """
+    Compute voltage magnitudes using linear sensitivity:
+    |V| ≈ Re{L} + Re{K}·P + Im{K}·Q
+
+    Parameters:
+    - K: (n_buses, n_buses) complex sensitivity matrix
+    - L: (n_buses,) complex offset vector
+    - P: (n_buses,) real active power injections (p.u.)
+    - Q: (n_buses,) real reactive power injections (p.u.)
+
+    Returns:
+    - V: (n_buses,) estimated voltage magnitudes (p.u.)
+    """
+    K_r = np.real(K)
+    K_i = np.imag(K)
+    W_r = np.real(L)
+    return W_r + K_r.dot(P) + K_i.dot(Q)
