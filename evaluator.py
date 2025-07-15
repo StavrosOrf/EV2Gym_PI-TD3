@@ -128,7 +128,7 @@ def evaluator():
     device = safe_device_check()
 
     ############# Simulation Parameters #################
-    n_test_cycles = 1
+    n_test_cycles = 50
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
     SAVE_VOLTAGE_MINIMUM = False
@@ -144,7 +144,8 @@ def evaluator():
         # "./config_files/v2g_grid_150_300_l=075.yaml",
         # "./config_files/v2g_grid_150_300_l=085.yaml",
         # "./config_files/v2g_grid_150_300_l=095.yaml",
-        "./config_files/v2g_grid_150_300.yaml",
+        # "./config_files/v2g_grid_150_300.yaml",
+        "./config_files/v2g_grid_500_bus_123.yaml",
         # "./config_files/v2g_grid_150_300_l=105.yaml",
         # "./config_files/v2g_grid_150_300_l=115.yaml",
         # "./config_files/v2g_grid_150_300_l=125.yaml",
@@ -158,12 +159,22 @@ def evaluator():
     # Use algorithm name or the saved RL model path as string
     algorithms = [
         
-        "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
+        
         V2GProfitMax_Grid_OracleGB,
-        "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
-        "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",        
-        "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
-        # "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
+        # 150cs
+        
+        # "td3_run_30_K=1_scenario=grid_v2g_profitmax_26092-665267",
+        # "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910",
+        # "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267",        
+        # "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
+        #### "pi_sac_run_20_K=20_scenario=grid_v2g_profitmax_99535-857910",
+        
+        
+        # 500cs
+        "pi_td3_run_20_K=20_scenario=grid_v2g_profitmax_68441-857910",
+        "sac_run_10_K=1_scenario=grid_v2g_profitmax_53449-699159",
+        "td3_run_10_K=1_scenario=grid_v2g_profitmax_38227-699159",
+        "ppo_run_0_42305_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
         
         ChargeAsFastAsPossible,
         DoNothing,

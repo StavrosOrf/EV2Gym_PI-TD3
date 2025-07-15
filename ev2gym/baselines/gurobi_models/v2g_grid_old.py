@@ -12,7 +12,7 @@ class V2GProfitMax_Grid_OracleGB():
 
     def __init__(self,
                  replay_path=None,
-                 timelimit=60,
+                 timelimit=300, #60
                  MIPGap=None,
                  verbose=True,
                  **kwargs):
