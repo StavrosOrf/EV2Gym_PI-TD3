@@ -31,6 +31,9 @@ def shorten_algorithm_name(name):
         "sac_run_20_K=1_scenario=grid_v2g_profitmax_69380-857910": 'SAC',
         "pi_td3_run_30_K=40_scenario=grid_v2g_profitmax_37423-665267": 'PI-TD3',
         "ppo_run_0_11257_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL": 'PPO',
+        "<class 'ev2gym.baselines.heuristics.ChargeAsFastAsPossible'>": 'CAFAP',
+        "<class 'ev2gym.baselines.gurobi_models.v2g_grid_old.V2GProfitMax_Grid_OracleGB'>": 'MPC (Oracle)',
+        "<class 'ev2gym.baselines.heuristics.DoNothing'>": 'No Charging'
     }
 
     # Use mapping if available, otherwise truncate to 10 chars

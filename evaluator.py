@@ -128,10 +128,10 @@ def evaluator():
     device = safe_device_check()
 
     ############# Simulation Parameters #################
-    n_test_cycles = 100
+    n_test_cycles = 10
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
-    SAVE_VOLTAGE_MINIMUM = False
+    SAVE_VOLTAGE_MINIMUM = True
 
     config_file = "./config_files/v2g_grid_150_300.yaml"
     # config_file = "./config_files/v2g_grid_150_300_l=085.yaml"

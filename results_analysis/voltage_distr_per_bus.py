@@ -3,13 +3,15 @@ import gzip
 import os
 import sys
 
+from visualize_voltage import shorten_algorithm_name
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 from ev2gym.models.ev2gym_env import EV2Gym
 
-# load_path = "./results/eval_150cs_-1tr_v2g_grid_150_300_4_algos_3_exp_2025_07_12_218549/voltage_minimum.pkl.gz"
-load_path = "./results/eval_150cs_-1tr_v2g_grid_150_300_4_algos_30_exp_2025_07_12_251942/voltage_minimum.pkl.gz"
+load_path = "./results/eval_150cs_-1tr_v2g_grid_150_300_7_algos_1_exp_2025_07_15_068952/voltage_minimum.pkl.gz"
+# load_path = "./results/eval_150cs_-1tr_v2g_grid_150_300_7_algos_10_exp_2025_07_15_996102/voltage_minimum.pkl.gz"
 
 #open file
 with gzip.open(load_path, 'rb') as f:
@@ -44,35 +46,18 @@ for algo, buses in voltage_minimum.items():
             
 voltage_df = pd.DataFrame(voltage_data)
 
-# Shorten algorithm names
-def shorten_algorithm_name(name):
-    """Shorten algorithm names to max 10 characters"""
-    name_mapping = {
-        "<class 'ev2gym.baselines.heuristics.ChargeAsFastAsPossible'>": 'CAFAP',
-        "<class 'ev2gym.baselines.heuristics.DoNothing'>": 'Do Nothing',
-        "<class 'ev2gym.baselines.heuristics.RandomAgent'>": 'RandomAgent',
-        "<class 'ev2gym.baselines.heuristics.Optimal'>": 'Optimal (Offline)',
-        "pi_td3_run_10_K=30_scenario=grid_v2g_profitmax_80448-188243": 'PI-TD3',
-        "<class 'ev2gym.baselines.heuristics.TD3-LA'>": 'td3Lookahead',
-        "<class 'ev2gym.baselines.heuristics.SHAC'>": 'shac'
-    }
-    
-    # Use mapping if available, otherwise truncate to 10 chars
-    # print(f"Shortening algorithm name: {name}")
-    # input(f"Press Enter to continue...")
-    if name in name_mapping:
-        return name_mapping[name]
-    # elif len(name) <= 10:
-    #     return name
-    # else:
-    #     return name[:10]
-
 # print unique_algorithms
 unique_algorithms = voltage_df['algorithm'].unique()
 print(f'Unique algorithms: {unique_algorithms}')
 
 # Apply algorithm name shortening
 voltage_df['algorithm'] = voltage_df['algorithm'].apply(shorten_algorithm_name)
+unique_algorithms = voltage_df['algorithm'].unique()
+print(f'Unique algorithms: {unique_algorithms}')
+# input("Press enter to continue...")
+#drop SAC
+voltage_df = voltage_df[voltage_df['algorithm'] != 'SAC']
+voltage_df = voltage_df[voltage_df['algorithm'] != 'No Charging']
 
 # Convert columns to proper data types
 voltage_df['algorithm'] = voltage_df['algorithm'].astype('category')
@@ -91,54 +76,103 @@ import matplotlib.pyplot as plt
 
 # Set a color palette for algorithms
 unique_algos = voltage_df['algorithm'].unique()
-colors = sns.color_palette("husl", len(unique_algos))
+colors = sns.color_palette("tab10", len(unique_algos))
 algo_color_map = dict(zip(unique_algos, colors))
+
+# Define hatching patterns for each algorithm
+algo_patterns = {
+    'CAFAP': '///',
+    'TD3': '...',
+    'PI-TD3': 'xxx',
+    'MPC (Oracle)': 'o'
+}
 
 # Get unique buses and sort them
 unique_buses = sorted(voltage_df['bus'].unique())
 n_buses = len(unique_buses)
 
 # Create a horizontal figure with subplots for each bus
-fig, axes = plt.subplots(1, n_buses, figsize=(4*n_buses, 6), sharey=True)
+fig, axes = plt.subplots(1, n_buses, figsize=(12,3.5), sharey=True)
+plt.rcParams['font.family'] = ['serif']
 
 # If only one bus, make axes a list for consistency
 if n_buses == 1:
     axes = [axes]
 
-# Plot histogram for each bus
+# Plot box plot for each bus
 for i, bus in enumerate(unique_buses):
     bus_data = voltage_df[voltage_df['bus'] == bus]
     
-    # Create histogram for this bus
-    sns.histplot(data=bus_data, 
-                 x='voltage', 
-                 hue='algorithm',
-                 stat='density',  # Use density for better comparison
-                 kde=True,  # Add KDE for smoother visualization
-                 alpha=0.7,
-                 palette=algo_color_map,
-                 ax=axes[i])
+    # Create box plot for this bus
+    box_plot = sns.boxplot(data=bus_data, 
+                          x='algorithm', 
+                          y='voltage',
+                          order=['CAFAP','TD3','PI-TD3','MPC (Oracle)'],
+                          palette=algo_color_map,
+                          showfliers=True,
+                          ax=axes[i])
+    
+    # Apply hatching patterns to each box
+    for patch, algorithm in zip(box_plot.patches, ['CAFAP','TD3','PI-TD3','MPC (Oracle)']):
+        if algorithm in algo_patterns:
+            patch.set_hatch(algo_patterns[algorithm])
+            patch.set_edgecolor('k')
+            patch.set_linewidth(0.2)
+    
+    #draw a line at 0.95 p.u. voltage
+    axes[i].axhline(y=0.95, color='r', linestyle='--', label='0.95 p.u. Voltage Limit')
     
     # Customize each subplot
-    axes[i].set_title(f'Bus {bus}', fontsize=14, fontweight='bold')
-    axes[i].set_xlabel('Voltage (p.u.)', fontsize=12)
-    
-    # Only show y-label on the first subplot
     if i == 0:
-        axes[i].set_ylabel('Density', fontsize=12)
+        axes[i].set_title(f'Bus {bus}       ', fontsize=9)
     else:
-        axes[i].set_ylabel('')
+        axes[i].set_title(f'{bus}', fontsize=9)
+    axes[i].set_ylabel('Voltage [p.u.]', fontsize=12)
+    # axes[i].set_xlabel('Algorithm', fontsize=12)
+    #set empty x-axis label
+    axes[i].set_xlabel('')
+            
+    #remove text from x-axis labels
     
-    # Remove legend from individual subplots (we'll add a common one)
-    axes[i].legend_.remove() if axes[i].legend_ else None
+    axes[i].set_xticklabels(axes[i].get_xticklabels(), rotation=45, fontsize=10, ha='right')
 
-# Add a common legend
-handles, labels = axes[0].get_legend_handles_labels()
-fig.legend(handles, labels, title='Algorithm', bbox_to_anchor=(1.02, 0.5), 
-           loc='center left', fontsize=10)
+    # Remove text from x-axis labels
+    axes[i].set_xticklabels([''] * len(axes[i].get_xticklabels()))
+
+    # Add grid for better readability
+    axes[i].grid(True, alpha=0.3)
+    
+    for spine in axes[i].spines.values():
+        spine.set_linewidth(1.2)
+        spine.set_color('#666666')
+
+    axes[i].minorticks_on()
+
+# Create legend handles for each algorithm with patterns
+from matplotlib.patches import Patch
+legend_elements = [Patch(facecolor=algo_color_map[algo], 
+                        hatch=algo_patterns.get(algo, ''), 
+                        edgecolor='k',
+                        linewidth=0.8,
+                        label=algo) 
+                  for algo in ['CAFAP', 'TD3', 'PI-TD3', 'MPC (Oracle)'] 
+                  if algo in algo_color_map]
+
+# Add legend below the figure
+fig.legend(handles=legend_elements, 
+          loc='lower center', 
+          bbox_to_anchor=(0.5, -0.02),
+          ncol=len(legend_elements),
+          fontsize=12,
+          frameon=False)
 
 # Add main title
-fig.suptitle('Voltage Distribution per Bus by Algorithm', fontsize=16, fontweight='bold')
+# fig.suptitle('Voltage Distribution per Bus by Algorithm', fontsize=16, fontweight='bold')
 
-plt.tight_layout()
-plt.show()
+# Adjust layout to make room for legend
+# plt.tight_layout()
+# plt.subplots_adjust(bottom=0.15)
+plt.savefig('./results_analysis/pes/voltage_boxplot_per_bus.png', bbox_inches='tight', dpi=300)
+#save pdf
+plt.savefig('./results_analysis/pes/voltage_boxplot_per_bus.pdf', bbox_inches='tight', dpi=300)
+# plt.show()
