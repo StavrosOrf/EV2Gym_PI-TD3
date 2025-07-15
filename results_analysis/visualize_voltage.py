@@ -63,8 +63,18 @@ def plot_grid_metrics(results_path,
             results_path) if results_path else './results_analysis/pes'
         os.makedirs(save_path, exist_ok=True)
 
-    # Create a color cycle (one color per algorithm)
-    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    # Create a color cycle (one color per algorithm) using seaborn tab10
+    import seaborn as sns
+    
+    # Define algorithm-specific colors from tab10 palette
+    algorithm_colors = {
+        'CAFAP': sns.color_palette("tab10")[3],      # Red
+        'No Charging': sns.color_palette("tab10")[7], # Gray  
+        'TD3': sns.color_palette("tab10")[0],        # Blue
+        'PI-TD3': sns.color_palette("tab10")[2],     # Green
+        'MPC (Oracle)': sns.color_palette("tab10")[1] # Orange
+    }
+    
     markers = ['o', 's', 'D', '^', '*', 'v', '<', '>', 'P', 'X']
     linestyles = ['--', ':', '-.', '--', '-.', '--', '-.', '-', ':', '--']
 
@@ -85,7 +95,7 @@ def plot_grid_metrics(results_path,
 
     # plot only algorithms 0,1,2,5,6
     # selected_algorithms_index = [0, 1, 2, 3, 4, 5, 6]
-    selected_algorithms_index = [6, 5, 0, 2, 3]
+    selected_algorithms_index = [ 5,6, 0, 3,1]
     # Plot only node 19
     node = 23
 
@@ -111,15 +121,25 @@ def plot_grid_metrics(results_path,
     timescale = env_first.timescale
     simulation_length = env_first.simulation_length
 
-    # Create date ranges
+    # Create date ranges - start from step 20, plot 220 steps total
+    start_step = 15
+    max_steps = 220
+    end_step = start_step + max_steps
+    
+    # Ensure we don't exceed simulation length
+    if end_step > simulation_length:
+        end_step = simulation_length
+        max_steps = end_step - start_step
+    
     date_range = pd.date_range(
-        start=sim_starting_date,
-        end=sim_starting_date +
-        datetime.timedelta(minutes=timescale * (simulation_length - 1)),
+        start=sim_starting_date + datetime.timedelta(minutes=timescale * start_step),
+        end=sim_starting_date + datetime.timedelta(minutes=timescale * (end_step - 1)),
         freq=f'{timescale}min'
     )
     date_range_print = pd.date_range(
-        start=sim_starting_date, end=sim_date, periods=10)
+        start=sim_starting_date + datetime.timedelta(minutes=timescale * start_step), 
+        end=sim_starting_date + datetime.timedelta(minutes=timescale * (end_step - 1)), 
+        periods=10)
 
     # Determine subplot grid dimensions
     dim_x = int(np.ceil(np.sqrt(number_of_nodes)))
@@ -134,23 +154,22 @@ def plot_grid_metrics(results_path,
         print(f'Plotting algorithm: {key} ({algorithm_names[index]})')
         env = replay[key]
         # Choose label and color for this algorithm
-        # if names were provided, otherwise keys are used.
         label = algorithm_names[index]
-        color = colors[index % len(colors)]
+        color = algorithm_colors.get(label, sns.color_palette("tab10")[4])  # Default to purple if not found
         marker = markers[index % len(markers)]
         linestyle = linestyles[index % len(linestyles)]
 
-        # Plot the total active power (node_active_power + node_ev_power) as a step plot
+        # Plot the total active power (node_active_power + node_ev_power) as a step plot - steps 20-239
         plt.step(
             date_range,
-            env.node_active_power[node, :] + env.node_ev_power[node, :],
+            env.node_active_power[node, start_step:end_step] + env.node_ev_power[node, start_step:end_step],
             label=label,
             where='post',
-            linewidth=1,
+            linewidth=1.5,
             color=color,
             marker=marker,
             markevery=12,
-            markersize=4,
+            markersize=5,
             linestyle=linestyle,
             alpha=0.8,
             markerfacecolor='white',
@@ -161,14 +180,23 @@ def plot_grid_metrics(results_path,
     # add a line at 0
     plt.axhline(0, color='black', linewidth=1, linestyle='--')
 
-    plt.ylabel('Bus Total Power [kW]', fontsize=14)
+    plt.ylabel('Active Power [kW]', fontsize=14)
     # plt.xlabel('Time [h:m]', fontsize=14)
-    plt.xlim([sim_starting_date, sim_date])
+    plt.xlim([sim_starting_date + datetime.timedelta(minutes=timescale * start_step), 
+              sim_starting_date + datetime.timedelta(minutes=timescale * (end_step - 1))])
     plt.xticks(date_range_print)
     plt.gca().set_xticklabels(
         [f'{d.hour:02d}:{d.minute:02d}' for d in date_range_print], fontsize=10)
-    plt.grid(True, which='minor', axis='both', alpha=0.3)
+    
+    plt.grid(False, which='minor', axis='both', alpha=0.1,
+            linewidth=0.5)
     plt.grid(True, which='major', axis='both', alpha=0.5)
+    
+    for spine in plt.gca().spines.values():
+        spine.set_linewidth(1.2)
+        spine.set_color('#666666')
+    plt.minorticks_on()
+    
     # plt.legend(fontsize=10)
     #remove legend
     # plt.gca().get_legend().remove()
@@ -194,18 +222,29 @@ def plot_grid_metrics(results_path,
     timescale = env_first.timescale
     simulation_length = env_first.simulation_length
 
-    # Create the full date range used for plotting
+    # Create the full date range used for plotting - start from step 20, plot 220 steps total
+    start_step = 15
+    max_steps = 220
+    end_step = start_step + max_steps
+    
+    # Ensure we don't exceed simulation length
+    if end_step > simulation_length:
+        end_step = simulation_length
+        max_steps = end_step - start_step
+    
     date_range = pd.date_range(
-        start=sim_starting_date,
-        end=sim_starting_date +
-        datetime.timedelta(minutes=timescale * (simulation_length - 1)),
+        start=sim_starting_date + datetime.timedelta(minutes=timescale * start_step),
+        end=sim_starting_date + datetime.timedelta(minutes=timescale * (end_step - 1)),
         freq=f'{timescale}min'
     )
     date_range_print = pd.date_range(
-        start=sim_starting_date, end=sim_date, periods=10)
+        start=sim_starting_date + datetime.timedelta(minutes=timescale * start_step), 
+        end=sim_starting_date + datetime.timedelta(minutes=timescale * (end_step - 1)), 
+        periods=10)
 
     # Get the default color cycle so that each algorithm gets a unique color.
-    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    # Use the same algorithm_colors mapping defined earlier
+    
     # For each algorithm, plot the voltage for this node in a different color.
 
     # Plot main voltage profiles
@@ -216,20 +255,20 @@ def plot_grid_metrics(results_path,
     for idx, key in enumerate(replay.keys()):
         env = replay[key]
         label = algorithm_names[idx]
-        color = colors[idx % len(colors)]
+        color = algorithm_colors.get(label, sns.color_palette("tab10")[4])  # Default to purple if not found
         marker = markers[idx % len(markers)]
         linestyle = linestyles[idx % len(linestyles)]
 
         ax.step(
             date_range,
-            env.node_voltage[node, :],
+            env.node_voltage[node, start_step:end_step],
             label=label,
             where='post',
-            linewidth=1,
+            linewidth=1.5,
             color=color,
             marker=marker,
             markevery=12,
-            markersize=4,
+            markersize=5,
             linestyle=linestyle,
             alpha=0.8,
             zorder=10,
@@ -239,18 +278,19 @@ def plot_grid_metrics(results_path,
 
     # Voltage limit line
     ax.plot(date_range, [0.95] * len(date_range),
-            linestyle='--', color='grey', linewidth=2,
+            linestyle='--', color='purple', linewidth=2,
             label='Voltage Limit (0.95 p.u.)', zorder=0)
     
     for spine in ax.spines.values():
         spine.set_linewidth(1.2)
-        spine.set_color('#666666')
+        spine.set_color('#666666')    
 
     # Formatting main axes
     ax.set_ylim(0.94, 1.005)
-    ax.set_ylabel('|V| [pu]', fontsize=14)
+    ax.set_ylabel(r'|V| [p.u.]', fontsize=14)                  
     # ax.set_xlabel('Time [h:m]', fontsize=14)
-    ax.set_xlim([sim_starting_date, sim_date])
+    ax.set_xlim([sim_starting_date + datetime.timedelta(minutes=timescale * start_step), 
+                 sim_starting_date + datetime.timedelta(minutes=timescale * (end_step - 1))])
     ax.set_xticks(date_range_print)
     ax.set_xticklabels(
         [f'{d.hour:02d}:{d.minute:02d}' for d in date_range_print], fontsize=10)
@@ -275,13 +315,23 @@ def plot_grid_metrics(results_path,
     # frame.set_boxstyle('round,pad=0.3')# rounded corners with padding
 
     
-    ax.grid(True, which='minor', axis='both', alpha=0.3)
+    ax.grid(False, which='minor', axis='both', alpha=0.1,
+            linewidth=0.5)
     ax.grid(True, which='major', axis='both', alpha=0.5)
 
-    # --- Add zoomed inset for x-axis steps 50 to 60 ---
-    # Convert indices 50-60 to datetime limits
-    x1 = date_range[50]
-    x2 = date_range[70]
+    # --- Add zoomed inset for x-axis steps 50 to 70 (relative to original numbering) ---
+    # Convert indices to work with our new range (steps 20-239)
+    inset_start_original = 50  # Original step number
+    inset_end_original = 70    # Original step number
+    
+    # Convert to indices in our date_range (which starts from step 20)
+    inset_start_idx = max(0, inset_start_original - start_step)
+    inset_end_idx = min(len(date_range) - 1, inset_end_original - start_step)
+    
+    # Ensure we have a valid range
+    if inset_start_idx < inset_end_idx:
+        x1 = date_range[inset_start_idx]
+        x2 = date_range[inset_end_idx]
 
     # axins = zoomed_inset_axes(ax, zoom=2.5,
     #                           bbox_to_anchor=(10, -1.15), borderpad=2)
@@ -293,56 +343,62 @@ def plot_grid_metrics(results_path,
         borderpad=0.5,
     )
 
-    for idx, key in enumerate(replay.keys()):
-        env = replay[key]
-        color = colors[idx % len(colors)]
-        axins.step(
-            date_range[50:71],
-            env.node_voltage[node, 50:71],
-            where='post',
-            linewidth=1,
-            color=color,
-            marker=markers[idx % len(markers)],
-            markevery=5,
-            markersize=2,
-            linestyle=linestyles[idx % len(linestyles)],
-            alpha=0.8,
-            zorder=10,
-            markerfacecolor='white',
-            markeredgewidth=1.5
-        )
+    # Only create inset if we have a valid range
+    if inset_start_idx < inset_end_idx:
+        for idx, key in enumerate(replay.keys()):
+            env = replay[key]
+            label = algorithm_names[idx]
+            color = algorithm_colors.get(label, sns.color_palette("tab10")[4])  # Default to purple if not found
+            axins.step(
+                date_range[inset_start_idx:inset_end_idx+1],
+                env.node_voltage[node, start_step + inset_start_idx:start_step + inset_end_idx+1],
+                where='post',
+                linewidth=1,
+                color=color,
+                marker=markers[idx % len(markers)],
+                markevery=5,
+                markersize=2,
+                linestyle=linestyles[idx % len(linestyles)],
+                alpha=0.8,
+                zorder=10,
+                markerfacecolor='white',
+                markeredgewidth=1.5
+            )
 
-    axins.plot(date_range[50:71], [0.95]*21, '--', color='grey', linewidth=1.5,zorder=0,)
+        axins.plot(date_range[inset_start_idx:inset_end_idx+1], [0.95]*(inset_end_idx-inset_start_idx+1), '--', color='grey', linewidth=1.5,zorder=0,)
 
-    # Set inset limits
-    axins.set_xlim(x1, x2)
-    axins.set_ylim(0.944, 0.952)
-    axins.set_xticklabels([])
-    # axins.set_yticklabels([f'{y:.4f}' for y in axins.get_yticks()],
-                        #   fontsize=8)
-    # show 3 y-ticks, the lower limit and the upper limit, and 0.95
-    axins.set_yticks([0.945, 0.95, 0.955])
-    axins.set_yticklabels([f'{y:.3f}' for y in axins.get_yticks()],
-                         fontsize=8)
-    axins.grid(True, which='both', alpha=0.3)
+        # Set inset limits
+        axins.set_xlim(x1, x2)
+        axins.set_ylim(0.942, 0.952)
+        axins.set_xticklabels([])
+        # axins.set_yticklabels([f'{y:.4f}' for y in axins.get_yticks()],
+                            #   fontsize=8)
+        # show 3 y-ticks, the lower limit and the upper limit, and 0.95
+        axins.set_yticks([0.945, 0.95, 0.955])
+        axins.set_yticklabels([f'{y:.3f}' for y in axins.get_yticks()],
+                             fontsize=8)
+        axins.grid(True, which='both', alpha=0.3)
 
-    # Draw rectangle on main plot to show zoom area
-    mark_inset(ax, axins, loc1=2, loc2=4,
-               fc="none",
-               ec="black",)
-    
-    rect = axins.patch
-    rect.set_facecolor("white")
-    rect.set_edgecolor("C3")  # same as connector if you like
-    rect.set_linewidth(1.5)
-    
-    rect.set_path_effects([
-        pe.SimplePatchShadow(offset=(4, -4),   # x,y pix offset
-                            shadow_rgbFace=(0,0,0), 
-                            alpha=0.3),
-        pe.Normal()
-    ])
-    rect.set_edgecolor("green")
+        # Draw rectangle on main plot to show zoom area
+        mark_inset(ax, axins, loc1=2, loc2=4,
+                   fc="none",
+                   ec="black",)
+        
+        rect = axins.patch
+        rect.set_facecolor("white")
+        rect.set_edgecolor("C3")  # same as connector if you like
+        rect.set_linewidth(1.5)
+        
+        rect.set_path_effects([
+            pe.SimplePatchShadow(offset=(4, -4),   # x,y pix offset
+                                shadow_rgbFace=(0,0,0), 
+                                alpha=0.3),
+            pe.Normal()
+        ])
+        rect.set_edgecolor("green")
+    else:
+        # Remove the inset if the range is not valid
+        axins.remove()
     
 
 
@@ -383,7 +439,7 @@ def plot_comparable_EV_SoC_single(results_path,
 
     # Filter algorithms (same as grid_metrics: [0, 1, 3, 4])
     # selected_algorithms_index = [0, 1,2, 3, 4, 5, 6]
-    selected_algorithms_index = [6, 5, 0, 2, 3]
+    selected_algorithms_index = [ 5,6, 0, 3,1]
     algorithm_names_temp = [algorithm_names[i]
                             for i in selected_algorithms_index]
     algorithm_names = algorithm_names_temp
@@ -403,24 +459,44 @@ def plot_comparable_EV_SoC_single(results_path,
     plt.figure(figsize=(7, 3))
     plt.rcParams['font.family'] = ['serif']
 
-    # Use same color scheme as voltage plot
-    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    # Define algorithm-specific colors from tab10 palette (same as in grid_metrics)
+    algorithm_colors = {
+        'CAFAP': sns.color_palette("tab10")[3],      # Red
+        'No Charging': sns.color_palette("tab10")[7], # Gray  
+        'TD3': sns.color_palette("tab10")[0],        # Blue
+        'PI-TD3': sns.color_palette("tab10")[2],     # Green
+        'MPC (Oracle)': sns.color_palette("tab10")[1] # Orange
+    }
+
+    # Use same color scheme as voltage plot with algorithm-specific colors
+    # algorithm_colors already defined above
     markers = ['o', 's', 'D', '^', '*', 'v', '<', '>', 'P', 'X']
     linestyles = [':', '--', '-.', '-', ':', '--', '-.', '-', ':', '--']
 
     for index, key in enumerate(replay.keys()):
         env = replay[key]
-        color = colors[index % len(colors)]
+        label = algorithm_names[index]
+        color = algorithm_colors.get(label, sns.color_palette("tab10")[4])  # Default to purple if not found
         marker = markers[index % len(markers)]
         linestyle = linestyles[index % len(linestyles)]
 
-        date_range = pd.date_range(start=env.sim_starting_date,
+        # Start from step 20, plot 220 steps total
+        start_step = 15
+        max_steps = 220
+        end_step = start_step + max_steps
+        
+        # Ensure we don't exceed simulation length
+        if end_step > env.simulation_length:
+            end_step = env.simulation_length
+            max_steps = end_step - start_step
+            
+        date_range = pd.date_range(start=env.sim_starting_date + datetime.timedelta(minutes=env.timescale * start_step),
                                    end=env.sim_starting_date +
-                                   (env.simulation_length - 1) *
-                                   datetime.timedelta(minutes=env.timescale),
+                                   datetime.timedelta(minutes=env.timescale * (end_step - 1)),
                                    freq=f'{env.timescale}min')
-        date_range_print = pd.date_range(start=env.sim_starting_date,
-                                         end=env.sim_date,
+        date_range_print = pd.date_range(start=env.sim_starting_date + datetime.timedelta(minutes=env.timescale * start_step),
+                                         end=env.sim_starting_date +
+                                         datetime.timedelta(minutes=env.timescale * (end_step - 1)),
                                          periods=10)
 
         counter = 1
@@ -435,7 +511,7 @@ def plot_comparable_EV_SoC_single(results_path,
             # Check if port_energy_level exists (depends on lightweight_plots setting)
             if hasattr(env, 'port_energy_level'):
                 for port in range(cs.n_ports):
-                    df[port] = env.port_energy_level[port, cs.id, :]*100
+                    df[port] = env.port_energy_level[port, cs.id, start_step:end_step]*100                    
             else:
                 print(
                     f"Warning: port_energy_level not available (likely lightweight_plots=True). Skipping EV SoC plot.")
@@ -446,11 +522,11 @@ def plot_comparable_EV_SoC_single(results_path,
                    datetime.timedelta(minutes=env.timescale)] = df.iloc[-1]
 
             for port in range(cs.n_ports):
-                for i, (t_arr, t_dep) in enumerate(env.port_arrival[f'{cs.id}.{port}']):
+                for i, (t_arr, t_dep) in enumerate(env.port_arrival[f'{cs.id}.{port}']):                    
                     t_dep = t_dep + 1
                     if t_dep > len(df):
                         t_dep = len(df)
-                    y = df[port].values.T[t_arr:t_dep]
+                    y = df[port].values.T[t_arr-start_step:t_dep-start_step]
                     # fill y with 0 before and after to match the length of df
                     y = np.concatenate(
                         [np.zeros(t_arr), y, np.zeros(len(df) - t_dep)])
@@ -464,7 +540,7 @@ def plot_comparable_EV_SoC_single(results_path,
                              markersize=4,
                              linestyle=linestyle,
                              alpha=0.8,
-                             linewidth=1.5,
+                             linewidth=2.0,
                              markerfacecolor='white',
                              markeredgewidth=1.5,
                              label=algorithm_names[index] if port == 0 and i == 0 else "")
@@ -473,19 +549,26 @@ def plot_comparable_EV_SoC_single(results_path,
 
     # Style the plot similar to voltage plot
     plt.ylabel("EV's SoC [%]", fontsize=14)
-    plt.xlabel('Time [h:m]', fontsize=14)
+    plt.xlabel('Simulation Time', fontsize=14)
     plt.ylim([10, 105])
-    plt.xlim([env.sim_starting_date, env.sim_date])
+    plt.xlim([env.sim_starting_date + datetime.timedelta(minutes=env.timescale * start_step), 
+              env.sim_starting_date + datetime.timedelta(minutes=env.timescale * (end_step - 1))])
     plt.xticks(date_range_print)
     plt.gca().set_xticklabels(
         [f'{d.hour:02d}:{d.minute:02d}' for d in date_range_print], fontsize=10)
     plt.tick_params(axis='y', labelsize=10)
+    
+    for spine in plt.gca().spines.values():
+        spine.set_linewidth(1.2)
+        spine.set_color('#666666')
+    plt.minorticks_on()
 
     # Add legend
     # plt.legend(fontsize=10)
 
     # Add grid
-    plt.grid(True, which='minor', axis='both', alpha=0.3)
+    plt.grid(False, which='minor', axis='both', alpha=0.1,
+            linewidth=0.5)
     plt.grid(True, which='major', axis='both', alpha=0.5)
 
     plt.tight_layout()
@@ -500,7 +583,11 @@ def plot_comparable_EV_SoC_single(results_path,
 
 if __name__ == "__main__":
     # Example usage
+    
+    #original
     name = "eval_150cs_-1tr_v2g_grid_150_300_7_algos_1_exp_2025_07_14_559975"
+    
+    name = "eval_150cs_-1tr_v2g_grid_150_300_7_algos_1_exp_2025_07_15_120314"
     results_path = f'./results/{name}/plot_results_dict.pkl.gz'
     # read the algorithm names from a file or define them directly from algorithm_names.txt
     name_file = f'./results/{name}/algorithm_names.txt'

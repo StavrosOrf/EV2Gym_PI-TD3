@@ -128,27 +128,27 @@ def evaluator():
     device = safe_device_check()
 
     ############# Simulation Parameters #################
-    n_test_cycles = 20
+    n_test_cycles = 1
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
     SAVE_VOLTAGE_MINIMUM = False
 
-    config_file = "./config_files/v2g_grid_150_300.yaml"
+    # config_file = "./config_files/v2g_grid_150_300.yaml"
     # config_file = "./config_files/v2g_grid_150_300_l=085.yaml"
     # config_file = "./config_files/v2g_grid_150_300_l=095.yaml"
     # config_file = "./config_files/v2g_grid_150.yaml"
     # config_file = "./config_files/v2g_grid_50.yaml"
     
     config_file_list = [        
-        "./config_files/v2g_grid_150_300_l=05.yaml",
-        "./config_files/v2g_grid_150_300_l=075.yaml",
-        "./config_files/v2g_grid_150_300_l=085.yaml",
-        "./config_files/v2g_grid_150_300_l=095.yaml",
+        # "./config_files/v2g_grid_150_300_l=05.yaml",
+        # "./config_files/v2g_grid_150_300_l=075.yaml",
+        # "./config_files/v2g_grid_150_300_l=085.yaml",
+        # "./config_files/v2g_grid_150_300_l=095.yaml",
         "./config_files/v2g_grid_150_300.yaml",
-        "./config_files/v2g_grid_150_300_l=105.yaml",
-        "./config_files/v2g_grid_150_300_l=115.yaml",
-        "./config_files/v2g_grid_150_300_l=125.yaml",
-        "./config_files/v2g_grid_150_300_l=15.yaml",
+        # "./config_files/v2g_grid_150_300_l=105.yaml",
+        # "./config_files/v2g_grid_150_300_l=115.yaml",
+        # "./config_files/v2g_grid_150_300_l=125.yaml",
+        # "./config_files/v2g_grid_150_300_l=15.yaml",
     ]
 
     state_function_Normal = V2G_grid_state_ModelBasedRL

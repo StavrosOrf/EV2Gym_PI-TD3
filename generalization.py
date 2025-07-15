@@ -12,7 +12,8 @@ data_paths = [
     './results/eval_150cs_-1tr_v2g_grid_150_300_l=095_7_algos_20_exp_2025_07_15_397420/data.csv',
     './results/eval_150cs_-1tr_v2g_grid_150_300_7_algos_20_exp_2025_07_15_618438/data.csv',
     './results/eval_150cs_-1tr_v2g_grid_150_300_l=105_7_algos_20_exp_2025_07_15_171569/data.csv',
-    './results/eval_150cs_-1tr_v2g_grid_150_300_l=115_7_algos_2_exp_2025_07_15_938309/data.csv',
+    './results/eval_150cs_-1tr_v2g_grid_150_300_l=115_7_algos_20_exp_2025_07_15_856217/data.csv',
+    './results/eval_150cs_-1tr_v2g_grid_150_300_l=125_7_algos_20_exp_2025_07_15_224048/data.csv',
     # './results/eval_150cs_-1tr_v2g_grid_150_300_l=15_7_algos_2_exp_2025_07_15_073287/data.csv',
 ]
 
@@ -168,22 +169,43 @@ def create_radar_chart(data, metric, title, ax):
         'MPC (Oracle)': '---' # Horizontal lines
     }
     
+    # Define z-order for each algorithm (higher values appear on top)
+    algorithm_zorders = {
+        'PI-TD3': 100,         # Highest z-order for PI-TD3
+        'MPC (Oracle)': 80,    # Second highest for MPC
+        'TD3': 50,            # Default z-order for others
+        'CAFAP': 50,
+        'No Charging': 50
+    }
+    
     colors = [algorithm_colors.get(algo, sns.color_palette("tab10")[4]) for algo in ordered_algorithms]
     markers = [algorithm_markers.get(algo, 'o') for algo in ordered_algorithms]
     hatches = [algorithm_hatches.get(algo, '') for algo in ordered_algorithms]
+    zorders = [algorithm_zorders.get(algo, 5) for algo in ordered_algorithms]
 
     # Plot each algorithm
     for i, (algo, values) in enumerate(absolute_data.items()):
         plot_values = values + [values[0]]  # Complete the circle
-        ax.plot(angles, plot_values, marker=markers[i], linewidth=2, label=algo, color=colors[i],
-                zorder=1, markersize=6)
+        ax.plot(angles, plot_values, marker=markers[i],
+                linewidth=2.5, label=algo, color=colors[i],
+                markerfacecolor='white',
+                markeredgewidth=1.5,
+                #  markersize=2,
+                zorder=zorders[i], markersize=6)
 
         ax.fill(angles, plot_values, alpha=0.15, color=colors[i], 
-                hatch=hatches[i], edgecolor=colors[i], linewidth=0.5)
+                hatch=hatches[i], edgecolor=colors[i], linewidth=0.5, zorder=0)#zorders[i]-1)
 
     # Add labels
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels([f'Load\n×{lm}' for lm in load_multipliers])
+    x_tick_text = []
+    for lm in load_multipliers:
+        if lm == 1:
+            x_tick_text.append('Load ×1\n' + r'($\mathbf{Trained}$)' )
+        else:
+            x_tick_text.append(f'Load\n×{lm}')            
+            
+    ax.set_xticklabels(x_tick_text)
 
     # Set y-axis limits and labels
     all_values = [val for vals in absolute_data.values() for val in vals]
@@ -193,21 +215,27 @@ def create_radar_chart(data, metric, title, ax):
         # set y-tick zorder
         ax.tick_params(axis='y', which='both', zorder=100)
         # ax.set_ylabel('Voltage Violations Count', labelpad=30)
+    elif 'violation' in metric.lower():
+        # ax.set_ylim(0, 85)
+        ax.set_yticks(np.arange(0, 76, 15))
+        ax.tick_params(axis='y', which='both', zorder=100)
+        # ax.set_ylabel('Voltage Violation Sum', labelpad=30)
 
     elif 'satisfaction' in metric.lower():
         ax.set_yticks(np.arange(40, 101, 20))
         ax.tick_params(axis='y', which='both', zorder=100)
         #set ylims
-        ax.set_ylim(40, 100)
+        # ax.set_ylim(40, 110)
         # ax.set_ylabel('User Satisfaction [%]', labelpad=30)
     elif "profits" in metric.lower():
-        ax.set_ylim(-4, 0)  
+        # ax.set_ylim(-4, 0.5)  
         ax.set_yticks(np.arange(-4, 1, 1))
         ax.tick_params(axis='y', which='both', zorder=100)
 
     elif "total_reward" in metric.lower():
-        ax.set_yticks(np.arange(-15, 1, 3))
-        ax.tick_params(axis='y', which='both', zorder=100)
+        # ax.set_ylim(-20, 2)
+        ax.set_yticks(np.arange(-20, 1, 4))
+        ax.tick_params(axis='y', which='both', zorder=1000)
         # ax.set_ylabel('Total Reward [-]', labelpad=30)
     else:  # profits
         ax.tick_params(axis='y', which='both', zorder=100)
@@ -219,7 +247,10 @@ def create_radar_chart(data, metric, title, ax):
     ax.set_title(title, size=14, fontweight='bold', pad=20)
 
     # Add grid with more visibility
-    ax.grid(True, alpha=0.6, linewidth=0.8, color='gray')
+    ax.grid(True, alpha=0.7, linewidth=0.9, color='gray')
+    
+    #hide the spline
+    ax.spines['polar'].set_visible(False)
 
     return ax
 
@@ -240,7 +271,7 @@ metrics_titles = {
     'voltage_violation_counter_per_step': 'Steps with Voltage Violations [-]',
     'average_user_satisfaction': 'Average User Satisfaction [%]',
     'total_profits': 'Total Profits [x10$^3$ €]',
-    'total_reward': 'Total Reward [x10$^4$ €]'
+    'total_reward': 'Total Reward [x10$^4$]'
 }
 
 for i, metric in enumerate(radar_chart_metrics):
