@@ -216,8 +216,8 @@ def create_radar_chart(data, metric, title, ax):
         ax.tick_params(axis='y', which='both', zorder=100)
         # ax.set_ylabel('Voltage Violations Count', labelpad=30)
     elif 'violation' in metric.lower():
-        # ax.set_ylim(0, 85)
-        ax.set_yticks(np.arange(0, 76, 15))
+        ax.set_ylim(0, 130)
+        ax.set_yticks(np.arange(0, 126, 25))
         ax.tick_params(axis='y', which='both', zorder=100)
         # ax.set_ylabel('Voltage Violation Sum', labelpad=30)
 
@@ -225,26 +225,27 @@ def create_radar_chart(data, metric, title, ax):
         ax.set_yticks(np.arange(40, 101, 20))
         ax.tick_params(axis='y', which='both', zorder=100)
         #set ylims
-        # ax.set_ylim(40, 110)
+        ax.set_ylim(40, 110)
         # ax.set_ylabel('User Satisfaction [%]', labelpad=30)
     elif "profits" in metric.lower():
-        # ax.set_ylim(-4, 0.5)  
+        ax.set_ylim(-4, 0.5)  
         ax.set_yticks(np.arange(-4, 1, 1))
         ax.tick_params(axis='y', which='both', zorder=100)
 
     elif "total_reward" in metric.lower():
-        # ax.set_ylim(-20, 2)
-        ax.set_yticks(np.arange(-20, 1, 4))
+        ax.set_ylim(-40, 5)
+        ax.set_yticks(np.arange(-40, 1, 10))
         ax.tick_params(axis='y', which='both', zorder=1000)
         # ax.set_ylabel('Total Reward [-]', labelpad=30)
     else:  # profits
         ax.tick_params(axis='y', which='both', zorder=100)
         # ax.set_ylabel('Total Profits', labelpad=30)
 
-    # Add title
+    # Add title below the subplot
     ax.tick_params(axis='x', which='both', labelsize=13)
     ax.tick_params(axis='y', which='both', labelsize=13)
-    ax.set_title(title, size=14, fontweight='bold', pad=20)
+    ax.text(0.5, -0.15, title, size=14, ha='center', va='top', 
+            transform=ax.transAxes, fontweight='normal')
 
     # Add grid with more visibility
     ax.grid(True, alpha=0.7, linewidth=0.9, color='gray')
@@ -268,10 +269,10 @@ axs = axs.flatten()
 metrics_titles = {
     'voltage_violation_counter': 'Voltage Violations [p.bus]',
     'voltage_violation': 'Voltage Violation Sum ',
-    'voltage_violation_counter_per_step': 'Steps with Voltage Violations [-]',
-    'average_user_satisfaction': 'Average User Satisfaction [%]',
-    'total_profits': 'Total Profits [x10$^3$ €]',
-    'total_reward': 'Total Reward [x10$^4$]'
+    'voltage_violation_counter_per_step': '(b) Steps with Voltage Violations [-]',
+    'average_user_satisfaction': '(c) Average User Satisfaction [%]',
+    'total_profits': '(d) Total Profits [x10$^3$ €]',
+    'total_reward': '(a) Total Reward [x10$^4$]'
 }
 
 for i, metric in enumerate(radar_chart_metrics):
@@ -284,10 +285,14 @@ for i, metric in enumerate(radar_chart_metrics):
         if metric not in all_data.columns:
             print(f'Warning: {metric} not found in data columns')
 
-# Add a single legend for all subplots
+# Add a single legend overlaying the plots
 handles, labels = axs[0].get_legend_handles_labels()
-fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.04),
-           ncol=len(labels), fontsize=14)
+fig.legend(handles, labels, loc='center', bbox_to_anchor=(0.5, 1.05),
+           ncol=len(labels), fontsize=14, 
+        #    fancybox=True,
+           shadow=True, 
+           framealpha=0.9,
+           bbox_transform=fig.transFigure)
 
 plt.tight_layout()
 plt.savefig('./results_analysis/pes/radar_charts_combined.png',

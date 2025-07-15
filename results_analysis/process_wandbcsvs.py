@@ -212,13 +212,38 @@ plt.rcParams['font.family'] = ['serif']
 # sns.set_style("whitegrid")
 # sns.set_context("paper", font_scale=1.4)
 
-# Create a beautiful color palette
-# colors = sns.color_palette("husl", len(training_stats))
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-colors = ['darkblue',
-          'green',
-          'red',
-          'pink']
+# Create a beautiful color palette using seaborn tab10 with algorithm-specific mapping
+import seaborn as sns
+
+# Define algorithm-specific colors from tab10 palette
+algorithm_colors = {
+    'sac': sns.color_palette("tab10")[4],       # Red (for CAFAP-like baseline)
+    'td3': sns.color_palette("tab10")[0],       # Blue
+    'PI-TD3': sns.color_palette("tab10")[2],    # Green
+    'ppo': sns.color_palette("tab10")[5],       # Orange (for MPC-like baseline)
+    'PI-SAC': sns.color_palette("tab10")[4],    # Purple
+    'SHAC': sns.color_palette("tab10")[5],      # Brown
+    'CAFAP': sns.color_palette("tab10")[6],     # Pink
+    'No Charging': sns.color_palette("tab10")[7], # Gray
+    'MPC': sns.color_palette("tab10")[8],       # Olive
+    'Random': sns.color_palette("tab10")[9]     # Cyan
+}
+
+# Get colors based on algorithm names
+colors = []
+for algorithm in training_stats.keys():
+    clean_name = algorithm.replace('_K=unknown', '').replace('_K=', ' (K=') + ')'
+    if '_K=unknown' in algorithm:
+        clean_name = algorithm.replace('_K=unknown', '')
+    #remove _run suffix if present
+    clean_name = clean_name.replace('_run', '')
+    
+    # Extract base algorithm name for color mapping
+    base_name = clean_name.split(' ')[0]
+    if not base_name in algorithm_colors:
+        raise ValueError(f"Unknown algorithm: {base_name}")
+    colors.append(algorithm_colors.get(base_name, sns.color_palette("tab10")[4]))  # Default to purple if not found
+
 # markers = ['o', 's', 'D', '^', '*', 'v', '<', '>', 'P', 'X']
 markers = ['o','D', '^', '*', 'v', '<', '>', 'P', 'X']
 

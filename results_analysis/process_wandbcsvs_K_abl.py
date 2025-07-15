@@ -216,18 +216,51 @@ plt.rcParams['font.family'] = ['serif']
 # sns.set_style("whitegrid")
 # sns.set_context("paper", font_scale=1.4)
 
-# Create a beautiful color palette
-# colors = sns.color_palette("husl", len(training_stats))
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-#use the bwr color palette
-colors = sns.color_palette("YlOrRd", len(training_stats))
-# colors = sns.color_palette("PuRd", len(training_stats))
+# Create color mapping with seaborn tab10 green for PI-TD3 and variations
+tab10_colors = sns.color_palette("tab10")
+tab10_green = tab10_colors[2]  # Green from seaborn tab10
 
-# colors = ['darkblue',
-#           'green',
-#           'red',
-#           'pink']
-# markers = ['o', 's', 'D', '^', '*', 'v', '<', '>', 'P', 'X']
+# Create color assignments based on algorithm and K value
+algorithm_colors = {}
+for algorithm in training_stats.keys():
+    if 'PI-TD3' in algorithm:
+        # Extract K value for PI-TD3 variants
+        if 'K=' in algorithm:
+            K_val = algorithm.split('K=')[1]
+            try:
+                K_int = int(K_val)
+                # Create green variations based on K value
+                if K_int <= 5:
+                    algorithm_colors[algorithm] = "#C4E7AAED"  # Light green for low K
+                elif K_int <= 10:
+                    algorithm_colors[algorithm] = "#04B97D"  # Lime green for medium-low K
+                elif K_int <= 20:
+                    algorithm_colors[algorithm] = "#878856"  # Tab10 green for medium K
+                else:
+                    algorithm_colors[algorithm] = tab10_green  # Dark green for high K
+            except:
+                algorithm_colors[algorithm] = tab10_green  # Default to tab10 green
+        else:
+            algorithm_colors[algorithm] = tab10_green  # Default to tab10 green
+    else:
+        # For non-PI-TD3 algorithms, use other tab10 colors
+        if 'SAC' in algorithm:
+            algorithm_colors[algorithm] = tab10_colors[1]  # Orange
+        elif 'TD3' in algorithm and 'PI-TD3' not in algorithm:
+            algorithm_colors[algorithm] = tab10_colors[0]  # Blue
+        elif 'PPO' in algorithm:
+            algorithm_colors[algorithm] = tab10_colors[3]  # Red
+        elif 'SHAC' in algorithm:
+            algorithm_colors[algorithm] = tab10_colors[4]  # Purple
+        else:
+            # Fallback to remaining tab10 colors
+            remaining_colors = [tab10_colors[5], tab10_colors[6], tab10_colors[7], tab10_colors[8], tab10_colors[9]]
+            idx = hash(algorithm) % len(remaining_colors)
+            algorithm_colors[algorithm] = remaining_colors[idx]
+
+# Convert to list for plotting
+colors = [algorithm_colors[alg] for alg in training_stats.keys()]
+
 markers = ['o','D', '*','^', 'v', '<', '>', 'P', 'X']
 
 epochs = np.arange(epoch_limit)
@@ -247,7 +280,7 @@ for i, (algorithm, stats) in enumerate(training_stats.items()):
     ax.plot(epochs, stats['mean'], 
             label=f"{clean_name}",
             color=color, marker=marker, markevery=mark_every,
-            linewidth=3, markersize=6, alpha=0.9,
+            linewidth=3, markersize=7, alpha=0.9,
             markerfacecolor='white', markeredgewidth=2)
     
     # Plot confidence interval with subtle transparency
