@@ -128,7 +128,7 @@ def evaluator():
     device = safe_device_check()
 
     ############# Simulation Parameters #################
-    n_test_cycles = 50
+    n_test_cycles = 25
     SAVE_REPLAY_BUFFER = False
     SAVE_EV_PROFILES = False
     SAVE_VOLTAGE_MINIMUM = False
@@ -171,13 +171,13 @@ def evaluator():
         
         
         # 500cs
-        "pi_td3_run_20_K=20_scenario=grid_v2g_profitmax_68441-857910",
-        "sac_run_10_K=1_scenario=grid_v2g_profitmax_53449-699159",
-        "td3_run_10_K=1_scenario=grid_v2g_profitmax_38227-699159",
-        "ppo_run_0_42305_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
+        # "pi_td3_run_20_K=20_scenario=grid_v2g_profitmax_68441-857910",
+        # "sac_run_10_K=1_scenario=grid_v2g_profitmax_53449-699159",
+        # "td3_run_10_K=1_scenario=grid_v2g_profitmax_38227-699159",
+        # "ppo_run_0_42305_Grid_V2G_profitmaxV2_V2G_grid_state_ModelBasedRL",
         
-        ChargeAsFastAsPossible,
-        DoNothing,
+        # ChargeAsFastAsPossible,
+        # DoNothing,
         
         # RandomAgent,
         # V2GProfitMaxOracleGB,
