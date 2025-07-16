@@ -105,16 +105,17 @@ algorithm_colors = {
 
 # Create figure with subplots for each metric
 n_metrics = len(available_metrics)
-fig = plt.figure(figsize=(10, 6))  # Wider for 3 columns, shorter for 2 rows
-gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.25)
+fig = plt.figure(figsize=(7, 7))  # Adjusted for 2 columns, 3 rows
+gs = GridSpec(3, 2, figure=fig, hspace=0.2, wspace=0.3,
+              left=0.1,right=0.97)
 plt.rcParams['font.family'] = ['serif']
 # Define metric labels for better visualization
 metric_labels = {
-    'total_energy_charged': 'Energy Charged [MWh]',
-    'total_energy_discharged': 'Energy Discharged [MWh]',
-    'average_user_satisfaction': 'User Satisfaction [%]',
+    'total_energy_charged': 'Charged [MWh]',
+    'total_energy_discharged': 'Discharged [MWh]',
+    'average_user_satisfaction': 'User\nSatisfaction [%]',
     'total_profits': 'Total Profits [€]',
-    'voltage_violation_counter_per_step': 'Voltage Violations [-]',
+    'voltage_violation_counter_per_step': 'Voltage\nViolations [-]',
     'total_reward': 'Total Reward [-]'
 }
 
@@ -131,16 +132,29 @@ algorithm_order = ['CAFAP', 'No Charging', 'SAC',
 algorithm_order.extend([alg for alg in unique_algorithms if alg not in algorithm_order])
 
 for i, metric in enumerate(available_metrics):
-    row = i // 3  # Changed from 2 to 3 for 3 columns
-    col = i % 3   # Changed from 2 to 3 for 3 columns
+    row = i // 2  # Changed to 2 columns
+    col = i % 2   # Changed to 2 columns
     ax = fig.add_subplot(gs[row, col])
     
     # Create catplot for this metric
     colors = [algorithm_colors.get(alg, 'gray') for alg in algorithm_order]
     
     # Use different plot types based on metric
-    if metric in ['voltage_violation_counter_per_step', 'total_reward', 'total_profits']:
-        # Use boxplot for specific metrics
+    if metric in ['voltage_violation_counter_per_step', 'total_reward']:
+        # Use barplot with error bars for voltage violations and total rewards
+        sns.barplot(data=plot_data, x='Algorithm', y=metric,
+                   order=algorithm_order,
+                   palette=colors,
+                   ax=ax,
+                   alpha=0.7,
+                   errorbar='sd', 
+                   capsize=0.6, 
+                   linewidth=1.5,
+                   edgecolor='gray',
+                   errwidth=1.5)
+        
+    elif metric in ['total_profits']:
+        # Use boxplot for profits
         sns.boxplot(data=plot_data, x='Algorithm', y=metric,
                    order=algorithm_order, palette=colors, ax=ax,
                    showfliers=True, linewidth=1.5, boxprops=dict(alpha=0.7))
@@ -166,32 +180,47 @@ for i, metric in enumerate(available_metrics):
     # Remove x-axis labels and ticks for cleaner look
     ax.set_xlabel('')
     ax.set_xticklabels([])
-    # ax.tick_params(axis='x', which='both', bottom=False, top=False)
+    # Keep x-axis ticks but remove labels - don't disable the ticks themselves
     
     # Format y-axis based on metric type
-    if 'energy' in metric.lower():
+    if 'charge' in metric.lower():
         ax.ticklabel_format(axis='y', style='sci', scilimits=(1, 1))
         if "discharged" in metric.lower():
-            ax.set_ylim(-1, 60)  # Adjust limit for discharged energy
+            ax.set_ylim(-2, 60)  # Adjust limit for discharged energy
         else:
             ax.set_ylim(-2, 100)
+        
+        #plot a subltle grey line at y=0
+        ax.axhline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
         
     elif "reward" in metric.lower():
         ax.ticklabel_format(axis='y', style='sci', scilimits=(6, 6))
     elif 'profit' in metric.lower() or 'reward' in metric.lower():
-        ax.ticklabel_format(axis='y', style='sci', scilimits=(3, 3))
-    elif 'satisfaction' in metric.lower():
+        ax.ticklabel_format(axis='y', style='sci', scilimits=(4, 4))
+        ax.axhline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+    elif 'satisfaction' in metric.lower():        
         ax.set_ylim(40, 102)
+        ax.axhline(100, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+    elif 'voltage' in metric.lower():
+        ax.set_ylim(50, 200)
    
     
     for spine in ax.spines.values():
         spine.set_linewidth(1.2)
         spine.set_color('#666666')
         
+    # Enable minor ticks and configure their appearance
     ax.minorticks_on()
+    # Configure tick appearance for both x and y axes
+    ax.tick_params(axis='both', which='minor', length=3, color='gray', width=0.5)
+    ax.tick_params(axis='both', which='major', length=5, color='black', width=1.0)
+    # Ensure minor ticks are visible on y-axis
+    ax.tick_params(axis='y', which='minor', left=True, right=False)
+    ax.tick_params(axis='y', which='major', left=True, right=False)
         
     # Enhance grid
     ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax.grid(True, which='minor', axis='y', color='lightgrey', alpha=0.5, linestyle='-', linewidth=0.3)
     ax.set_axisbelow(True)
 
 # Create common legend at the top
@@ -206,7 +235,7 @@ for alg in algorithm_order:
 # Add legend at the top of the figure
 fig.legend(handles, labels,
            loc='upper center',
-           bbox_to_anchor=(0.5, 1.1), 
+           bbox_to_anchor=(0.5, 1.05),  # Adjusted for 2 columns
            ncol=4,  # Increased to 5 columns to fit better with wider layout
            fontsize=13,
            frameon=True,
@@ -214,23 +243,23 @@ fig.legend(handles, labels,
            shadow=True)
 
 # Remove empty subplot if odd number of metrics
-if n_metrics % 3 != 0:  # Changed condition for 3 columns
-    for empty_idx in range(n_metrics, 6):  # Fill up to 6 subplots (2x3)
-        empty_row = empty_idx // 3
-        empty_col = empty_idx % 3
-        if empty_row < 2 and empty_col < 3:  # Make sure we're within bounds
+if n_metrics % 2 != 0:  # Changed condition for 2 columns
+    for empty_idx in range(n_metrics, 6):  # Fill up to 6 subplots (3x2)
+        empty_row = empty_idx // 2
+        empty_col = empty_idx % 2
+        if empty_row < 3 and empty_col < 2:  # Make sure we're within bounds
             fig.delaxes(fig.add_subplot(gs[empty_row, empty_col]))
 
 # plt.suptitle('Algorithm Performance Comparison - Large Scale Evaluation', 
 #              fontsize=16, fontweight='bold', y=0.92)
 
 plt.tight_layout()
-plt.subplots_adjust(top=0.90)  # Adjusted for the wider layout with legend
+plt.subplots_adjust(top=0.92)  # Adjusted for the 3x2 layout with legend
 plt.savefig('./results_analysis/pes/algorithm_performance_comparison.png', 
             dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
 plt.savefig('./results_analysis/pes/algorithm_performance_comparison.pdf',
             dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
-plt.show()
+# plt.show()
 
 # Print summary statistics
 print("\nSummary Statistics by Algorithm:")
