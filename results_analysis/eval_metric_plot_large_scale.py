@@ -42,7 +42,7 @@ metric_columns = [
     'total_energy_discharged',
     'average_user_satisfaction',
     'total_profits',
-    'voltage_violation_counter_per_step',
+    'voltage_violation',
     'total_reward',
 ]
 
@@ -86,6 +86,10 @@ if 'total_energy_charged' in plot_data.columns:
 if 'total_energy_discharged' in plot_data.columns:
     plot_data['total_energy_discharged'] /= 1000
 
+#voltage violation
+if 'voltage_violation' in plot_data.columns:
+    plot_data['voltage_violation'] *= -1
+
 print(f'unique algorithms: {plot_data["Algorithm"].unique()}')
 
 # Create algorithm color mapping using seaborn tab10
@@ -115,6 +119,7 @@ metric_labels = {
     'total_energy_discharged': 'Discharged [MWh]',
     'average_user_satisfaction': 'User\nSatisfaction [%]',
     'total_profits': 'Total Profits [€]',
+    'voltage_violation': 'Total Voltage\nViolation [p.u.]',
     'voltage_violation_counter_per_step': 'Voltage\nViolations [-]',
     'total_reward': 'Total Reward [-]'
 }
@@ -140,7 +145,8 @@ for i, metric in enumerate(available_metrics):
     colors = [algorithm_colors.get(alg, 'gray') for alg in algorithm_order]
     
     # Use different plot types based on metric
-    if metric in ['voltage_violation_counter_per_step', 'total_reward']:
+    if metric in ['voltage_violation_counter_per_step']:#, 'total_reward',]:
+                #   'voltage_violation']:
         # Use barplot with error bars for voltage violations and total rewards
         sns.barplot(data=plot_data, x='Algorithm', y=metric,
                    order=algorithm_order,
@@ -153,7 +159,7 @@ for i, metric in enumerate(available_metrics):
                    edgecolor='gray',
                    errwidth=1.5)
         
-    elif metric in ['total_profits']:
+    elif metric in ['voltage_violation','total_reward']:
         # Use boxplot for profits
         sns.boxplot(data=plot_data, x='Algorithm', y=metric,
                    order=algorithm_order, palette=colors, ax=ax,
@@ -197,12 +203,15 @@ for i, metric in enumerate(available_metrics):
         ax.ticklabel_format(axis='y', style='sci', scilimits=(6, 6))
     elif 'profit' in metric.lower() or 'reward' in metric.lower():
         ax.ticklabel_format(axis='y', style='sci', scilimits=(4, 4))
-        ax.axhline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+        ax.axhline(0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)        
+        ax.set_ylim(-25000, 5000)
     elif 'satisfaction' in metric.lower():        
         ax.set_ylim(40, 102)
         ax.axhline(100, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+        
     elif 'voltage' in metric.lower():
-        ax.set_ylim(50, 200)
+        # ax.set_ylim(50, 200)
+        ax.set_ylim(0, 115)
    
     
     for spine in ax.spines.values():
