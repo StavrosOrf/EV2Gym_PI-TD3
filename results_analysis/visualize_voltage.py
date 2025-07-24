@@ -97,7 +97,7 @@ def plot_grid_metrics(results_path,
     # selected_algorithms_index = [0, 1, 2, 3, 4, 5, 6]
     selected_algorithms_index = [ 5,6, 0, 3,1]
     # Plot only node 19
-    node = 23
+    node = 22
 
     algorithm_names_temp = [algorithm_names[i]
                             for i in selected_algorithms_index]
@@ -336,8 +336,8 @@ def plot_grid_metrics(results_path,
     # axins = zoomed_inset_axes(ax, zoom=2.5,
     #                           bbox_to_anchor=(10, -1.15), borderpad=2)
     axins = zoomed_inset_axes(
-        ax, 2,
-        bbox_to_anchor=(0.285, 0.99),  # center top (x=0.5), y near top of figure
+        ax, 2.25,
+        bbox_to_anchor=(0.305, 0.99),  # center top (x=0.5), y near top of figure
         bbox_transform=ax.transAxes,
         loc='upper center',
         borderpad=0.5,
@@ -369,7 +369,7 @@ def plot_grid_metrics(results_path,
 
         # Set inset limits
         axins.set_xlim(x1, x2)
-        axins.set_ylim(0.942, 0.952)
+        axins.set_ylim(0.945, 0.952)
         axins.set_xticklabels([])
         # axins.set_yticklabels([f'{y:.4f}' for y in axins.get_yticks()],
                             #   fontsize=8)
@@ -605,4 +605,4 @@ if __name__ == "__main__":
     plot_grid_metrics(results_path, algorithm_names, save_path)
 
     # Plot EV SoC with the same styling and algorithms
-    plot_comparable_EV_SoC_single(results_path, save_path, algorithm_names)
+    # plot_comparable_EV_SoC_single(results_path, save_path, algorithm_names)
