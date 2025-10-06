@@ -46,7 +46,7 @@ class PI_TD3(object):
         # self.critic_optimizer = torch.optim.Adam(
         #     self.critic.parameters(), lr=3e-4)
         self.critic_optimizer = torch.optim.AdamW(
-            self.actor.parameters(), lr=5e-4, betas=(0.7, 0.95))
+            self.critic.parameters(), lr=5e-4, betas=(0.7, 0.95))
 
         assert look_ahead >= 1, 'Look ahead should be greater than 1'
         self.look_ahead = look_ahead
