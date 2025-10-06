@@ -14,14 +14,16 @@ Physics-Informed TD3 extends the standard TD3 algorithm by incorporating differe
 - **Sample Efficiency**: Reduces the number of environment interactions required for training
 
 ### Method Overview
+<img width="1515" height="668" alt="image" src="https://github.com/user-attachments/assets/282dace0-4621-410f-ac53-f1c48ba8e10c" />
 
-![Fig. 2: The policy network πθ generates actions that, together with the known environment dynamics (e.g., SoC and voltage updates) and sampled exogenous variables (e.g., loads, prices, and EV arrivals), are used to simulate K-step rollouts through the differentiable transition T(s, a) and reward R(s, a) functions. This enables direct gradient propagation from cumulative rewards back through the rollout.](path/to/figure2.png)
+The policy network πθ generates actions that, together with the known environment dynamics (e.g., SoC and voltage updates) and sampled exogenous variables (e.g., loads, prices, and EV arrivals), are used to simulate K-step rollouts through the differentiable transition T(s, a) and reward R(s, a) functions. This enables direct gradient propagation from cumulative rewards back through the rollout.
 
 *Figure 2: Physics-Informed rollout mechanism enabling gradient propagation through differentiable environment dynamics.*
 
 ### Algorithm
 
-![Algorithm 1 Physics-Informed TD3](path/to/algorithm1.png)
+<img width="643" height="785" alt="image" src="https://github.com/user-attachments/assets/4dbef24b-1d76-41ac-895a-3094a5976ef8" />
+
 
 *Algorithm 1: Physics-Informed TD3 training procedure.*
 
@@ -257,24 +259,16 @@ The differentiable reward function captures:
 - **Voltage violations**: Grid stability constraints (0.95-1.05 p.u.)
 - **Power flow**: Grid losses and constraint satisfaction
 
-## Results and Analysis
-
-Analysis scripts in `results_analysis/` provide:
-- `plots_all_avg.py`: Average performance across seeds
-- `metric_table.py`: LaTeX tables for paper results
-- `visualize_voltage.py`: Voltage profile visualization
-- `wandb_query.py`: Download results from WandB
-
 ## Citation
 
 If you use this code in your research, please cite:
 
 ```bibtex
-@article{yourpaper2024,
-  title={Physics-Informed Reinforcement Learning for Electric Vehicle Charging Management},
+@article{yourpaper2025,
+  title={Physics-Informed Reinforcement Learning for Large-Scale EV Smart Charging Considering Distribution Network Voltage Constraints},
   author={Your Name},
   journal={Your Journal},
-  year={2024}
+  year={2025}
 }
 ```
 
