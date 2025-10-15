@@ -264,11 +264,13 @@ The differentiable reward function captures:
 If you use this code in your research, please cite:
 
 ```bibtex
-@article{yourpaper2025,
-  title={Physics-Informed Reinforcement Learning for Large-Scale EV Smart Charging Considering Distribution Network Voltage Constraints},
-  author={Your Name},
-  journal={Your Journal},
-  year={2025}
+@misc{orfanoudakis2025physicsinformed,
+    title={Physics-Informed Reinforcement Learning for Large-Scale EV Smart Charging Considering Distribution Network Voltage Constraints},
+    author={Stavros Orfanoudakis and Frans Oliehoek and Peter Palesnky and Pedro P. Vergara},
+    year={2025},
+    eprint={2510.12335},
+    archivePrefix={arXiv},
+    primaryClass={eess.SY}
 }
 ```
 
