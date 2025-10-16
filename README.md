@@ -1,5 +1,7 @@
 # Physics-Informed Twin Delayed Deep Deterministic Policy Gradient (PI-TD3) for EV Charging Management
 
+The  **preprint** can be found at: [link](https://arxiv.org/abs/2510.12335).
+
 This repository implements **Physics-Informed TD3 (PI-TD3)**, a novel reinforcement learning algorithm that integrates differentiable physics models into the TD3 framework for electric vehicle (EV) charging management in vehicle-to-grid (V2G) systems. The method leverages known environment dynamics to enable gradient propagation through multi-step rollouts, improving sample efficiency and policy performance.
 
 ## Proposed Method
