@@ -266,13 +266,17 @@ The differentiable reward function captures:
 If you use this code in your research, please cite:
 
 ```bibtex
-@misc{orfanoudakis2025physicsinformed,
-    title={Physics-Informed Reinforcement Learning for Large-Scale EV Smart Charging Considering Distribution Network Voltage Constraints},
-    author={Stavros Orfanoudakis and Frans Oliehoek and Peter Palesnky and Pedro P. Vergara},
-    year={2025},
-    eprint={2510.12335},
-    archivePrefix={arXiv},
-    primaryClass={eess.SY}
+@article{ORFANOUDAKIS2026128224,
+title = {Physics-informed reinforcement learning for large-scale EV smart charging considering distribution network voltage constraints},
+journal = {Applied Energy},
+volume = {421},
+pages = {128224},
+year = {2026},
+issn = {0306-2619},
+doi = {https://doi.org/10.1016/j.apenergy.2026.128224},
+url = {https://www.sciencedirect.com/science/article/pii/S0306261926008780},
+author = {Stavros Orfanoudakis and Frans A. Oliehoek and Peter Palensky and Pedro P. Vergara},
+keywords = {Electric vehicles, Distribution networks, Physics-informed, Reinforcement learning, Vehicle-to-grid}
 }
 ```
 
